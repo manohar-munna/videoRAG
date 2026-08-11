@@ -361,7 +361,7 @@ if __name__ == "__main__":
     use_reranker = cfg_ret.get("use_reranker", True)
 
     llm_backend = cfg_llm.get("backend", "mock")
-    llm_model = cfg_llm.get("model", "gemini-2.0-flash-lite")
+    llm_model = cfg_llm.get("model", "gemini-2.5-flash-lite")
     llm_api_key = args.api_key or cfg_llm.get("api_key") or None
     llm_base_url = cfg_llm.get("base_url") or None
 

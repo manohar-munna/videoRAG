@@ -95,7 +95,7 @@ class LLMClient:
     def __init__(
         self,
         backend: str = "mock",
-        model: str = "gemini-2.0-flash-lite",
+        model: str = "gemini-2.5-flash-lite",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> None:
