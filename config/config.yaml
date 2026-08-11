@@ -25,10 +25,12 @@ retrieval:
   rerank_top_k: 5
 
 llm:
-  # Backend to use: 'mock' | 'openai'
-  backend: "mock"
-  # Model name (used when backend is 'openai')
-  model: "gpt-4o"
+  # Backend to use: 'mock' | 'openai' | 'gemini'
+  backend: "gemini"
+  # Gemini model — gemini-2.0-flash-lite is fast and cheap for testing
+  model: "gemini-2.0-flash-lite"
+  # Optional: Gemini API key (falls back to GOOGLE_API_KEY env variable)
+  api_key: null
   # Optional: custom base URL for OpenAI-compatible servers (e.g. Ollama)
   base_url: null
 

@@ -23,6 +23,8 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()  # loads .env from project root automatically
 
 # ---------------------------------------------------------------------------
 # Ensure src/ is importable when run directly

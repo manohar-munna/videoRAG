@@ -3,7 +3,8 @@ prompter.py
 -----------
 Prompt construction and LLM invocation for the CCTV RAG pipeline.
 
-Supports two backends:
+Supports three backends:
+* ``'gemini'`` — uses the ``google-generativeai`` SDK (Gemini models).
 * ``'openai'`` — uses the ``openai`` Python SDK (compatible with Ollama
   and any OpenAI-compatible endpoint via ``base_url``).
 * ``'mock'`` — returns a deterministic, realistic-looking answer for
@@ -94,7 +95,7 @@ class LLMClient:
     def __init__(
         self,
         backend: str = "mock",
-        model: str = "gpt-4o",
+        model: str = "gemini-2.0-flash-lite",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> None:
@@ -104,16 +105,52 @@ class LLMClient:
         self.base_url = base_url
         self._client = None
 
-        if backend == "openai":
+        if backend == "gemini":
+            self._init_gemini()
+        elif backend == "openai":
             self._init_openai()
         elif backend == "mock":
             logger.info("LLMClient initialised in mock mode")
         else:
-            raise ValueError(f"Unknown backend '{backend}'. Choose 'openai' or 'mock'.")
+            raise ValueError(f"Unknown backend '{backend}'. Choose 'gemini', 'openai', or 'mock'.")
 
     # ------------------------------------------------------------------
     # Initialisation helpers
     # ------------------------------------------------------------------
+
+    def _init_gemini(self) -> None:
+        """Initialise the Google Generative AI (Gemini) client."""
+        try:
+            import google.generativeai as genai
+
+            if self.api_key:
+                genai.configure(api_key=self.api_key)
+            else:
+                # Falls back to GOOGLE_API_KEY env variable
+                import os
+                key = os.environ.get("GOOGLE_API_KEY", "")
+                if not key:
+                    raise ValueError(
+                        "Gemini backend requires an API key. Set GOOGLE_API_KEY "
+                        "env variable or pass api_key= to LLMClient."
+                    )
+                genai.configure(api_key=key)
+
+            self._client = genai.GenerativeModel(
+                model_name=self.model,
+                system_instruction=_SYSTEM_PROMPT,
+                generation_config={
+                    "temperature": 0.2,
+                    "max_output_tokens": 1024,
+                    "top_p": 0.95,
+                },
+            )
+            logger.info("Gemini client initialised (model='%s')", self.model)
+        except ImportError as exc:
+            raise ImportError(
+                "The 'google-generativeai' package is required for the Gemini backend. "
+                "Install it with: pip install google-generativeai"
+            ) from exc
 
     def _init_openai(self) -> None:
         """Initialise the OpenAI SDK client."""
@@ -151,6 +188,8 @@ class LLMClient:
         Returns:
             The model's response as a plain string.
         """
+        if self.backend == "gemini":
+            return self._generate_gemini(prompt)
         if self.backend == "openai":
             return self._generate_openai(prompt)
         return self._generate_mock(prompt)
@@ -158,6 +197,14 @@ class LLMClient:
     # ------------------------------------------------------------------
     # Backend implementations
     # ------------------------------------------------------------------
+
+    def _generate_gemini(self, prompt: str) -> str:
+        """Call the Gemini GenerativeAI API."""
+        logger.info("Sending request to Gemini backend (model='%s')", self.model)
+        response = self._client.generate_content(prompt)  # type: ignore[union-attr]
+        answer: str = response.text or ""
+        logger.info("Received Gemini response (%d chars)", len(answer))
+        return answer.strip()
 
     def _generate_openai(self, prompt: str) -> str:
         """Call the OpenAI-compatible chat completions API."""
