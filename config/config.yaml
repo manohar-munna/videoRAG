@@ -1,0 +1,37 @@
+# VideoRAG Configuration
+# ----------------------
+# All paths can be absolute or relative to the project root.
+
+data:
+  # Path to the mock CCTV JSON file
+  mock_path: "data/mock_cctv.json"
+
+indexing:
+  # Sentence-Transformers model for embedding
+  model_name: "all-MiniLM-L6-v2"
+  # Sliding-window chunk size (number of documents per window)
+  chunk_size: 3
+  # Number of overlapping documents between consecutive windows
+  overlap: 1
+  # Base path for saved FAISS index files (extensions added automatically)
+  index_save_path: "index/cctv_index"
+
+retrieval:
+  # Number of results to retrieve before reranking
+  top_k: 10
+  # Whether to apply cross-encoder reranking after vector retrieval
+  use_reranker: true
+  # Number of results to keep after reranking
+  rerank_top_k: 5
+
+llm:
+  # Backend to use: 'mock' | 'openai'
+  backend: "mock"
+  # Model name (used when backend is 'openai')
+  model: "gpt-4o"
+  # Optional: custom base URL for OpenAI-compatible servers (e.g. Ollama)
+  base_url: null
+
+evaluation:
+  # Set to false to skip evaluation output during query runs
+  enabled: true
