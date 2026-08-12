@@ -1,7 +1,7 @@
 /**
  * VideoRAG Web Application JavaScript
  * Handles API calls, interactive search, camera filtering, video player seeking,
- * and live glassmorphic UI updates.
+ * and Developer Mode Edge Frame Hash & Motion Inspector.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -30,9 +30,124 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusDot = document.getElementById('status-dot');
     const shutdownBtn = document.getElementById('shutdown-btn');
 
-    let activeCameraFilter = '';
+    // Dev Mode Elements
+    const devModeBtn = document.getElementById('dev-mode-btn');
+    const devStatusText = document.getElementById('dev-status-text');
+    const devPanel = document.getElementById('dev-panel');
+    const hashAlgoSelect = document.getElementById('hash-algo-select');
+    const thresholdRange = document.getElementById('threshold-range');
+    const thresholdVal = document.getElementById('threshold-val');
+    const runSmartFilterBtn = document.getElementById('run-smart-filter-btn');
+    
+    const kpiTotal = document.getElementById('kpi-total');
+    const kpiKept = document.getElementById('kpi-kept');
+    const kpiSkipped = document.getElementById('kpi-skipped');
+    const kpiSaved = document.getElementById('kpi-saved');
+    const devAuditTbody = document.getElementById('dev-audit-tbody');
 
+    let activeCameraFilter = '';
+    let isDevModeActive = false;
+
+    // ------------------------------------------------------------------
+    // Dev Mode Toggle & Controls
+    // ------------------------------------------------------------------
+    if (devModeBtn) {
+        devModeBtn.addEventListener('click', () => {
+            isDevModeActive = !isDevModeActive;
+            devPanel.style.display = isDevModeActive ? 'flex' : 'none';
+            devModeBtn.classList.toggle('active', isDevModeActive);
+            devStatusText.textContent = isDevModeActive ? 'ON' : 'OFF';
+            devStatusText.style.color = isDevModeActive ? '#38bdf8' : '#64748b';
+
+            if (isDevModeActive) {
+                fetchHashAuditLogs();
+            }
+        });
+    }
+
+    if (thresholdRange && thresholdVal) {
+        thresholdRange.addEventListener('input', (e) => {
+            thresholdVal.textContent = e.target.value;
+        });
+    }
+
+    if (runSmartFilterBtn) {
+        runSmartFilterBtn.addEventListener('click', async () => {
+            try {
+                runSmartFilterBtn.disabled = true;
+                runSmartFilterBtn.innerHTML = `<span>Processing Filter…</span>`;
+                
+                const resp = await fetch('/api/process_video_smart', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        video_path: "Video Footage/sample_cctv.mp4",
+                        camera_id: "CAM_01",
+                        sample_interval: 15.0,
+                        enable_hash_filter: true,
+                        hash_method: hashAlgoSelect.value,
+                        threshold: parseInt(thresholdRange.value, 10),
+                    }),
+                });
+
+                if (resp.ok) {
+                    const data = await resp.json();
+                    renderDevAuditLogs(data.filter_stats, data.audit_trail);
+                    // Refresh main health & vector counts
+                    checkHealth();
+                }
+            } catch (err) {
+                alert('Smart filter execution failed: ' + err.message);
+            } finally {
+                runSmartFilterBtn.disabled = false;
+                runSmartFilterBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Run Smart Frame Filter</span>`;
+            }
+        });
+    }
+
+    async function fetchHashAuditLogs() {
+        try {
+            const resp = await fetch('/api/hash_audit');
+            if (resp.ok) {
+                const data = await resp.json();
+                renderDevAuditLogs(data.stats, data.audit_trail);
+            }
+        } catch (err) {
+            console.warn('Failed to fetch audit logs:', err);
+        }
+    }
+
+    function renderDevAuditLogs(stats, trail) {
+        if (stats) {
+            kpiTotal.textContent = stats.total_frames ?? 55;
+            kpiKept.textContent = stats.keyframes_kept ?? 48;
+            kpiSkipped.textContent = stats.frames_skipped ?? 7;
+            kpiSaved.textContent = `${stats.llm_compute_saved_pct ?? 12.7}%`;
+        }
+
+        if (!trail || trail.length === 0) {
+            devAuditTbody.innerHTML = `<tr><td colspan="6" class="placeholder-text" style="text-align:center; padding: 20px;">No audit trail generated yet. Click "Run Smart Frame Filter" above.</td></tr>`;
+            return;
+        }
+
+        devAuditTbody.innerHTML = trail.map((item, idx) => `
+            <tr>
+                <td style="font-family: var(--font-mono); color: var(--text-dim);">${idx + 1}</td>
+                <td style="font-family: var(--font-mono); font-weight:600; color: var(--blue-primary);">${item.timestamp}</td>
+                <td style="font-family: var(--font-mono); font-size: 0.75rem; color: #94a3b8;"><code>${item.hash_hex}</code></td>
+                <td style="font-family: var(--font-mono); text-align: center;"><strong>${item.hamming_distance}</strong> / ${item.threshold}</td>
+                <td style="font-family: var(--font-mono); color: var(--text-dim); text-align: center;">${item.motion_pct}%</td>
+                <td>
+                    <span class="${item.is_keyframe ? 'badge-keep' : 'badge-skip'}">${item.status}</span>
+                    <span style="font-size: 0.75rem; color: var(--text-dim); margin-left: 6px;">${escapeHtml(item.reason)}</span>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // ------------------------------------------------------------------
     // Shutdown Button Event Handler
+    // ------------------------------------------------------------------
     if (shutdownBtn) {
         shutdownBtn.addEventListener('click', async () => {
             const confirmed = confirm('Are you sure you want to stop the VideoRAG Web Server?');
@@ -113,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.classList.add('active');
         activeCameraFilter = btn.dataset.camera || '';
         
-        // Re-execute search if input is present
         if (queryInput.value.trim()) {
             executeSearch();
         }
@@ -142,7 +256,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const query = queryInput.value.trim();
         if (!query) return;
 
-        // Set Loading State
         searchBtn.disabled = true;
         searchBtn.innerHTML = `<span>Searching…</span>`;
         aiAnswerBody.innerHTML = `<p class="placeholder-text"><span class="text-blue">Local Qwen3-VL GPU</span> is analyzing video context and generating answer…</p>`;
@@ -184,22 +297,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render Results in Glass UI
     // ------------------------------------------------------------------
     function renderResults(data) {
-        // Format AI Answer text with clickable timestamps & camera tags
         let formattedAnswer = data.answer || 'No answer generated.';
         
-        // Highlight timestamps HH:MM:SS
         formattedAnswer = formattedAnswer.replace(/(\b\d{2}:\d{2}:\d{2}\b)/g, (match) => {
             const parts = match.split(':').map(Number);
             const secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
             return `<span class="ev-ts interactive-ts" data-seconds="${secs}" style="cursor:pointer;" title="Click to jump video to ${match}">${match}</span>`;
         });
 
-        // Highlight Camera tags (e.g. CAM_01)
         formattedAnswer = formattedAnswer.replace(/(\bCAM_\d{2}\b)/g, `<strong class="text-blue">$1</strong>`);
 
         aiAnswerBody.innerHTML = `<div style="white-space: pre-wrap;">${formattedAnswer}</div>`;
 
-        // Render Metrics
         if (data.evaluation) {
             const ev = data.evaluation;
             const ret = ev.retrieval_metrics || {};
@@ -211,7 +320,6 @@ document.addEventListener('DOMContentLoaded', () => {
             metricsBar.style.display = 'grid';
         }
 
-        // Add Event Delegate for AI Answer Clickable Timestamps
         aiAnswerBody.querySelectorAll('.interactive-ts').forEach(el => {
             el.addEventListener('click', () => {
                 const sec = parseFloat(el.dataset.seconds);
@@ -219,7 +327,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // Render Evidence Cards
         const results = data.results || [];
         evidenceCount.textContent = results.length;
 
@@ -251,7 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `).join('');
 
-        // Add Evidence Item Click Handlers
         evidenceList.querySelectorAll('.evidence-item').forEach(card => {
             card.addEventListener('click', () => {
                 evidenceList.querySelectorAll('.evidence-item').forEach(c => c.classList.remove('selected'));

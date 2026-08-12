@@ -1,18 +1,18 @@
 """
 scripts/process_video.py
 ------------------------
-Video processing script for the VideoRAG pipeline.
+Video processing script for the VideoRAG pipeline with optional dHash/pHash Edge Filtering.
 
 Steps
 -----
-1. Extract sampled frame images from a CCTV video file using ``VideoFrameExtractor``.
+1. Extract sampled frame images using ``VideoFrameExtractor`` and optional ``EdgeFrameFilter``.
 2. Generate timestamped surveillance descriptions using ``VLMCaptioner``.
 3. Save the resulting event dataset to JSON (e.g. ``data/real_cctv_events.json``).
 4. Run ``scripts/index.py`` to update/build the FAISS vector index.
 
 Usage
 -----
-    python scripts/process_video.py --video "Video Footage/sample_cctv.mp4" --camera-id CAM_01 --interval 15
+    python scripts/process_video.py --video "Video Footage/sample_cctv.mp4" --camera-id CAM_01 --interval 15 --enable-hash-filter --hash-method dhash --threshold 10
 """
 
 import argparse
@@ -40,6 +40,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from videorag.ingestion.video_processor import VideoFrameExtractor
+from videorag.ingestion.hash_filter import EdgeFrameFilter
 from videorag.captioning.vlm_captioner import VLMCaptioner
 from scripts.index import run_indexing
 
@@ -57,30 +58,47 @@ def process_video_pipeline(
     output_json: str = "data/real_cctv_events.json",
     vlm_backend: str = "local",
     config_path: str = "config/config.yaml",
+    enable_hash_filter: bool = False,
+    hash_method: str = "dhash",
+    hash_threshold: int = 10,
 ) -> None:
 
     console.print(Panel(
         f"[bold cyan]VideoRAG — Video Processing & Captioning Pipeline[/bold cyan]\n"
-        f"[dim]Video : {video_path}\n"
-        f"Camera: {camera_id}\n"
-        f"Sample: Every {sample_interval}s\n"
-        f"Output: {output_json}\n"
-        f"Backend: {vlm_backend}[/dim]",
+        f"[dim]Video       : {video_path}\n"
+        f"Camera      : {camera_id}\n"
+        f"Sample      : Every {sample_interval}s\n"
+        f"Smart Filter: {'ENABLED (' + hash_method.upper() + ', thresh=' + str(hash_threshold) + ')' if enable_hash_filter else 'DISABLED'}\n"
+        f"Output      : {output_json}\n"
+        f"Backend     : {vlm_backend}[/dim]",
         expand=False,
     ))
 
-    # 1. Extract frames
+    # 1. Extract frames with optional EdgeFrameFilter
     console.print("\n[bold cyan]Step 1/3: Extracting video frames…[/bold cyan]")
     extractor = VideoFrameExtractor(output_dir=str(_PROJECT_ROOT / "data" / "extracted_frames"))
-    extracted_frames = extractor.extract_frames(
+    
+    hash_filter = EdgeFrameFilter(method=hash_method, threshold=hash_threshold) if enable_hash_filter else None
+    result = extractor.extract_frames(
         video_path=video_path,
         camera_id=camera_id,
         sample_interval=sample_interval,
+        hash_filter=hash_filter,
     )
-    console.print(f"  [OK] Extracted [green]{len(extracted_frames)}[/green] frames.")
+
+    extracted_frames = result["extracted_frames"]
+    filter_stats = result["filter_stats"]
+
+    console.print(f"  [OK] Sampled [yellow]{result['total_sampled']}[/yellow] frames -> Kept [green]{len(extracted_frames)}[/green] keyframes, Skipped [red]{result['skipped_count']}[/red] static frames.")
+    if enable_hash_filter:
+        console.print(f"  [bold green]⚡ Saved {filter_stats.get('llm_compute_saved_pct', 0.0)}% of LLM compute using {hash_method.upper()} Hamming Distance thresholding![/bold green]")
+
+    if not extracted_frames:
+        console.print("[yellow]No keyframes passed the dHash filter threshold. Nothing to caption.[/yellow]")
+        return
 
     # 2. VLM Captioning
-    console.print("\n[bold cyan]Step 2/3: Captioning frames with VLM…[/bold cyan]")
+    console.print("\n[bold cyan]Step 2/3: Captioning keyframes with local VLM…[/bold cyan]")
     captioner = VLMCaptioner(backend=vlm_backend)
     records = captioner.caption_batch(extracted_frames, show_progress=True)
 
@@ -118,7 +136,8 @@ def process_video_pipeline(
     console.print(Panel(
         f"[bold green]Video processing and indexing complete![/bold green]\n"
         f"[dim]Total events indexed: {len(records)}\n"
-        f"You can now run queries against this footage using scripts/query.py[/dim]",
+        f"LLM Compute Saved: {filter_stats.get('llm_compute_saved_pct', 0.0)}%\n"
+        f"You can now run queries against this footage using scripts/query.py or Web UI[/dim]",
         expand=False,
         border_style="green",
     ))
@@ -126,7 +145,7 @@ def process_video_pipeline(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Process CCTV video footage, caption frames, and index events into FAISS."
+        description="Process CCTV video footage, caption frames, and index events into FAISS with optional dHash filtering."
     )
     parser.add_argument(
         "--video",
@@ -159,6 +178,23 @@ def _parse_args() -> argparse.Namespace:
         default=str(_PROJECT_ROOT / "config" / "config.yaml"),
         help="Path to config YAML",
     )
+    parser.add_argument(
+        "--enable-hash-filter",
+        action="store_true",
+        help="Enable dHash/pHash frame filtering to skip duplicate/static frames",
+    )
+    parser.add_argument(
+        "--hash-method",
+        default="dhash",
+        choices=["dhash", "phash", "ahash"],
+        help="Hash algorithm method (default: dhash)",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=int,
+        default=10,
+        help="Hamming distance threshold (default: 10)",
+    )
     return parser.parse_args()
 
 
@@ -171,4 +207,7 @@ if __name__ == "__main__":
         output_json=args.output,
         vlm_backend=args.backend,
         config_path=args.config,
+        enable_hash_filter=args.enable_hash_filter,
+        hash_method=args.hash_method,
+        hash_threshold=args.threshold,
     )

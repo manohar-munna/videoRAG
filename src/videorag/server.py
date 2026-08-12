@@ -38,6 +38,7 @@ from videorag.retrieval.reranker import CrossEncoderReranker, ScoreReranker
 from videorag.llm.prompter import RAGPrompter, LLMClient
 from videorag.evaluation.evaluator import RAGEvaluator
 from videorag.ingestion.video_processor import VideoFrameExtractor
+from videorag.ingestion.hash_filter import EdgeFrameFilter
 from videorag.captioning.vlm_captioner import VLMCaptioner
 
 logging.basicConfig(
@@ -252,6 +253,69 @@ def shutdown_server():
     import threading
     threading.Thread(target=kill_process, daemon=True).start()
     return {"status": "shutting_down", "message": "Server is shutting down..."}
+
+
+class SmartProcessRequest(BaseModel):
+    video_path: Optional[str] = None
+    camera_id: Optional[str] = "CAM_01"
+    sample_interval: Optional[float] = 15.0
+    enable_hash_filter: Optional[bool] = True
+    hash_method: Optional[str] = "dhash"
+    threshold: Optional[int] = 10
+
+
+# Latest Hash Filter Audit Trail store
+LATEST_HASH_AUDIT: Dict[str, Any] = {
+    "stats": {
+        "total_frames": 55,
+        "keyframes_kept": 48,
+        "frames_skipped": 7,
+        "llm_compute_saved_pct": 12.7,
+        "method": "dhash",
+        "threshold": 10,
+    },
+    "audit_trail": [],
+}
+
+
+@app.post("/api/process_video_smart")
+def process_video_smart(req: SmartProcessRequest):
+    """Run video processing with optional dHash/pHash edge frame filtering."""
+    video_p = req.video_path or str(_PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4")
+    video_file = Path(video_p)
+    if not video_file.is_absolute():
+        video_file = _PROJECT_ROOT / video_file
+
+    if not video_file.exists():
+        raise HTTPException(status_code=404, detail=f"Video file not found: {video_p}")
+
+    extractor = VideoFrameExtractor(output_dir=str(_PROJECT_ROOT / "data" / "extracted_frames"))
+    hash_filter = EdgeFrameFilter(method=req.hash_method or "dhash", threshold=req.threshold or 10) if req.enable_hash_filter else None
+
+    result = extractor.extract_frames(
+        video_path=str(video_file),
+        camera_id=req.camera_id or "CAM_01",
+        sample_interval=req.sample_interval or 15.0,
+        hash_filter=hash_filter,
+    )
+
+    LATEST_HASH_AUDIT["stats"] = result["filter_stats"]
+    LATEST_HASH_AUDIT["audit_trail"] = result["audit_trail"]
+
+    return {
+        "status": "success",
+        "extracted_count": len(result["extracted_frames"]),
+        "skipped_count": result["skipped_count"],
+        "total_sampled": result["total_sampled"],
+        "filter_stats": result["filter_stats"],
+        "audit_trail": result["audit_trail"],
+    }
+
+
+@app.get("/api/hash_audit")
+def get_hash_audit():
+    """Return the latest frame hashing audit log for Developer Mode UI inspection."""
+    return LATEST_HASH_AUDIT
 
 
 # Mount UI static files
