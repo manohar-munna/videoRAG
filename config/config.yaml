@@ -25,14 +25,14 @@ retrieval:
   rerank_top_k: 5
 
 llm:
-  # Backend to use: 'mock' | 'openai' | 'gemini'
-  backend: "gemini"
-  # Gemini model — gemini-2.5-flash-lite is fast and cheap for testing
-  model: "gemini-2.5-flash-lite"
-  # Optional: Gemini API key (falls back to GOOGLE_API_KEY env variable)
-  api_key: null
-  # Optional: custom base URL for OpenAI-compatible servers (e.g. Ollama)
-  base_url: null
+  # Backend to use: 'local' | 'gemini' | 'openai' | 'mock'
+  backend: "local"
+  # Model name or GGUF path
+  model: "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+  # Base URL for local llama-server / OpenAI-compatible endpoint
+  base_url: "http://127.0.0.1:8080/v1"
+  # Optional: API key
+  api_key: "local"
 
 evaluation:
   # Set to false to skip evaluation output during query runs

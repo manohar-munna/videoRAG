@@ -107,12 +107,12 @@ class LLMClient:
 
         if backend == "gemini":
             self._init_gemini()
-        elif backend == "openai":
+        elif backend in ("openai", "local"):
             self._init_openai()
         elif backend == "mock":
             logger.info("LLMClient initialised in mock mode")
         else:
-            raise ValueError(f"Unknown backend '{backend}'. Choose 'gemini', 'openai', or 'mock'.")
+            raise ValueError(f"Unknown backend '{backend}'. Choose 'local', 'gemini', 'openai', or 'mock'.")
 
     # ------------------------------------------------------------------
     # Initialisation helpers
@@ -153,25 +153,76 @@ class LLMClient:
             ) from exc
 
     def _init_openai(self) -> None:
-        """Initialise the OpenAI SDK client."""
+        """Initialise the OpenAI/Local SDK client."""
         try:
             import openai  # noqa: F401 – imported for side-effects
+            import urllib.request
+            import subprocess
+            import time
+            from pathlib import Path
 
             kwargs: dict = {}
-            if self.api_key:
-                kwargs["api_key"] = self.api_key
-            if self.base_url:
-                kwargs["base_url"] = self.base_url
+
+            if self.backend == "local":
+                base_url = self.base_url or "http://127.0.0.1:8080/v1"
+                api_key = self.api_key or "local"
+                kwargs["base_url"] = base_url
+                kwargs["api_key"] = api_key
+
+                # Check if server is running
+                server_url = base_url.rstrip("/") + "/models"
+                server_running = False
+                try:
+                    with urllib.request.urlopen(server_url, timeout=2) as resp:
+                        if resp.status == 200:
+                            server_running = True
+                except Exception:
+                    server_running = False
+
+                if not server_running:
+                    logger.info("Local server at %s not detected. Attempting to start llama-server...", base_url)
+                    project_root = Path(__file__).resolve().parent.parent.parent.parent
+                    llama_server = project_root / "tools" / "llama" / "llama-server.exe"
+                    model_file = project_root / "Local LLM 3VL 4Q" / "Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+
+                    if llama_server.exists() and model_file.exists():
+                        cmd = [
+                            str(llama_server),
+                            "-m", str(model_file),
+                            "-ngl", "99",
+                            "--port", "8080",
+                            "--host", "127.0.0.1",
+                        ]
+                        logger.info("Launching: %s", " ".join(cmd))
+                        subprocess.Popen(cmd, cwd=str(project_root))
+                        
+                        # Wait for server to come up
+                        for _ in range(30):
+                            time.sleep(1)
+                            try:
+                                with urllib.request.urlopen(server_url, timeout=2) as resp:
+                                    if resp.status == 200:
+                                        server_running = True
+                                        logger.info("Local llama-server started successfully.")
+                                        break
+                            except Exception:
+                                pass
+            else:
+                if self.api_key:
+                    kwargs["api_key"] = self.api_key
+                if self.base_url:
+                    kwargs["base_url"] = self.base_url
 
             self._client = openai.OpenAI(**kwargs)
             logger.info(
-                "OpenAI client initialised (model='%s', base_url=%s)",
+                "OpenAI/Local client initialised (backend='%s', model='%s', base_url=%s)",
+                self.backend,
                 self.model,
-                self.base_url or "<default>",
+                kwargs.get("base_url", self.base_url or "<default>"),
             )
         except ImportError as exc:
             raise ImportError(
-                "The 'openai' package is required for the OpenAI backend. "
+                "The 'openai' package is required for OpenAI/Local backend. "
                 "Install it with: pip install openai"
             ) from exc
 
@@ -190,7 +241,7 @@ class LLMClient:
         """
         if self.backend == "gemini":
             return self._generate_gemini(prompt)
-        if self.backend == "openai":
+        if self.backend in ("openai", "local"):
             return self._generate_openai(prompt)
         return self._generate_mock(prompt)
 

@@ -38,7 +38,7 @@ VideoRAG indexes, understands, and retrieves — giving analysts time back for w
 | 🛡️ **Defence-Grade** | Designed for high-security environments with strict data handling requirements |
 | ⚡ **Real-Time & Archival** | Works on live feeds and historical footage archives |
 | 🔄 **Reranking** | CrossEncoder reranking for precision on top of vector retrieval |
-| 🔒 **Air-Gap Friendly** | Swappable LLM backends — Gemini API for dev, local Qwen-VL for production |
+| 🔒 **Air-Gap Friendly** | Native Local LLM support using **Qwen3-VL 4B GGUF** on local GPU |
 
 ---
 
@@ -49,7 +49,7 @@ CCTV Feeds / Archive
         |
    [Frame Extraction]   FFmpeg — sample every N seconds
         |
-   [VLM Captioning]     Qwen3-VL (local) / Gemini Vision (cloud)
+   [VLM Captioning]     Qwen3-VL (local GGUF) / Gemini Vision (cloud)
         |                  -> { camera, timestamp, description }
         |
    [Chunking]           Sliding window over temporal event sequences
@@ -64,7 +64,7 @@ CCTV Feeds / Archive
         |
    [Reranking]          CrossEncoder (ms-marco-MiniLM-L-6-v2)
         |
-   [LLM Answer]         Gemini / OpenAI / Ollama / Local
+   [LLM Answer]         Local Qwen3-VL (GGUF) / Gemini / OpenAI / Mock
         |
    [Evaluation]         Precision@K, MRR, NDCG, context utilization
         |
@@ -79,6 +79,10 @@ CCTV Feeds / Archive
 videorag/
 ├── data/
 │   └── mock_cctv.json          # 160 synthetic CCTV events (8 cameras, 24h)
+├── Local LLM 3VL 4Q/
+│   └── Qwen3VL-4B-Instruct-Q4_K_M.gguf  # Quantized local GGUF model
+├── tools/
+│   └── llama/                  # Embedded CUDA llama-server binary
 ├── src/videorag/
 │   ├── ingestion/
 │   │   └── loader.py           # JSON loader -> document format
@@ -90,7 +94,7 @@ videorag/
 │   │   ├── retriever.py        # Semantic retrieval with camera filter
 │   │   └── reranker.py         # CrossEncoder + ScoreReranker
 │   ├── llm/
-│   │   └── prompter.py         # Prompt builder + Gemini/OpenAI/Mock LLM
+│   │   └── prompter.py         # Prompt builder + Local Qwen3-VL/Gemini/OpenAI
 │   └── evaluation/
 │       └── evaluator.py        # Precision@K, MRR, NDCG, answer quality
 ├── scripts/
@@ -110,7 +114,7 @@ videorag/
 ### Prerequisites
 
 - Python 3.10+
-- CUDA GPU recommended (for local VLM — Qwen3-VL)
+- NVIDIA GPU (tested on RTX 4050 6GB VRAM)
 
 ### Installation
 
@@ -120,24 +124,15 @@ cd videoRAG
 pip install -r requirements.txt
 ```
 
-### Configure API Keys
-
-```bash
-cp .env.example .env
-# Edit .env and add your keys
-```
-
-```env
-GOOGLE_API_KEY=your-gemini-api-key-here
-```
-
 ### Build the Index
 
 ```bash
 python scripts/index.py --config config/config.yaml --data data/mock_cctv.json
 ```
 
-### Query the Index
+### Query using Local LLM (Qwen3-VL GGUF)
+
+No API key required! VideoRAG uses the local model at `Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf` via `tools/llama/llama-server.exe`.
 
 ```bash
 # Interactive mode
@@ -150,20 +145,20 @@ python scripts/query.py --query "Was there any suspicious activity near the fenc
 ### Run Debug Test Suite
 
 ```bash
-# Full 5-query test suite with pipeline trace
+# Full test suite with step-by-step pipeline trace
 python scripts/test_rag.py
 
-# Single query with full step-by-step breakdown
+# Single query debug
 python scripts/test_rag.py --query "When did the altercation happen?"
 ```
 
 ---
 
-## Live Test Example
+## Live Local Test Example
 
 **Query:** `"Was there any suspicious activity near the fence at night?"`
 
-**Pipeline:** `MiniLM-L6-v2 embeddings` → `FAISS retrieval` → `CrossEncoder reranking` → `Gemini 2.0 Flash`
+**Pipeline:** `MiniLM-L6-v2 embeddings` → `FAISS retrieval` → `CrossEncoder reranking` → `Local Qwen3-VL 4B Instruct (GGUF)`
 
 ### Step 1 — FAISS Vector Retrieval (Top 10, cosine similarity)
 
@@ -205,13 +200,14 @@ Each retrieved result maps back to an exact JSON record:
 | 4 | CAM_03 | 02:15:50 | 0.5598 | -3.8185 |
 | 5 | CAM_03 | 17:28:43 | 0.5377 | -3.9911 |
 
-### Step 4 — Gemini Answer
+### Step 4 — Local Qwen3-VL Answer (GGUF GPU Inference)
 
-> **Yes, there were two instances of suspicious activity near the north fence at night.**
+> **Yes, there was suspicious activity near the fence at night:**
 >
-> At **22:05:44**, a lone male figure was observed approaching the fence from outside, crouching low and inspecting the base of the fence for nearly 4 minutes before walking away briskly when a vehicle passed (**CAM_03**).
+> - At **22:05:44 (CAM_03)**, a lone male figure approached the fence, crouched to inspect its base, and remained for nearly 4 minutes — a high-priority alert was triggered.
+> - At **02:15:50 (CAM_03)**, two individuals were observed crouching near panel 7, one testing fence tension by pulling on it — this was logged as an attempted perimeter breach.
 >
-> Later, at **02:15:50**, two individuals were detected crouching near fence panel 7, with one subject testing the fence tension. They fled eastward on foot before security guards arrived (**CAM_03**).
+> These events occurred during nighttime hours and involved deliberate, suspicious behavior.
 
 ### Step 5 — Evaluation
 
@@ -232,40 +228,35 @@ Each retrieved result maps back to an exact JSON record:
 
 ## LLM Backends
 
-| Backend | Config | Use Case |
+| Backend | Description | Configuration |
 |---|---|---|
-| `gemini` | `GOOGLE_API_KEY` in `.env` | Cloud — development & testing |
-| `openai` | `OPENAI_API_KEY` in `.env` | Cloud — OpenAI or Ollama-compatible |
-| `mock` | No key needed | Offline testing |
+| `local` | **Local Qwen3-VL 4B GGUF** (CUDA accelerated via llama-server) | `backend: "local"` in `config.yaml` |
+| `gemini` | Google Gemini API | `backend: "gemini"`, `GOOGLE_API_KEY` in `.env` |
+| `openai` | OpenAI API / Custom endpoint | `backend: "openai"`, `OPENAI_API_KEY` in `.env` |
+| `mock` | Offline testing mode | `backend: "mock"` |
 
 Switch backend in `config/config.yaml`:
 
 ```yaml
 llm:
-  backend: "gemini"          # gemini | openai | mock
-  model: "gemini-2.0-flash-lite"
-```
-
-For local Ollama (air-gapped deployment):
-```yaml
-llm:
-  backend: "openai"
-  model: "qwen3-vl:4b"
-  base_url: "http://localhost:11434/v1"
+  backend: "local"
+  model: "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+  base_url: "http://127.0.0.1:8080/v1"
 ```
 
 ---
 
 ## Roadmap
 
-- [x] Mock CCTV data generation (160 events, 8 cameras, 24h)
+- [x] Synthetic CCTV data generation (160 events, 8 cameras, 24h)
 - [x] FAISS vector indexing with timestamp metadata
 - [x] Semantic retrieval with camera filter
 - [x] CrossEncoder reranking
+- [x] **Local LLM integration (Qwen3-VL-4B GGUF on CUDA)**
 - [x] Gemini / OpenAI / Mock LLM backends
 - [x] RAG evaluation (Precision@K, MRR, NDCG)
 - [x] Full pipeline debug/test script
-- [ ] VLM captioning pipeline (Qwen3-VL-4B local)
+- [ ] VLM image frame captioning pipeline
 - [ ] Video frame extraction (FFmpeg)
 - [ ] Multi-camera cross-search and event correlation
 - [ ] Desktop UI with integrated video player

@@ -33,5 +33,10 @@ index/
 .DS_Store
 Thumbs.db
 
+# Local GGUF models & binaries
+*.gguf
+Local LLM 3VL 4Q/
+tools/
+
 # Logs
 *.log
