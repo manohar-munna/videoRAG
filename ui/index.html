@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VideoRAG — CCTV Intelligence Platform</title>
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+    <!-- Background Ambient Glows -->
+    <div class="glow-bg glow-1"></div>
+    <div class="glow-bg glow-2"></div>
+
+    <div class="app-container">
+        <!-- Top Glass Header -->
+        <header class="glass-header">
+            <div class="brand">
+                <div class="logo-badge">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 7l-7 5 7 5V7z"></path>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                    </svg>
+                </div>
+                <div>
+                    <h1>VideoRAG <span class="badge-defence">DEFENCE</span></h1>
+                    <p class="subtitle">Semantic CCTV Video Retrieval & AI Analysis Engine</p>
+                </div>
+            </div>
+
+            <div class="header-stats">
+                <div class="stat-pill">
+                    <span class="stat-label">VLM / LLM Model</span>
+                    <span class="stat-value text-blue" id="stat-model">Local Qwen3-VL</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-label">Vector Store</span>
+                    <span class="stat-value" id="stat-vectors">55 Vectors</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-label">System Status</span>
+                    <span class="status-indicator online"></span>
+                    <span class="stat-value text-green" id="stat-status">ONLINE (GPU)</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Search Bar Section -->
+        <section class="search-section glass-card">
+            <div class="search-box">
+                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="query-input" placeholder="Ask anything about your CCTV video footage… (e.g., 'What vehicles or trucks are visible and at what timestamp?')" autocomplete="off">
+                <button id="search-btn" class="btn-primary">
+                    <span>Search Video</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Preset Quick Queries & Camera Filter -->
+            <div class="search-controls">
+                <div class="camera-filters" id="camera-filters">
+                    <span class="filter-label">Camera:</span>
+                    <button class="filter-pill active" data-camera="">All Feeds</button>
+                    <button class="filter-pill" data-camera="CAM_01">CAM_01 (North)</button>
+                    <button class="filter-pill" data-camera="CAM_02">CAM_02 (Parking)</button>
+                    <button class="filter-pill" data-camera="CAM_03">CAM_03 (Perimeter)</button>
+                </div>
+
+                <div class="quick-queries">
+                    <span class="filter-label">Quick Search:</span>
+                    <button class="query-chip" data-query="What vehicles or trucks are visible in the CCTV video and at what timestamp?">Vehicles & Trucks</button>
+                    <button class="query-chip" data-query="Was there any yellow caution tape or restricted area activity?">Caution Tape & Restraints</button>
+                    <button class="query-chip" data-query="Show me all individuals walking or standing in the footage">Pedestrians & Personnel</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Workspace Grid -->
+        <main class="workspace-grid">
+            <!-- Left Panel: CCTV Video Player -->
+            <div class="video-panel glass-card">
+                <div class="panel-header">
+                    <h2>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                            <line x1="7" y1="2" x2="7" y2="22"></line>
+                            <line x1="17" y1="2" x2="17" y2="22"></line>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                        </svg>
+                        Surveillance Video Feed — <span id="current-feed-name" class="text-blue">CAM_01 (sample_cctv.mp4)</span>
+                    </h2>
+                    <span class="timestamp-display" id="video-timer">00:00:00</span>
+                </div>
+
+                <div class="video-wrapper">
+                    <video id="cctv-player" controls preload="auto">
+                        <source src="/video/sample_cctv.mp4" type="video/mp4">
+                        Your browser does not support HTML5 video streaming.
+                    </video>
+                    <div class="video-overlay-badge" id="seek-notice">Ready — Click any timestamp result to seek</div>
+                </div>
+
+                <!-- Video Controls Bar -->
+                <div class="player-subbar">
+                    <span class="info-tag">Source: <code>sample_cctv.mp4</code></span>
+                    <span class="info-tag">FPS: <code>30.0</code></span>
+                    <span class="info-tag">Duration: <code>13m 31s</code></span>
+                </div>
+            </div>
+
+            <!-- Right Panel: AI Analysis & Retrieved Evidence Timeline -->
+            <div class="analysis-panel">
+                <!-- AI Security Analysis Output Card -->
+                <div class="glass-card ai-response-card" id="ai-response-container">
+                    <div class="card-header">
+                        <div class="ai-title">
+                            <div class="sparkle-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                </svg>
+                            </div>
+                            <h3>Local Qwen3-VL AI Security Analysis</h3>
+                        </div>
+                        <span class="badge-gpu">CUDA Accelerated</span>
+                    </div>
+
+                    <div class="ai-content" id="ai-answer-body">
+                        <p class="placeholder-text">Submit a query above to execute local VLM visual search and reasoning.</p>
+                    </div>
+
+                    <!-- Evaluation Metrics Bar -->
+                    <div class="metrics-bar" id="metrics-bar" style="display: none;">
+                        <div class="metric-item">
+                            <span class="m-label">Precision@5</span>
+                            <span class="m-val text-blue" id="m-precision">1.0</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="m-label">MRR</span>
+                            <span class="m-val text-blue" id="m-mrr">1.0</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="m-label">NDCG@5</span>
+                            <span class="m-val text-blue" id="m-ndcg">1.0</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="m-label">Context Util</span>
+                            <span class="m-val text-green" id="m-util">100%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Retrieved Evidence Moments Cards -->
+                <div class="glass-card evidence-card">
+                    <div class="card-header">
+                        <h3>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                            </svg>
+                            Retrieved Video Moments (<span id="evidence-count">0</span>)
+                        </h3>
+                        <span class="sub-text">Ranked by FAISS Cosine Similarity & Cross-Encoder</span>
+                    </div>
+
+                    <div class="evidence-list" id="evidence-list">
+                        <div class="empty-state">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <p>No query executed yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="glass-footer">
+            <p>VideoRAG CCTV Intelligence Platform — Defence Systems Group — Powered by Local Qwen3-VL & FAISS Vector Store</p>
+        </footer>
+    </div>
+
+    <script src="/ui/app.js"></script>
+</body>
+</html>

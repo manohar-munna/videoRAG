@@ -6,6 +6,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![UI](https://img.shields.io/badge/UI-Minimal%20Glassmorphic-0284c7)]()
 [![Status](https://img.shields.io/badge/status-active%20development-brightgreen)]()
 [![Defence](https://img.shields.io/badge/domain-defence%20%26%20security-red)]()
 
@@ -15,7 +16,7 @@
 
 ## Overview
 
-**VideoRAG** is a defence-grade CCTV intelligence platform that brings Retrieval-Augmented Generation (RAG) to video surveillance. It enables operators and analysts to semantically query hours of CCTV footage in natural language and instantly navigate to the exact timestamp of interest — no manual scrubbing required.
+**VideoRAG** is a defence-grade CCTV intelligence platform that brings Retrieval-Augmented Generation (RAG) to video surveillance. It features a **minimalist glassmorphic Web UI** that enables security operators and analysts to semantically query CCTV video footage in natural language and **instantly jump to the exact video timestamp** with a single click — no manual scrubbing required.
 
 Instead of reviewing footage frame-by-frame, simply ask:
 
@@ -27,12 +28,26 @@ VideoRAG indexes, understands, and retrieves — giving analysts time back for w
 
 ---
 
+## 🎨 Minimal Glassmorphic Web UI
+
+The Web UI is built with a deep slate canvas, frosted glass containers (`backdrop-filter: blur(16px)`), and **electric blue theme selection highlights (`#38bdf8`)**:
+
+- 📺 **Interactive Video Player**: Embedded CCTV player (`sample_cctv.mp4`).
+- ⏱️ **Click-to-Seek Timestamps**: Clicking any timestamp (`00:09:30`) in the AI analysis or evidence list immediately seeks the video player to that exact second and plays!
+- 🔍 **Natural Language Search Box**: Real-time semantic query input with glowing blue focus state.
+- 🏷️ **Camera Filter Pills**: Filter search results by specific camera feeds (`CAM_01`, `CAM_02`, `CAM_03`...) with electric blue selection pills.
+- ⚡ **Local Qwen3-VL AI Security Analysis Card**: Live CUDA-accelerated LLM reasoning output with highlighted camera tags and timestamp badges.
+- 📊 **Live Evaluation Metrics**: Displays Precision@5, MRR, NDCG@5, and context utilization.
+
+---
+
 ## Key Features
 
 | Feature | Description |
 |---|---|
+| 🖥️ **Minimal Web UI** | Glassmorphic Web Interface at `http://127.0.0.1:8000/` |
 | 🔍 **Semantic Search** | Query real video footage in natural language |
-| 🕐 **Timestamp-Precise Retrieval** | Direct timestamp links to exact video moments |
+| 🕐 **Click-to-Seek Timestamps** | Direct video seeking on timestamp click |
 | 📹 **Local Video Ingestion** | Extract, sample, & caption MP4/CCTV video feeds |
 | 🧠 **Local VLM Vision Engine** | **Qwen3-VL 4B + mmproj** on local GPU for visual frame understanding |
 | 🛡️ **Defence-Grade & Air-Gapped** | 100% local processing — no cloud APIs, zero video leakage |
@@ -57,15 +72,15 @@ CCTV MP4 Video Footage
         |
    [FAISS Index]        IndexFlatIP — cosine similarity vector search
         |
-        |  <--- Natural language operator query
+        |  <--- Natural language query via Web UI (http://127.0.0.1:8000/)
         |
-   [Retriever]          Top-K dense retrieval + camera filter
+   [FastAPI Backend]    src/videorag/server.py
         |
-   [Reranker]           CrossEncoder (ms-marco-MiniLM-L-6-v2)
+   [Retriever + Reranker] Top-K dense retrieval + CrossEncoder reranking
         |
    [Local LLM Answer]   Qwen3-VL 4B (Local GGUF on CUDA GPU)
         |
-     Timestamped Video Search Answer
+   Glassmorphic Web UI  Clickable Timestamps · Video Seek · Blue Selection Highlights
 ```
 
 ---
@@ -74,6 +89,10 @@ CCTV MP4 Video Footage
 
 ```
 videorag/
+├── ui/                         # Minimal Glassmorphic Web Interface
+│   ├── index.html              # HTML structure & glass layout
+│   ├── style.css               # Glassmorphic CSS & electric blue text highlights
+│   └── app.js                  # Interactive REST API search & video seek logic
 ├── Video Footage/
 │   └── sample_cctv.mp4         # Target CCTV video file
 ├── Local LLM 3VL 4Q/
@@ -82,6 +101,7 @@ videorag/
 ├── tools/
 │   └── llama/                  # Embedded CUDA llama-server binary
 ├── src/videorag/
+│   ├── server.py               # FastAPI backend serving REST API & Web UI
 │   ├── ingestion/
 │   │   ├── loader.py           # Document dataset loader
 │   │   └── video_processor.py  # OpenCV frame sampling & timestamping
@@ -125,37 +145,17 @@ pip install -r requirements.txt
 
 ---
 
-## How to Test Real Video Footage
+## Running the Web UI
 
-### Step 1: Place Your Video Footage
+Launch the VideoRAG FastAPI server:
 
-Place any MP4 surveillance video in the `Video Footage/` directory:
-
-```bash
-Video Footage/sample_cctv.mp4
+```powershell
+$env:PYTHONUTF8=1
+python src/videorag/server.py --port 8000
 ```
 
-### Step 2: Run End-to-End Video Processing & Indexing
-
-Run `process_video.py` to extract frame images, analyze them using your local **Qwen3-VL GPU Vision model**, and build the vector search index:
-
-```bash
-python scripts/process_video.py --video "Video Footage/sample_cctv.mp4" --camera-id CAM_01 --interval 15 --backend local
-```
-
-*What this does automatically:*
-1. Samples frames every 15 seconds from the video.
-2. Sends frame pixels to local Qwen3-VL VLM for vision captioning.
-3. Generates `data/real_cctv_events.json`.
-4. Embeds text descriptions and builds `index/cctv_index.faiss`.
-
-### Step 3: Query Your Video in Natural Language
-
-Query the indexed video using natural language:
-
-```bash
-python scripts/query.py --query "What vehicles or trucks are visible in the CCTV video and at what timestamp?"
-```
+Open your browser and navigate to:
+👉 **`http://127.0.0.1:8000/`**
 
 ---
 
@@ -184,19 +184,6 @@ python scripts/query.py --query "What vehicles or trucks are visible in the CCTV
 | Recall Estimate | **1.0** |
 | MRR | **1.0** |
 | NDCG@5 | **1.0** |
-
----
-
-## Roadmap
-
-- [x] Synthetic CCTV data generation & baseline RAG pipeline
-- [x] FAISS vector indexing with timestamp metadata
-- [x] Semantic retrieval & CrossEncoder reranking
-- [x] **Local LLM integration (Qwen3-VL-4B GGUF on CUDA)**
-- [x] **Local VLM Vision Engine (`mmproj` frame captioning on GPU)**
-- [x] **End-to-end video processing pipeline (`process_video.py`)**
-- [x] **Real video footage testing & timestamp retrieval**
-- [ ] Multi-camera cross-search & video player UI
 
 ---
 
