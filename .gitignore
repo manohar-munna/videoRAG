@@ -38,5 +38,9 @@ Thumbs.db
 Local LLM 3VL 4Q/
 tools/
 
+# Video files & extracted frame image caches
+Video Footage/
+data/extracted_frames/
+
 # Logs
 *.log

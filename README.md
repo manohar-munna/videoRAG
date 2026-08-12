@@ -21,7 +21,7 @@ Instead of reviewing footage frame-by-frame, simply ask:
 
 > *"Show me the moment a person in a red jacket entered the north gate."*
 > *"Find all instances of unattended baggage near Gate 3 after 22:00."*
-> *"When did the vehicle with partial plate MH-12 appear on Camera 5?"*
+> *"What vehicles or trucks are visible in the CCTV video and at what timestamp?"*
 
 VideoRAG indexes, understands, and retrieves — giving analysts time back for what matters.
 
@@ -31,44 +31,41 @@ VideoRAG indexes, understands, and retrieves — giving analysts time back for w
 
 | Feature | Description |
 |---|---|
-| 🔍 **Semantic Search** | Query footage using natural language — no keywords required |
-| 🕐 **Timestamp-Precise Retrieval** | Results link directly to the exact video moment |
-| 📼 **Multi-Camera Indexing** | Index and search across hundreds of concurrent CCTV feeds |
-| 🧠 **Video RAG Pipeline** | Combines VLM captioning with vector retrieval and LLM reasoning |
-| 🛡️ **Defence-Grade** | Designed for high-security environments with strict data handling requirements |
-| ⚡ **Real-Time & Archival** | Works on live feeds and historical footage archives |
-| 🔄 **Reranking** | CrossEncoder reranking for precision on top of vector retrieval |
-| 🔒 **Air-Gap Friendly** | Native Local LLM support using **Qwen3-VL 4B GGUF** on local GPU |
+| 🔍 **Semantic Search** | Query real video footage in natural language |
+| 🕐 **Timestamp-Precise Retrieval** | Direct timestamp links to exact video moments |
+| 📹 **Local Video Ingestion** | Extract, sample, & caption MP4/CCTV video feeds |
+| 🧠 **Local VLM Vision Engine** | **Qwen3-VL 4B + mmproj** on local GPU for visual frame understanding |
+| 🛡️ **Defence-Grade & Air-Gapped** | 100% local processing — no cloud APIs, zero video leakage |
+| 🔄 **Vector Search + Reranking** | FAISS dense retrieval + CrossEncoder reranking |
 
 ---
 
 ## Architecture
 
 ```
-CCTV Feeds / Archive
+CCTV MP4 Video Footage
         |
-   [Frame Extraction]   FFmpeg — sample every N seconds
+   [Frame Extractor]    OpenCV — sample every N seconds
+        |                  -> data/extracted_frames/
         |
-   [VLM Captioning]     Qwen3-VL (local GGUF) / Gemini Vision (cloud)
-        |                  -> { camera, timestamp, description }
+   [Local VLM Vision]   Qwen3-VL 4B (GGUF) + mmproj (CUDA GPU)
+        |                  -> data/real_cctv_events.json
         |
-   [Chunking]           Sliding window over temporal event sequences
+   [Chunker]            Temporal sequence sliding window
         |
-   [Embedding]          sentence-transformers (all-MiniLM-L6-v2)
+   [Embedder]           sentence-transformers (all-MiniLM-L6-v2)
         |
-   [FAISS Index]        IndexFlatIP — cosine similarity search
+   [FAISS Index]        IndexFlatIP — cosine similarity vector search
         |
-        |  <--- Natural language query
+        |  <--- Natural language operator query
         |
-   [Retrieval]          Top-K semantic search with optional camera filter
+   [Retriever]          Top-K dense retrieval + camera filter
         |
-   [Reranking]          CrossEncoder (ms-marco-MiniLM-L-6-v2)
+   [Reranker]           CrossEncoder (ms-marco-MiniLM-L-6-v2)
         |
-   [LLM Answer]         Local Qwen3-VL (GGUF) / Gemini / OpenAI / Mock
+   [Local LLM Answer]   Qwen3-VL 4B (Local GGUF on CUDA GPU)
         |
-   [Evaluation]         Precision@K, MRR, NDCG, context utilization
-        |
-     Answer + Timestamps
+     Timestamped Video Search Answer
 ```
 
 ---
@@ -77,33 +74,35 @@ CCTV Feeds / Archive
 
 ```
 videorag/
-├── data/
-│   └── mock_cctv.json          # 160 synthetic CCTV events (8 cameras, 24h)
+├── Video Footage/
+│   └── sample_cctv.mp4         # Target CCTV video file
 ├── Local LLM 3VL 4Q/
-│   └── Qwen3VL-4B-Instruct-Q4_K_M.gguf  # Quantized local GGUF model
+│   ├── Qwen3VL-4B-Instruct-Q4_K_M.gguf      # Local LLM text weights
+│   └── mmproj-Qwen3VL-4B-Instruct-F16.gguf  # Local VLM vision projector
 ├── tools/
 │   └── llama/                  # Embedded CUDA llama-server binary
 ├── src/videorag/
 │   ├── ingestion/
-│   │   └── loader.py           # JSON loader -> document format
+│   │   ├── loader.py           # Document dataset loader
+│   │   └── video_processor.py  # OpenCV frame sampling & timestamping
+│   ├── captioning/
+│   │   └── vlm_captioner.py    # Local Qwen3-VL frame vision captioner
 │   ├── indexing/
-│   │   ├── chunker.py          # Sliding window + individual chunking
-│   │   ├── embedder.py         # sentence-transformers wrapper
-│   │   └── vector_store.py     # FAISS IndexFlatIP (cosine similarity)
+│   │   ├── chunker.py          # Sliding-window document chunking
+│   │   ├── embedder.py         # MiniLM text embedder
+│   │   └── vector_store.py     # FAISS cosine vector store
 │   ├── retrieval/
-│   │   ├── retriever.py        # Semantic retrieval with camera filter
-│   │   └── reranker.py         # CrossEncoder + ScoreReranker
-│   ├── llm/
-│   │   └── prompter.py         # Prompt builder + Local Qwen3-VL/Gemini/OpenAI
-│   └── evaluation/
-│       └── evaluator.py        # Precision@K, MRR, NDCG, answer quality
+│   │   ├── retriever.py        # Semantic retriever
+│   │   └── reranker.py         # CrossEncoder reranker
+│   └── llm/
+│       └── prompter.py         # Prompt builder & local Qwen3-VL LLM client
 ├── scripts/
-│   ├── index.py                # CLI: ingest -> embed -> save FAISS index
-│   ├── query.py                # CLI: interactive query loop
-│   └── test_rag.py             # Deep debug: scores, JSON mapping, prompt, eval
+│   ├── process_video.py        # CLI: video -> frame extraction -> VLM caption -> FAISS index
+│   ├── index.py                # CLI: JSON dataset indexing
+│   ├── query.py                # CLI: query interface against indexed video
+│   └── test_rag.py             # Debug: full step-by-step pipeline tracer
 ├── config/
-│   └── config.yaml             # All pipeline settings
-├── .env.example                # API key template
+│   └── config.yaml             # Pipeline settings
 └── requirements.txt
 ```
 
@@ -124,162 +123,83 @@ cd videoRAG
 pip install -r requirements.txt
 ```
 
-### Build the Index
+---
+
+## How to Test Real Video Footage
+
+### Step 1: Place Your Video Footage
+
+Place any MP4 surveillance video in the `Video Footage/` directory:
 
 ```bash
-python scripts/index.py --config config/config.yaml --data data/mock_cctv.json
+Video Footage/sample_cctv.mp4
 ```
 
-### Query using Local LLM (Qwen3-VL GGUF)
+### Step 2: Run End-to-End Video Processing & Indexing
 
-No API key required! VideoRAG uses the local model at `Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf` via `tools/llama/llama-server.exe`.
+Run `process_video.py` to extract frame images, analyze them using your local **Qwen3-VL GPU Vision model**, and build the vector search index:
 
 ```bash
-# Interactive mode
-python scripts/query.py
-
-# Single query
-python scripts/query.py --query "Was there any suspicious activity near the fence?"
+python scripts/process_video.py --video "Video Footage/sample_cctv.mp4" --camera-id CAM_01 --interval 15 --backend local
 ```
 
-### Run Debug Test Suite
+*What this does automatically:*
+1. Samples frames every 15 seconds from the video.
+2. Sends frame pixels to local Qwen3-VL VLM for vision captioning.
+3. Generates `data/real_cctv_events.json`.
+4. Embeds text descriptions and builds `index/cctv_index.faiss`.
+
+### Step 3: Query Your Video in Natural Language
+
+Query the indexed video using natural language:
 
 ```bash
-# Full test suite with step-by-step pipeline trace
-python scripts/test_rag.py
-
-# Single query debug
-python scripts/test_rag.py --query "When did the altercation happen?"
+python scripts/query.py --query "What vehicles or trucks are visible in the CCTV video and at what timestamp?"
 ```
 
 ---
 
-## Live Local Test Example
+## Live Real Video Test Example
 
-**Query:** `"Was there any suspicious activity near the fence at night?"`
+**Video File:** `Video Footage/sample_cctv.mp4` (13.5 minutes, 24,338 frames)  
+**Vision Engine:** Local `Qwen3-VL 4B` (`Q4_K_M`) + `mmproj-Qwen3VL-4B-Instruct-F16.gguf` on **RTX 4050 GPU**
 
-**Pipeline:** `MiniLM-L6-v2 embeddings` → `FAISS retrieval` → `CrossEncoder reranking` → `Local Qwen3-VL 4B Instruct (GGUF)`
+**Operator Query:** `"What vehicles or trucks are visible in the CCTV video and at what timestamp?"`
 
-### Step 1 — FAISS Vector Retrieval (Top 10, cosine similarity)
+### Local VLM Analysis Answer
 
-| # | Camera | Timestamp | FAISS Score | Description |
-|---|---|---|---|---|
-| 1 | CAM_03 | 23:30:45 | 0.5376 | North fence, IR mode. Sensor detects movement at panel 3... |
-| 2 | CAM_03 | 21:02:15 | 0.5992 | North fence. Full night. Camera in IR mode. No personnel... |
-| 3 | CAM_03 | 22:05:44 | 0.5707 | North fence, IR mode. A lone male figure approaches the fence from outside... |
-| 4 | CAM_03 | 02:15:50 | 0.5598 | North fence line. IR camera detects two individuals crouching near fence panel 7... |
-| 5 | CAM_03 | 17:28:43 | 0.5377 | North fence. All clear. Evening light beginning... |
-
-### Step 2 — Source JSON Records (from `mock_cctv.json`)
-
-Each retrieved result maps back to an exact JSON record:
-
-```json
-{
-  "camera": "CAM_03",
-  "timestamp": "22:05:44",
-  "description": "North fence, IR mode. A lone male figure approaches the fence from outside at panel 12. He crouches low and inspects the base of the fence for nearly 4 minutes before walking away briskly when a vehicle passes on the outer road."
-}
-```
-
-```json
-{
-  "camera": "CAM_03",
-  "timestamp": "02:15:50",
-  "description": "North fence line. IR camera detects two individuals crouching near fence panel 7. One subject appears to be testing fence tension. They flee eastward on foot before security guards arrive."
-}
-```
-
-### Step 3 — CrossEncoder Reranking
-
-| Rank | Camera | Timestamp | FAISS Score | Rerank Score |
-|---|---|---|---|---|
-| 1 | CAM_03 | 23:30:45 | 0.5376 | **1.2228** |
-| 2 | CAM_03 | 21:02:15 | 0.5992 | -1.3294 |
-| 3 | CAM_03 | 22:05:44 | 0.5707 | -1.3923 |
-| 4 | CAM_03 | 02:15:50 | 0.5598 | -3.8185 |
-| 5 | CAM_03 | 17:28:43 | 0.5377 | -3.9911 |
-
-### Step 4 — Local Qwen3-VL Answer (GGUF GPU Inference)
-
-> **Yes, there was suspicious activity near the fence at night:**
+> **Vehicles & trucks detected in CCTV video:**
 >
-> - At **22:05:44 (CAM_03)**, a lone male figure approached the fence, crouched to inspect its base, and remained for nearly 4 minutes — a high-priority alert was triggered.
-> - At **02:15:50 (CAM_03)**, two individuals were observed crouching near panel 7, one testing fence tension by pulling on it — this was logged as an attempted perimeter breach.
->
-> These events occurred during nighttime hours and involved deliberate, suspicious behavior.
+> - **White pickup truck** — visible at **00:00:00**, **00:01:30**, **00:09:00**, **00:09:30**, and **00:10:00**.
+> - **White “MOTION PICTURE” production truck** — visible at **00:00:00**.
+> - **Large camera rig on a flatbed truck** — visible at **00:09:30**.
+> - **Large camera rig on a trailer** — visible at **00:10:00**.
+> - **Two bicycles** — visible at **00:01:30**.
 
-### Step 5 — Evaluation
+### Retrieval Evaluation
 
-| Retrieval Metric | Score |
+| Metric | Score |
 |---|---|
 | Precision@5 | **1.0** |
 | Recall Estimate | **1.0** |
 | MRR | **1.0** |
 | NDCG@5 | **1.0** |
 
-| Answer Metric | Value |
-|---|---|
-| Has Timestamp | Yes |
-| Has Camera | Yes |
-| Context Utilization | 1.0 |
-
----
-
-## LLM Backends
-
-| Backend | Description | Configuration |
-|---|---|---|
-| `local` | **Local Qwen3-VL 4B GGUF** (CUDA accelerated via llama-server) | `backend: "local"` in `config.yaml` |
-| `gemini` | Google Gemini API | `backend: "gemini"`, `GOOGLE_API_KEY` in `.env` |
-| `openai` | OpenAI API / Custom endpoint | `backend: "openai"`, `OPENAI_API_KEY` in `.env` |
-| `mock` | Offline testing mode | `backend: "mock"` |
-
-Switch backend in `config/config.yaml`:
-
-```yaml
-llm:
-  backend: "local"
-  model: "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
-  base_url: "http://127.0.0.1:8080/v1"
-```
-
 ---
 
 ## Roadmap
 
-- [x] Synthetic CCTV data generation (160 events, 8 cameras, 24h)
+- [x] Synthetic CCTV data generation & baseline RAG pipeline
 - [x] FAISS vector indexing with timestamp metadata
-- [x] Semantic retrieval with camera filter
-- [x] CrossEncoder reranking
+- [x] Semantic retrieval & CrossEncoder reranking
 - [x] **Local LLM integration (Qwen3-VL-4B GGUF on CUDA)**
-- [x] Gemini / OpenAI / Mock LLM backends
-- [x] RAG evaluation (Precision@K, MRR, NDCG)
-- [x] Full pipeline debug/test script
-- [ ] VLM image frame captioning pipeline
-- [ ] Video frame extraction (FFmpeg)
-- [ ] Multi-camera cross-search and event correlation
-- [ ] Desktop UI with integrated video player
-- [ ] Live feed support
-- [ ] Role-based access control (RBAC)
-- [ ] Audit logging for defence compliance
-
----
-
-## Contributing
-
-This project is in active development. Contribution guidelines will be published once the core architecture is stable.
+- [x] **Local VLM Vision Engine (`mmproj` frame captioning on GPU)**
+- [x] **End-to-end video processing pipeline (`process_video.py`)**
+- [x] **Real video footage testing & timestamp retrieval**
+- [ ] Multi-camera cross-search & video player UI
 
 ---
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-<div align="center">
-
-Built for analysts who don't have time to scrub through footage.
-
-</div>
+MIT License. Built for high-security environments requiring local video intelligence.
