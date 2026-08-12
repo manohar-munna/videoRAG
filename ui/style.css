@@ -178,6 +178,34 @@ body {
     background: var(--green-accent);
     box-shadow: 0 0 8px var(--green-accent);
 }
+.status-indicator.offline {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red-accent);
+    box-shadow: 0 0 8px var(--red-accent);
+}
+.btn-shutdown {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-sm);
+    color: #f87171;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-shutdown:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: #f87171;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+    transform: translateY(-1px);
+}
 
 /* Text Accent Utilities */
 .text-blue {

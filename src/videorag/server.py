@@ -238,6 +238,22 @@ def get_sample_video():
     return FileResponse(str(video_path), media_type="video/mp4")
 
 
+@app.post("/api/shutdown")
+def shutdown_server():
+    """Gracefully shut down the VideoRAG web server process from UI button."""
+    logger.info("Shutdown requested from Web UI button.")
+    
+    def kill_process():
+        import time
+        import signal
+        time.sleep(0.5)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    import threading
+    threading.Thread(target=kill_process, daemon=True).start()
+    return {"status": "shutting_down", "message": "Server is shutting down..."}
+
+
 # Mount UI static files
 ui_dir = _PROJECT_ROOT / "ui"
 ui_dir.mkdir(exist_ok=True)

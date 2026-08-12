@@ -26,8 +26,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const statModel = document.getElementById('stat-model');
     const statVectors = document.getElementById('stat-vectors');
+    const statStatus = document.getElementById('stat-status');
+    const statusDot = document.getElementById('status-dot');
+    const shutdownBtn = document.getElementById('shutdown-btn');
 
     let activeCameraFilter = '';
+
+    // Shutdown Button Event Handler
+    if (shutdownBtn) {
+        shutdownBtn.addEventListener('click', async () => {
+            const confirmed = confirm('Are you sure you want to stop the VideoRAG Web Server?');
+            if (!confirmed) return;
+
+            try {
+                shutdownBtn.disabled = true;
+                shutdownBtn.innerHTML = `<span>Stopping…</span>`;
+                const resp = await fetch('/api/shutdown', { method: 'POST' });
+                if (resp.ok) {
+                    if (statStatus) {
+                        statStatus.textContent = 'OFFLINE';
+                        statStatus.style.color = '#f87171';
+                    }
+                    if (statusDot) {
+                        statusDot.classList.remove('online');
+                        statusDot.classList.add('offline');
+                    }
+                    alert('VideoRAG Web Server has been shut down successfully. You can close this browser tab.');
+                }
+            } catch (err) {
+                alert('Server shutdown initiated.');
+            }
+        });
+    }
 
     // ------------------------------------------------------------------
     // System Health Check
