@@ -1,7 +1,7 @@
 /**
- * VideoRAG Web Application JavaScript
+ * VideoRAG Web Application JavaScript — Classic Light Theme
  * Handles API calls, interactive search, camera filtering, video player seeking,
- * and Developer Mode Edge Frame Hash & Motion Inspector.
+ * and Developer Mode Edge Frame Hash & Motion Inspector with smooth micro-animations.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
             devPanel.style.display = isDevModeActive ? 'flex' : 'none';
             devModeBtn.classList.toggle('active', isDevModeActive);
             devStatusText.textContent = isDevModeActive ? 'ON' : 'OFF';
-            devStatusText.style.color = isDevModeActive ? '#38bdf8' : '#64748b';
 
             if (isDevModeActive) {
                 fetchHashAuditLogs();
@@ -93,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (resp.ok) {
                     const data = await resp.json();
                     renderDevAuditLogs(data.filter_stats, data.audit_trail);
-                    // Refresh main health & vector counts
                     checkHealth();
                 }
             } catch (err) {
@@ -131,15 +129,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         devAuditTbody.innerHTML = trail.map((item, idx) => `
-            <tr>
-                <td style="font-family: var(--font-mono); color: var(--text-dim);">${idx + 1}</td>
+            <tr class="animate-slide-in" style="animation-delay: ${idx * 0.02}s;">
+                <td style="font-family: var(--font-mono); color: var(--text-muted);">${idx + 1}</td>
                 <td style="font-family: var(--font-mono); font-weight:600; color: var(--blue-primary);">${item.timestamp}</td>
-                <td style="font-family: var(--font-mono); font-size: 0.75rem; color: #94a3b8;"><code>${item.hash_hex}</code></td>
+                <td style="font-family: var(--font-mono); font-size: 0.75rem; color: #64748b;"><code>${item.hash_hex}</code></td>
                 <td style="font-family: var(--font-mono); text-align: center;"><strong>${item.hamming_distance}</strong> / ${item.threshold}</td>
-                <td style="font-family: var(--font-mono); color: var(--text-dim); text-align: center;">${item.motion_pct}%</td>
+                <td style="font-family: var(--font-mono); color: var(--text-muted); text-align: center;">${item.motion_pct}%</td>
                 <td>
                     <span class="${item.is_keyframe ? 'badge-keep' : 'badge-skip'}">${item.status}</span>
-                    <span style="font-size: 0.75rem; color: var(--text-dim); margin-left: 6px;">${escapeHtml(item.reason)}</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 6px;">${escapeHtml(item.reason)}</span>
                 </td>
             </tr>
         `).join('');
@@ -160,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (resp.ok) {
                     if (statStatus) {
                         statStatus.textContent = 'OFFLINE';
-                        statStatus.style.color = '#f87171';
+                        statStatus.style.color = '#dc2626';
                     }
                     if (statusDot) {
                         statusDot.classList.remove('online');
@@ -210,9 +208,9 @@ document.addEventListener('DOMContentLoaded', () => {
             cctvPlayer.currentTime = seconds;
             cctvPlayer.play().catch(() => {});
             seekNotice.textContent = `Seeked to ${label || seconds + 's'}`;
-            seekNotice.style.borderColor = '#38bdf8';
+            seekNotice.style.opacity = '1';
             setTimeout(() => {
-                seekNotice.textContent = 'Click any timestamp result to seek';
+                seekNotice.textContent = 'Ready — Click any timestamp result to seek';
             }, 3000);
         }
     }
@@ -250,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ------------------------------------------------------------------
-    // Execute Search API Call
+    // Execute Search API Call with Smooth Skeleton Loaders
     // ------------------------------------------------------------------
     async function executeSearch() {
         const query = queryInput.value.trim();
@@ -258,8 +256,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         searchBtn.disabled = true;
         searchBtn.innerHTML = `<span>Searching…</span>`;
-        aiAnswerBody.innerHTML = `<p class="placeholder-text"><span class="text-blue">Local Qwen3-VL GPU</span> is analyzing video context and generating answer…</p>`;
-        evidenceList.innerHTML = `<div class="empty-state"><p class="text-blue">Retrieving and reranking video moments…</p></div>`;
+
+        // Smooth Loading Skeleton
+        aiAnswerBody.innerHTML = `
+            <div class="skeleton-box" style="width: 85%;"></div>
+            <div class="skeleton-box" style="width: 92%;"></div>
+            <div class="skeleton-box" style="width: 60%;"></div>
+        `;
+        evidenceList.innerHTML = `
+            <div class="skeleton-box" style="height: 60px;"></div>
+            <div class="skeleton-box" style="height: 60px;"></div>
+            <div class="skeleton-box" style="height: 60px;"></div>
+        `;
 
         try {
             const resp = await fetch('/api/search', {
@@ -281,12 +289,12 @@ document.addEventListener('DOMContentLoaded', () => {
             renderResults(data);
         } catch (err) {
             console.error('Search error:', err);
-            aiAnswerBody.innerHTML = `<p style="color: #f87171;">Search failed: ${err.message}</p>`;
-            evidenceList.innerHTML = `<div class="empty-state"><p style="color: #f87171;">Failed to load results.</p></div>`;
+            aiAnswerBody.innerHTML = `<p style="color: #dc2626;">Search failed: ${err.message}</p>`;
+            evidenceList.innerHTML = `<div class="empty-state"><p style="color: #dc2626;">Failed to load results.</p></div>`;
         } finally {
             searchBtn.disabled = false;
             searchBtn.innerHTML = `<span>Search Video</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                     <polyline points="12 5 19 12 12 19"></polyline>
                 </svg>`;
@@ -294,20 +302,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ------------------------------------------------------------------
-    // Render Results in Glass UI
+    // Render Results in Classic Light UI with Staggered Entrance
     // ------------------------------------------------------------------
     function renderResults(data) {
         let formattedAnswer = data.answer || 'No answer generated.';
         
+        // Highlight clickable timestamps
         formattedAnswer = formattedAnswer.replace(/(\b\d{2}:\d{2}:\d{2}\b)/g, (match) => {
             const parts = match.split(':').map(Number);
             const secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
-            return `<span class="ev-ts interactive-ts" data-seconds="${secs}" style="cursor:pointer;" title="Click to jump video to ${match}">${match}</span>`;
+            return `<span class="ev-ts interactive-ts" data-seconds="${secs}" style="cursor:pointer;" title="Click to seek video to ${match}">${match}</span>`;
         });
 
+        // Highlight Camera tags
         formattedAnswer = formattedAnswer.replace(/(\bCAM_\d{2}\b)/g, `<strong class="text-blue">$1</strong>`);
 
-        aiAnswerBody.innerHTML = `<div style="white-space: pre-wrap;">${formattedAnswer}</div>`;
+        aiAnswerBody.innerHTML = `<div class="animate-slide-in" style="white-space: pre-wrap;">${formattedAnswer}</div>`;
 
         if (data.evaluation) {
             const ev = data.evaluation;

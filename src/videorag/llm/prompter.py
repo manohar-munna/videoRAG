@@ -185,14 +185,20 @@ class LLMClient:
                     llama_server = project_root / "tools" / "llama" / "llama-server.exe"
                     model_file = project_root / "Local LLM 3VL 4Q" / "Qwen3VL-4B-Instruct-Q4_K_M.gguf"
 
+                    mmproj_file = project_root / "Local LLM 3VL 4Q" / "mmproj-Qwen3VL-4B-Instruct-F16.gguf"
                     if llama_server.exists() and model_file.exists():
                         cmd = [
                             str(llama_server),
                             "-m", str(model_file),
+                        ]
+                        if mmproj_file.exists():
+                            cmd.extend(["--mmproj", str(mmproj_file)])
+
+                        cmd.extend([
                             "-ngl", "99",
                             "--port", "8080",
                             "--host", "127.0.0.1",
-                        ]
+                        ])
                         logger.info("Launching: %s", " ".join(cmd))
                         subprocess.Popen(cmd, cwd=str(project_root))
                         
