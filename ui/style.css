@@ -104,47 +104,36 @@ body {
     margin-left: 6px;
 }
 
-/* Modal Overlay */
-.info-modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(15, 23, 42, 0.4);
-    backdrop-filter: blur(4px);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    animation: fadeIn 0.2s ease forwards;
-}
-.info-modal-card {
-    max-width: 520px;
-    width: 100%;
-    padding: 20px 24px;
+/* Floating Tooltip Popover (Positions next to (i) button) */
+.info-popover-card {
+    position: absolute;
+    z-index: 10000;
+    max-width: 320px;
+    width: max-content;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    border-left: 4px solid var(--blue-primary);
+    gap: 6px;
+    background: var(--bg-surface);
+    border: 1px solid var(--blue-border);
+    border-left: 3.5px solid var(--blue-primary);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+    border-radius: var(--radius-sm);
+    pointer-events: auto;
+    animation: popoverFade 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-.info-modal-header {
+.popover-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    color: var(--text-heading);
     border-bottom: 1px solid var(--border-light);
-    padding-bottom: 10px;
+    padding-bottom: 4px;
 }
-.info-modal-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.info-icon-badge {
-    width: 22px;
-    height: 22px;
+.popover-icon {
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: var(--blue-primary);
     color: #ffffff;
@@ -153,40 +142,31 @@ body {
     justify-content: center;
     font-style: italic;
     font-weight: 700;
-    font-size: 0.8rem;
+    font-size: 0.68rem;
 }
-.info-modal-title h4 {
-    font-size: 0.98rem;
-    font-weight: 700;
-    color: var(--text-heading);
-}
-.info-modal-close {
-    background: none;
-    border: none;
-    font-size: 1.4rem;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: color 0.2s ease;
-}
-.info-modal-close:hover {
-    color: var(--text-heading);
-}
-.info-modal-body {
-    font-size: 0.86rem;
-    line-height: 1.55;
+.popover-body {
+    font-size: 0.78rem;
+    line-height: 1.45;
     color: var(--text-body);
 }
-.info-modal-body code {
+.popover-body code {
     font-family: var(--font-mono);
-    background: var(--bg-subtle);
-    padding: 2px 5px;
-    border-radius: 4px;
+    background: var(--blue-bg-subtle);
+    padding: 1px 4px;
+    border-radius: 3px;
     color: var(--blue-primary);
-    border: 1px solid var(--border-light);
 }
 
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes popoverFade {
+    from {
+        opacity: 0;
+        transform: translateY(4px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
 
 /* --------------------------------------------------------------------------
    Classic White Cards & Surface Containers

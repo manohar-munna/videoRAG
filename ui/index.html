@@ -433,19 +433,15 @@
         </footer>
     </div>
 
-    <!-- Metric Info Popover Modal -->
-    <div class="info-modal-backdrop" id="info-modal" style="display: none;">
-        <div class="info-modal-card ui-card">
-            <div class="info-modal-header">
-                <div class="info-modal-title">
-                    <div class="info-icon-badge">i</div>
-                    <h4 id="info-modal-heading">Metric Information</h4>
-                </div>
-                <button class="info-modal-close" id="info-modal-close">&times;</button>
-            </div>
-            <div class="info-modal-body" id="info-modal-body">
-                Explanation text goes here...
-            </div>
+    <!-- Metric Info Hover/Click Popover Card (Positions right next to (i) button) -->
+    <div class="info-popover-card ui-card" id="info-popover" style="display: none;">
+        <div class="popover-arrow"></div>
+        <div class="popover-header">
+            <div class="popover-icon">i</div>
+            <strong id="popover-title">Metric Info</strong>
+        </div>
+        <div class="popover-body" id="popover-body">
+            Explanation...
         </div>
     </div>
 
