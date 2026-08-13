@@ -3,7 +3,7 @@ src/videorag/server.py
 ----------------------
 FastAPI Web Application backend for VideoRAG.
 Serves REST API endpoints for semantic search, video processing, system health,
-and hosts the Glassmorphic web UI.
+dHash/pHash Developer Inspector, and hosts the Classic Light Web UI.
 """
 
 import argparse
@@ -66,6 +66,30 @@ class SearchRequest(BaseModel):
     top_k: Optional[int] = 10
     rerank_top_k: Optional[int] = 5
     camera_filter: Optional[str] = None
+
+
+class SmartProcessRequest(BaseModel):
+    video_path: Optional[str] = None
+    camera_id: Optional[str] = "CAM_01"
+    sample_interval: Optional[float] = 15.0
+    enable_hash_filter: Optional[bool] = True
+    hash_method: Optional[str] = "dhash"
+    threshold: Optional[int] = 10
+    run_vlm_captioning: Optional[bool] = True
+
+
+# Latest Hash Filter Audit Trail store
+LATEST_HASH_AUDIT: Dict[str, Any] = {
+    "stats": {
+        "total_frames": 55,
+        "keyframes_kept": 48,
+        "frames_skipped": 7,
+        "llm_compute_saved_pct": 12.7,
+        "method": "dhash",
+        "threshold": 10,
+    },
+    "audit_trail": [],
+}
 
 
 def init_pipeline(config_path: str = "config/config.yaml") -> None:
@@ -174,25 +198,33 @@ def search_cctv(req: SearchRequest):
     top_k = req.top_k or 10
     rerank_top_k = req.rerank_top_k or 5
 
-    # 1. Retrieve
+    # 1. Retrieve & measure time
+    import time
+    t0 = time.time()
+    query_vec = PIPELINE["embedder"].embed_query(req.query)
+    t1 = time.time()
+    
     raw_results = retriever.retrieve(req.query, top_k=top_k, camera_filter=req.camera_filter)
+    t2 = time.time()
 
     # 2. Rerank
     for r in raw_results:
         if "text" not in r:
             r["text"] = r.get("metadata", {}).get("text", "")
     reranked = reranker.rerank(req.query, raw_results, top_k=rerank_top_k)
+    t3 = time.time()
 
     # 3. Prompt & LLM
     prompt = prompter.build_prompt(req.query, reranked)
     answer = llm_client.generate(prompt)
+    t4 = time.time()
 
     # 4. Evaluation
     stop_words = {"the", "a", "an", "is", "was", "were", "are", "in", "at", "on", "of", "to", "any", "did", "do", "what", "when", "where", "who", "how", "there"}
     keywords = [w.strip("?.,!").lower() for w in req.query.split() if w.lower() not in stop_words and len(w) > 2]
     eval_result = evaluator.full_evaluation(req.query, reranked, answer, keywords)
 
-    # Format output items with frame image links if present
+    # Format output items
     items = []
     for rank, r in enumerate(reranked, start=1):
         meta = r.get("metadata", {})
@@ -200,7 +232,6 @@ def search_cctv(req: SearchRequest):
         ts = meta.get("start_timestamp", meta.get("timestamp", "00:00:00"))
         desc = meta.get("description", r.get("text", ""))
 
-        # Convert HH:MM:SS to total seconds for video seek
         secs = 0
         try:
             parts = [int(p) for p in ts.split(":")]
@@ -221,13 +252,98 @@ def search_cctv(req: SearchRequest):
             "rerank_score": round(float(r.get("rerank_score", 0.0)), 4),
         })
 
+    # Detailed Vector & Pipeline Debugging Trace
+    vec_sample = [round(float(val), 4) for val in query_vec[:12]]
+    vec_norm = round(float(sum(v*v for v in query_vec)**0.5), 4)
+
+    debug_trace = {
+        "query_vector_dim": len(query_vec),
+        "query_vector_norm": vec_norm,
+        "query_vector_sample": vec_sample,
+        "faiss_indexed_vectors": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
+        "prompt_constructed": prompt,
+        "timings_ms": {
+            "query_embedding_ms": round((t1 - t0) * 1000, 2),
+            "faiss_retrieval_ms": round((t2 - t1) * 1000, 2),
+            "cross_encoder_rerank_ms": round((t3 - t2) * 1000, 2),
+            "llm_generation_ms": round((t4 - t3) * 1000, 2),
+        }
+    }
+
     return {
         "query": req.query,
         "answer": answer,
         "results": items,
         "evaluation": eval_result,
         "total_retrieved": len(raw_results),
+        "debug_trace": debug_trace,
     }
+
+
+@app.post("/api/process_video_smart")
+def process_video_smart(req: SmartProcessRequest):
+    """
+    Run smart video processing with dHash/pHash frame filtering,
+    optional VLM keyframe captioning, FAISS index rebuilding, and in-memory pipeline reloading.
+    """
+    video_p = req.video_path or str(_PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4")
+    video_file = Path(video_p)
+    if not video_file.is_absolute():
+        video_file = _PROJECT_ROOT / video_file
+
+    if not video_file.exists():
+        raise HTTPException(status_code=404, detail=f"Video file not found: {video_p}")
+
+    # 1. Extract frames with EdgeFrameFilter
+    extractor = VideoFrameExtractor(output_dir=str(_PROJECT_ROOT / "data" / "extracted_frames"))
+    hash_filter = EdgeFrameFilter(method=req.hash_method or "dhash", threshold=req.threshold or 10) if req.enable_hash_filter else None
+
+    result = extractor.extract_frames(
+        video_path=str(video_file),
+        camera_id=req.camera_id or "CAM_01",
+        sample_interval=req.sample_interval or 15.0,
+        hash_filter=hash_filter,
+    )
+
+    LATEST_HASH_AUDIT["stats"] = result["filter_stats"]
+    LATEST_HASH_AUDIT["audit_trail"] = result["audit_trail"]
+
+    extracted_frames = result["extracted_frames"]
+
+    # 2. VLM Captioning & Indexing if requested
+    if req.run_vlm_captioning and extracted_frames:
+        logger.info("Dev Mode: Running VLM captioning on %d keyframes...", len(extracted_frames))
+        captioner = VLMCaptioner(backend="local")
+        records = captioner.caption_batch(extracted_frames, show_progress=False)
+
+        out_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+        with open(out_file, "w", encoding="utf-8") as fh:
+            json.dump(records, fh, indent=2, ensure_ascii=False)
+
+        # Rebuild FAISS Index
+        from scripts.index import run_indexing
+        cfg_file = PIPELINE.get("config_path", str(_PROJECT_ROOT / "config" / "config.yaml"))
+        run_indexing(config_path=cfg_file, data_path=str(out_file))
+
+        # Reload in-memory PIPELINE FAISS index
+        init_pipeline(config_path=cfg_file)
+        logger.info("Dev Mode: In-memory pipeline reloaded with %d new keyframe vectors.", PIPELINE["vector_store"].size)
+
+    return {
+        "status": "success",
+        "extracted_count": len(extracted_frames),
+        "skipped_count": result["skipped_count"],
+        "total_sampled": result["total_sampled"],
+        "filter_stats": result["filter_stats"],
+        "audit_trail": result["audit_trail"],
+        "new_vector_count": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
+    }
+
+
+@app.get("/api/hash_audit")
+def get_hash_audit():
+    """Return the latest frame hashing audit log for Developer Mode UI inspection."""
+    return LATEST_HASH_AUDIT
 
 
 @app.get("/video/sample_cctv.mp4")
@@ -253,69 +369,6 @@ def shutdown_server():
     import threading
     threading.Thread(target=kill_process, daemon=True).start()
     return {"status": "shutting_down", "message": "Server is shutting down..."}
-
-
-class SmartProcessRequest(BaseModel):
-    video_path: Optional[str] = None
-    camera_id: Optional[str] = "CAM_01"
-    sample_interval: Optional[float] = 15.0
-    enable_hash_filter: Optional[bool] = True
-    hash_method: Optional[str] = "dhash"
-    threshold: Optional[int] = 10
-
-
-# Latest Hash Filter Audit Trail store
-LATEST_HASH_AUDIT: Dict[str, Any] = {
-    "stats": {
-        "total_frames": 55,
-        "keyframes_kept": 48,
-        "frames_skipped": 7,
-        "llm_compute_saved_pct": 12.7,
-        "method": "dhash",
-        "threshold": 10,
-    },
-    "audit_trail": [],
-}
-
-
-@app.post("/api/process_video_smart")
-def process_video_smart(req: SmartProcessRequest):
-    """Run video processing with optional dHash/pHash edge frame filtering."""
-    video_p = req.video_path or str(_PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4")
-    video_file = Path(video_p)
-    if not video_file.is_absolute():
-        video_file = _PROJECT_ROOT / video_file
-
-    if not video_file.exists():
-        raise HTTPException(status_code=404, detail=f"Video file not found: {video_p}")
-
-    extractor = VideoFrameExtractor(output_dir=str(_PROJECT_ROOT / "data" / "extracted_frames"))
-    hash_filter = EdgeFrameFilter(method=req.hash_method or "dhash", threshold=req.threshold or 10) if req.enable_hash_filter else None
-
-    result = extractor.extract_frames(
-        video_path=str(video_file),
-        camera_id=req.camera_id or "CAM_01",
-        sample_interval=req.sample_interval or 15.0,
-        hash_filter=hash_filter,
-    )
-
-    LATEST_HASH_AUDIT["stats"] = result["filter_stats"]
-    LATEST_HASH_AUDIT["audit_trail"] = result["audit_trail"]
-
-    return {
-        "status": "success",
-        "extracted_count": len(result["extracted_frames"]),
-        "skipped_count": result["skipped_count"],
-        "total_sampled": result["total_sampled"],
-        "filter_stats": result["filter_stats"],
-        "audit_trail": result["audit_trail"],
-    }
-
-
-@app.get("/api/hash_audit")
-def get_hash_audit():
-    """Return the latest frame hashing audit log for Developer Mode UI inspection."""
-    return LATEST_HASH_AUDIT
 
 
 # Mount UI static files

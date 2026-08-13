@@ -1,7 +1,7 @@
 /* ==========================================================================
    VideoRAG Classic Light Theme Stylesheet
    Design: Clean Minimalist UI · High Contrast Slate Typography · Cobalt Blue Selection
-   Animations: Smooth Staggered Slide-Fade Insertions & Accordion Transitions
+   Animations: Smooth Staggered Slide-Fade Insertions & Interactive Metric Info Tooltips
    ========================================================================== */
 
 :root {
@@ -71,6 +71,122 @@ body {
     flex-direction: column;
     gap: 20px;
 }
+
+/* --------------------------------------------------------------------------
+   Interactive Metric Info Buttons (i) & Modal Popover
+   -------------------------------------------------------------------------- */
+.info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--blue-bg-subtle);
+    border: 1px solid var(--blue-border);
+    color: var(--blue-primary);
+    font-family: var(--font-serif, Georgia, serif);
+    font-style: italic;
+    font-size: 0.68rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-left: 4px;
+    vertical-align: middle;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.info-btn:hover {
+    background: var(--blue-primary);
+    color: #ffffff;
+    border-color: var(--blue-hover);
+    transform: scale(1.15);
+}
+.info-btn.tab-info {
+    margin-left: 6px;
+}
+
+/* Modal Overlay */
+.info-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease forwards;
+}
+.info-modal-card {
+    max-width: 520px;
+    width: 100%;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    border-left: 4px solid var(--blue-primary);
+}
+.info-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 10px;
+}
+.info-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.info-icon-badge {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--blue-primary);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-style: italic;
+    font-weight: 700;
+    font-size: 0.8rem;
+}
+.info-modal-title h4 {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--text-heading);
+}
+.info-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+.info-modal-close:hover {
+    color: var(--text-heading);
+}
+.info-modal-body {
+    font-size: 0.86rem;
+    line-height: 1.55;
+    color: var(--text-body);
+}
+.info-modal-body code {
+    font-family: var(--font-mono);
+    background: var(--bg-subtle);
+    padding: 2px 5px;
+    border-radius: 4px;
+    color: var(--blue-primary);
+    border: 1px solid var(--border-light);
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
 /* --------------------------------------------------------------------------
    Classic White Cards & Surface Containers
@@ -223,7 +339,7 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   Developer Mode Panel (Smooth Slide-Fade & Accordion Transition)
+   Developer Mode Panel & Multi-Tab Inspector
    -------------------------------------------------------------------------- */
 .dev-panel {
     padding: 18px 22px;
@@ -231,14 +347,14 @@ body {
     flex-direction: column;
     gap: 14px;
     border-left: 4px solid var(--blue-primary);
-    
-    /* Smooth Accordion Animation */
     animation: slideFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .dev-panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 10px;
 }
 .dev-panel-title {
     display: flex;
@@ -250,16 +366,59 @@ body {
     font-weight: 700;
     color: var(--text-heading);
 }
-.badge-gpu {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: var(--green-bg);
-    color: var(--green-accent);
-    border: 1px solid #bbf7d0;
-    font-weight: 600;
+
+/* Dev Mode Tabs */
+.dev-tabs {
+    display: flex;
+    gap: 6px;
 }
+.dev-tab-btn {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-light);
+    color: var(--text-muted);
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+}
+.dev-tab-btn:hover {
+    color: var(--blue-primary);
+    border-color: var(--blue-border);
+}
+.dev-tab-btn.active {
+    background: var(--blue-primary);
+    border-color: var(--blue-hover);
+    color: #ffffff;
+}
+
+/* Hamming Distance Guide Box */
+.guide-box {
+    background: var(--blue-bg-subtle);
+    border: 1px solid var(--blue-border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 0.8rem;
+    color: var(--text-body);
+    line-height: 1.45;
+}
+.guide-header {
+    color: var(--blue-primary);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.guide-box code {
+    font-family: var(--font-mono);
+    background: rgba(2, 132, 199, 0.1);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
 .dev-controls-bar {
     display: flex;
     align-items: center;
@@ -312,6 +471,9 @@ body {
 .kpi-label {
     font-size: 0.7rem;
     color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 .kpi-val {
     font-family: var(--font-mono);
@@ -320,7 +482,6 @@ body {
     color: var(--text-heading);
 }
 
-/* Dev Table */
 .dev-table-wrapper {
     max-height: 240px;
     overflow-y: auto;
@@ -369,6 +530,108 @@ body {
     background: var(--bg-subtle);
     color: var(--text-muted);
     border: 1px solid var(--border-light);
+}
+
+/* Tab 2: Vector Debugger Styles */
+.vector-debug-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.vdebug-card {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.vdebug-card h4 {
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.vdebug-sub {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.vector-array-box {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    padding: 8px 10px;
+    border-radius: 4px;
+    color: var(--blue-primary);
+    overflow-x: auto;
+    word-break: break-all;
+}
+.timing-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.8rem;
+    margin-top: 4px;
+}
+.t-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 8px;
+    background: var(--bg-surface);
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+}
+.t-row.highlight-row {
+    background: var(--blue-bg-subtle);
+    border-color: var(--blue-border);
+}
+.prompt-preview-box {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    padding: 10px;
+    border-radius: 4px;
+    color: var(--text-body);
+    max-height: 160px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+/* Tab 3: JSON Explorer Styles */
+.json-explorer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.json-explorer-header h4 {
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.json-code-box {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-heading);
+    max-height: 280px;
+    overflow-y: auto;
+    white-space: pre;
 }
 
 /* --------------------------------------------------------------------------
@@ -609,8 +872,6 @@ body {
     font-size: 0.9rem;
     line-height: 1.6;
     color: var(--text-body);
-
-    /* Smooth insertion transition */
     transition: opacity 0.3s ease;
 }
 .ai-content strong, .ai-content b {
@@ -642,6 +903,9 @@ body {
 .m-label {
     font-size: 0.65rem;
     color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
 .m-val {
     font-family: var(--font-mono);
@@ -660,6 +924,9 @@ body {
 .sub-text {
     font-size: 0.74rem;
     color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 .evidence-list {
     display: flex;
@@ -677,9 +944,7 @@ body {
     border-radius: 3px;
 }
 
-/* --------------------------------------------------------------------------
-   Smooth Staggered Entrance Animations
-   -------------------------------------------------------------------------- */
+/* Animations */
 @keyframes slideFadeIn {
     from {
         opacity: 0;
@@ -690,12 +955,10 @@ body {
         transform: translateY(0);
     }
 }
-
 .animate-slide-in {
     animation: slideFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Evidence Item Card — Classic Light & Interactive Hover */
 .evidence-item {
     display: flex;
     justify-content: space-between;
@@ -708,8 +971,6 @@ body {
     box-shadow: var(--shadow-sm);
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     cursor: pointer;
-
-    /* Applied Entrance Animation */
     opacity: 0;
     animation: slideFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -814,7 +1075,7 @@ body {
     gap: 10px;
 }
 
-/* Skeleton Loading Pulse */
+/* Skeleton Pulse */
 .skeleton-box {
     background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
     background-size: 200% 100%;

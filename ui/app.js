@@ -1,7 +1,7 @@
 /**
  * VideoRAG Web Application JavaScript — Classic Light Theme
  * Handles API calls, interactive search, camera filtering, video player seeking,
- * and Developer Mode Edge Frame Hash & Motion Inspector with smooth micro-animations.
+ * Multi-Tab Developer Mode, and Interactive Metric Info Modals ((i) buttons).
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusDot = document.getElementById('status-dot');
     const shutdownBtn = document.getElementById('shutdown-btn');
 
-    // Dev Mode Elements
+    // Dev Mode Multi-Tab Elements
     const devModeBtn = document.getElementById('dev-mode-btn');
     const devStatusText = document.getElementById('dev-status-text');
     const devPanel = document.getElementById('dev-panel');
@@ -45,8 +45,170 @@ document.addEventListener('DOMContentLoaded', () => {
     const kpiSaved = document.getElementById('kpi-saved');
     const devAuditTbody = document.getElementById('dev-audit-tbody');
 
+    // Vector Debugger Elements
+    const vNorm = document.getElementById('v-norm');
+    const vectorArrayDisplay = document.getElementById('vector-array-display');
+    const tEmbed = document.getElementById('t-embed');
+    const tFaiss = document.getElementById('t-faiss');
+    const tRerank = document.getElementById('t-rerank');
+    const tLlm = document.getElementById('t-llm');
+    const promptPreviewDisplay = document.getElementById('prompt-preview-display');
+
+    // JSON Explorer Elements
+    const refreshJsonBtn = document.getElementById('refresh-json-btn');
+    const jsonCodeDisplay = document.getElementById('json-code-display');
+
+    // Modal Elements
+    const infoModal = document.getElementById('info-modal');
+    const infoModalClose = document.getElementById('info-modal-close');
+    const infoModalHeading = document.getElementById('info-modal-heading');
+    const infoModalBody = document.getElementById('info-modal-body');
+
     let activeCameraFilter = '';
     let isDevModeActive = false;
+
+    // ------------------------------------------------------------------
+    // Metric Explanations Dictionary for (i) Buttons
+    // ------------------------------------------------------------------
+    const METRIC_EXPLANATIONS = {
+        dev_panel_overview: {
+            title: "Developer Mode Overview",
+            body: "An advanced inspection suite that exposes edge frame hash filtering, 384-dimensional vector embedding representations, pipeline timing breakdowns, and raw indexed JSON event chunks."
+        },
+        dhash_phash: {
+            title: "dHash (Difference Hash) & pHash (Perceptual Hash)",
+            body: "Edge frame hashing algorithms that convert 1080p CCTV video frames into compact 64-bit binary integers (< 0.2ms). They allow edge cameras to detect static, non-moving scenes (e.g., empty hallways/parking areas) and skip sending duplicate frames to heavy vision-language models."
+        },
+        hamming_threshold: {
+            title: "Hamming Distance & Threshold",
+            body: "<strong>Hamming Distance</strong> is the count of differing bit positions between consecutive frame 64-bit hashes (<code>bin(hashA ^ hashB).count('1')</code>).<br><br>• Range: <code>0</code> (exact duplicate) to <code>64</code> (opposite image inversion).<br>• <strong>Optimal Threshold for Edge CCTV (8–12)</strong>: Drops 10–25% of static duplicate scenes while capturing all vehicle & pedestrian activity."
+        },
+        total_frames: {
+            title: "Total Sampled Frames",
+            body: "The total count of video frames extracted at fixed intervals (e.g. 1 frame every 15 seconds) from the CCTV stream before edge filtering."
+        },
+        keyframes_kept: {
+            title: "Keyframes Kept (VLM)",
+            body: "Frames whose Hamming distance exceeded the threshold. These frames represent significant visual motion or scene shifts and are passed to Qwen3-VL for vision captioning and FAISS indexing."
+        },
+        static_frames: {
+            title: "Static Frames Skipped",
+            body: "Duplicate or static frames whose Hamming distance was below the threshold. These frames are discarded at the edge gate, saving bandwidth and zero VLM compute wasted!"
+        },
+        compute_saved: {
+            title: "LLM Compute Saved (%)",
+            body: "The percentage reduction in expensive VLM visual inference operations achieved by dropping static duplicate frames at the edge before sending data to Qwen3-VL."
+        },
+        fingerprint_hex: {
+            title: "64-Bit Perceptual Fingerprint (Hex)",
+            body: "The 16-character hexadecimal string representation (e.g., <code>0xd99159b3636bd332</code>) of the 64 binary bits extracted from image pixel gradients."
+        },
+        motion_pct: {
+            title: "Normalized Motion Percentage",
+            body: "The visual motion percentage calculated by dividing the frame's Hamming distance by the maximum 64 bits (<code>(hamming / 64) * 100</code>)."
+        },
+        text_embedding: {
+            title: "Dense Vector Text Embedding (all-MiniLM-L6-v2)",
+            body: "Converts natural language queries and CCTV frame descriptions into 384-dimensional floating-point vectors. In vector space, semantically similar surveillance concepts (e.g., 'truck' and 'vehicle') sit close together."
+        },
+        vector_norm: {
+            title: "Vector Norm (L2 Length)",
+            body: "The Euclidean length of the 384-dimensional query vector (<code>||v|| = sqrt(sum(v_i^2))</code>). Normalized to exactly <code>1.0000</code> so inner product multiplication equals cosine similarity."
+        },
+        pipeline_breakdown: {
+            title: "Pipeline Execution Breakdown",
+            body: "Detailed millisecond execution times across the 4 stages of VideoRAG:<br>1. <code>Query Embedding</code> (CPU sentence-transformers)<br>2. <code>FAISS Vector Search</code> (Flat Inner Product)<br>3. <code>Cross-Encoder Reranking</code> (CPU Pair Scoring)<br>4. <code>Qwen3-VL Local Generation</code> (GPU CUDA Acceleration)."
+        },
+        faiss_search: {
+            title: "FAISS (Facebook AI Similarity Search)",
+            body: "High-performance vector database engine developed by Meta AI. Computes cosine inner-products across thousands of 384-D frame vectors in under 2ms to find top candidate video moments."
+        },
+        cross_encoder: {
+            title: "Cross-Encoder Reranker (ms-marco-MiniLM-L-6-v2)",
+            body: "A second-stage Transformer model that joint-evaluates the query and retrieved frame descriptions together. It re-scores top candidates to eliminate false positives before sending evidence to Qwen3-VL."
+        },
+        qwen3_vl: {
+            title: "Local Qwen3-VL 4B Vision-Language Model",
+            body: "A 4-Billion parameter multimodal neural network running locally on GPU CUDA via <code>llama-server</code>. It performs visual reasoning over CCTV video context to answer complex security queries."
+        },
+        raw_prompt: {
+            title: "Raw Constructed Prompt Sent to Qwen3-VL",
+            body: "The complete system instructions, safety rules, and top-5 retrieved CCTV evidence chunks formatted into a single prompt string sent to Qwen3-VL for final security analysis."
+        },
+        json_explorer: {
+            title: "Indexed CCTV Event Chunks (JSON)",
+            body: "The raw JSON file (<code>data/real_cctv_events.json</code>) containing camera IDs, timestamps, and Qwen3-VL visual descriptions generated during video ingestion."
+        },
+        precision_5: {
+            title: "Precision at Top-5 (P@5)",
+            body: "The fraction of top-5 retrieved CCTV video moments that contain relevant matching keywords to your query. Range: 0.0 to 1.0 (Target: 1.0 = 100% precision)."
+        },
+        mrr: {
+            title: "Mean Reciprocal Rank (MRR)",
+            body: "Evaluates how quickly the first relevant evidence chunk appears (<code>1 / rank</code>). A score of 1.0 means the #1 top-ranked video moment was relevant!"
+        },
+        ndcg_5: {
+            title: "NDCG at Top-5 (Normalized Discounted Cumulative Gain)",
+            body: "Measures ranking quality with logarithmic position decay. Relevant results placed higher up in rank #1 or #2 score much higher than relevant results placed down at rank #5."
+        },
+        context_util: {
+            title: "LLM Context Utilization (%)",
+            body: "The percentage of top retrieved CCTV evidence moments that were explicitly cited and utilized by local Qwen3-VL when formulating its security analysis answer."
+        }
+    };
+
+    // ------------------------------------------------------------------
+    // Event Listeners for (i) Info Buttons
+    // ------------------------------------------------------------------
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.info-btn');
+        if (!btn) return;
+
+        e.stopPropagation();
+        const infoKey = btn.dataset.info;
+        const infoData = METRIC_EXPLANATIONS[infoKey];
+
+        if (infoData) {
+            infoModalHeading.textContent = infoData.title;
+            infoModalBody.innerHTML = infoData.body;
+            infoModal.style.display = 'flex';
+        }
+    });
+
+    if (infoModalClose) {
+        infoModalClose.addEventListener('click', () => {
+            infoModal.style.display = 'none';
+        });
+    }
+
+    if (infoModal) {
+        infoModal.addEventListener('click', (e) => {
+            if (e.target === infoModal) {
+                infoModal.style.display = 'none';
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Dev Mode Tab Switching Logic
+    // ------------------------------------------------------------------
+    document.querySelectorAll('.dev-tab-btn').forEach(tabBtn => {
+        tabBtn.addEventListener('click', (e) => {
+            if (e.target.classList.contains('info-btn')) return;
+
+            document.querySelectorAll('.dev-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.dev-tab-content').forEach(c => c.style.display = 'none');
+            
+            tabBtn.classList.add('active');
+            const targetTabId = tabBtn.dataset.tab;
+            const targetContent = document.getElementById(targetTabId);
+            if (targetContent) targetContent.style.display = 'block';
+
+            if (targetTabId === 'tab-json') {
+                fetchEventsJson();
+            }
+        });
+    });
 
     // ------------------------------------------------------------------
     // Dev Mode Toggle & Controls
@@ -60,6 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isDevModeActive) {
                 fetchHashAuditLogs();
+                fetchEventsJson();
             }
         });
     }
@@ -86,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         enable_hash_filter: true,
                         hash_method: hashAlgoSelect.value,
                         threshold: parseInt(thresholdRange.value, 10),
+                        run_vlm_captioning: true,
                     }),
                 });
 
@@ -93,6 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const data = await resp.json();
                     renderDevAuditLogs(data.filter_stats, data.audit_trail);
                     checkHealth();
+                    fetchEventsJson();
                 }
             } catch (err) {
                 alert('Smart filter execution failed: ' + err.message);
@@ -144,7 +309,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ------------------------------------------------------------------
-    // Shutdown Button Event Handler
+    // Fetch & Display JSON Event Chunks
+    // ------------------------------------------------------------------
+    if (refreshJsonBtn) {
+        refreshJsonBtn.addEventListener('click', fetchEventsJson);
+    }
+
+    async function fetchEventsJson() {
+        if (!jsonCodeDisplay) return;
+        try {
+            jsonCodeDisplay.textContent = "Loading indexed CCTV event chunks…";
+            const resp = await fetch('/api/events');
+            if (resp.ok) {
+                const data = await resp.json();
+                jsonCodeDisplay.textContent = JSON.stringify(data, null, 2);
+            }
+        } catch (err) {
+            jsonCodeDisplay.textContent = "Failed to load JSON dataset: " + err.message;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Shutdown Button Handler
     // ------------------------------------------------------------------
     if (shutdownBtn) {
         shutdownBtn.addEventListener('click', async () => {
@@ -190,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkHealth();
 
     // ------------------------------------------------------------------
-    // Video Timer Tracking
+    // Video Timer Tracking & Seeking
     // ------------------------------------------------------------------
     if (cctvPlayer) {
         cctvPlayer.addEventListener('timeupdate', () => {
@@ -202,7 +388,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Seek Helper
     function seekToTime(seconds, label = '') {
         if (cctvPlayer) {
             cctvPlayer.currentTime = seconds;
@@ -216,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ------------------------------------------------------------------
-    // Camera Selection Pills
+    // Camera Selection Pills & Quick Queries
     // ------------------------------------------------------------------
     cameraFilterContainer.addEventListener('click', (e) => {
         const btn = e.target.closest('.filter-pill');
@@ -231,7 +416,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Quick Queries
     quickQueriesContainer.addEventListener('click', (e) => {
         const chip = e.target.closest('.query-chip');
         if (!chip) return;
@@ -239,7 +423,6 @@ document.addEventListener('DOMContentLoaded', () => {
         executeSearch();
     });
 
-    // Search Trigger
     searchBtn.addEventListener('click', executeSearch);
     queryInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -248,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ------------------------------------------------------------------
-    // Execute Search API Call with Smooth Skeleton Loaders
+    // Execute Search API Call & Populate Vector Debugger
     // ------------------------------------------------------------------
     async function executeSearch() {
         const query = queryInput.value.trim();
@@ -257,7 +440,6 @@ document.addEventListener('DOMContentLoaded', () => {
         searchBtn.disabled = true;
         searchBtn.innerHTML = `<span>Searching…</span>`;
 
-        // Smooth Loading Skeleton
         aiAnswerBody.innerHTML = `
             <div class="skeleton-box" style="width: 85%;"></div>
             <div class="skeleton-box" style="width: 92%;"></div>
@@ -287,6 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await resp.json();
             renderResults(data);
+            renderVectorDebugger(data.debug_trace);
         } catch (err) {
             console.error('Search error:', err);
             aiAnswerBody.innerHTML = `<p style="color: #dc2626;">Search failed: ${err.message}</p>`;
@@ -301,20 +484,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Render Vector Debugger Trace in Tab 2
+    function renderVectorDebugger(trace) {
+        if (!trace) return;
+
+        if (vNorm) vNorm.textContent = (trace.query_vector_norm ?? 1.0).toFixed(4);
+        if (vectorArrayDisplay) {
+            const sample = trace.query_vector_sample || [];
+            vectorArrayDisplay.textContent = `[${sample.join(', ')}, ... (${trace.query_vector_dim} dims total)]`;
+        }
+
+        const timings = trace.timings_ms || {};
+        if (tEmbed) tEmbed.textContent = `${timings.query_embedding_ms ?? 0} ms`;
+        if (tFaiss) tFaiss.textContent = `${timings.faiss_retrieval_ms ?? 0} ms`;
+        if (tRerank) tRerank.textContent = `${timings.cross_encoder_rerank_ms ?? 0} ms`;
+        if (tLlm) tLlm.textContent = `${timings.llm_generation_ms ?? 0} ms`;
+
+        if (promptPreviewDisplay) {
+            promptPreviewDisplay.textContent = trace.prompt_constructed || "No prompt generated.";
+        }
+    }
+
     // ------------------------------------------------------------------
-    // Render Results in Classic Light UI with Staggered Entrance
+    // Render Results in Classic Light UI
     // ------------------------------------------------------------------
     function renderResults(data) {
         let formattedAnswer = data.answer || 'No answer generated.';
         
-        // Highlight clickable timestamps
         formattedAnswer = formattedAnswer.replace(/(\b\d{2}:\d{2}:\d{2}\b)/g, (match) => {
             const parts = match.split(':').map(Number);
             const secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
             return `<span class="ev-ts interactive-ts" data-seconds="${secs}" style="cursor:pointer;" title="Click to seek video to ${match}">${match}</span>`;
         });
 
-        // Highlight Camera tags
         formattedAnswer = formattedAnswer.replace(/(\bCAM_\d{2}\b)/g, `<strong class="text-blue">$1</strong>`);
 
         aiAnswerBody.innerHTML = `<div class="animate-slide-in" style="white-space: pre-wrap;">${formattedAnswer}</div>`;

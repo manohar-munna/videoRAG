@@ -43,7 +43,7 @@
                 </div>
                 
                 <!-- Developer Mode Toggle -->
-                <button id="dev-mode-btn" class="btn-dev-toggle" title="Toggle Edge Hash & Motion Inspector">
+                <button id="dev-mode-btn" class="btn-dev-toggle" title="Toggle Edge Hash & Vector Inspector">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
@@ -60,82 +60,221 @@
             </div>
         </header>
 
-        <!-- Developer Mode Panel (Edge Optimizer & Hash Audit Inspector) -->
+        <!-- Developer Mode Multi-Tab Inspector -->
         <section class="ui-card dev-panel" id="dev-panel" style="display: none;">
             <div class="dev-panel-header">
                 <div class="dev-panel-title">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue">
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
-                    <h3>Edge Frame Hashing & Motion Optimizer (dHash / pHash Inspector)</h3>
+                    <h3>
+                        Edge Frame Filter, Vector Store & Pipeline Debugger
+                        <button class="info-btn" data-info="dev_panel_overview" title="What is this panel?">i</button>
+                    </h3>
                 </div>
-                <span class="badge-gpu">Edge Compute Gate</span>
-            </div>
-
-            <!-- Dev Controls & Summary Badges -->
-            <div class="dev-controls-bar">
-                <div class="control-group">
-                    <label>Hash Algorithm:</label>
-                    <select id="hash-algo-select" class="dev-select">
-                        <option value="dhash" selected>dHash (Difference Hash — Fast Gradient)</option>
-                        <option value="phash">pHash (Perceptual DCT — Robust)</option>
-                        <option value="ahash">aHash (Average Hash)</option>
-                    </select>
-                </div>
-
-                <div class="control-group">
-                    <label>Hamming Threshold: <strong id="threshold-val" class="text-blue">10</strong></label>
-                    <input type="range" id="threshold-range" min="1" max="32" value="10" class="dev-slider">
-                </div>
-
-                <button id="run-smart-filter-btn" class="btn-primary btn-sm">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                    </svg>
-                    <span>Run Smart Frame Filter</span>
-                </button>
-            </div>
-
-            <div class="dev-kpi-grid">
-                <div class="kpi-card">
-                    <span class="kpi-label">Total Frames Sampled</span>
-                    <span class="kpi-val" id="kpi-total">55</span>
-                </div>
-                <div class="kpi-card">
-                    <span class="kpi-label">Keyframes Kept (VLM)</span>
-                    <span class="kpi-val text-green" id="kpi-kept">48</span>
-                </div>
-                <div class="kpi-card">
-                    <span class="kpi-label">Static Frames Skipped</span>
-                    <span class="kpi-val text-dim" id="kpi-skipped">7</span>
-                </div>
-                <div class="kpi-card highlight-blue">
-                    <span class="kpi-label">LLM Compute Saved</span>
-                    <span class="kpi-val text-blue" id="kpi-saved">12.7%</span>
+                <!-- Dev Mode Tabs -->
+                <div class="dev-tabs">
+                    <button class="dev-tab-btn active" data-tab="tab-hash">
+                        dHash / pHash Edge Gate
+                        <button class="info-btn tab-info" data-info="dhash_phash" title="What is dHash / pHash?">i</button>
+                    </button>
+                    <button class="dev-tab-btn" data-tab="tab-vector">
+                        Vector & Execution Trace
+                        <button class="info-btn tab-info" data-info="vector_trace" title="What is Vector Execution Trace?">i</button>
+                    </button>
+                    <button class="dev-tab-btn" data-tab="tab-json">
+                        JSON Event Chunks Explorer
+                        <button class="info-btn tab-info" data-info="json_explorer" title="What are JSON Chunks?">i</button>
+                    </button>
                 </div>
             </div>
 
-            <!-- Frame Hash Audit Trail Table -->
-            <div class="dev-table-wrapper">
-                <table class="dev-audit-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Timestamp</th>
-                            <th>64-Bit Fingerprint (Hex)</th>
-                            <th>Hamming Dist</th>
-                            <th>Motion %</th>
-                            <th>Decision & Reason</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dev-audit-tbody">
-                        <tr>
-                            <td colspan="6" class="placeholder-text" style="text-align:center; padding: 20px;">
-                                Click "Run Smart Frame Filter" to generate live dHash / pHash Hamming distance audit logs.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- TAB 1: Edge Frame Hashing & Motion Optimizer -->
+            <div class="dev-tab-content" id="tab-hash">
+                <div class="dev-controls-bar">
+                    <div class="control-group">
+                        <label>
+                            Hash Algorithm:
+                            <button class="info-btn" data-info="dhash_phash">i</button>
+                        </label>
+                        <select id="hash-algo-select" class="dev-select">
+                            <option value="dhash" selected>dHash (Difference Hash — Fast Gradient)</option>
+                            <option value="phash">pHash (Perceptual DCT — Robust)</option>
+                            <option value="ahash">aHash (Average Hash)</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            Hamming Threshold: <strong id="threshold-val" class="text-blue">10</strong>
+                            <button class="info-btn" data-info="hamming_threshold">i</button>
+                        </label>
+                        <input type="range" id="threshold-range" min="1" max="32" value="10" class="dev-slider">
+                    </div>
+
+                    <button id="run-smart-filter-btn" class="btn-primary btn-sm">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span>Run Smart Frame Filter</span>
+                    </button>
+                </div>
+
+                <!-- Hamming Distance Guide Info Card -->
+                <div class="guide-box">
+                    <div class="guide-header">
+                        <strong>💡 Hamming Distance & Threshold Guide</strong>
+                        <button class="info-btn" data-info="hamming_threshold">i</button>
+                    </div>
+                    <p>
+                        A 64-bit dHash converts frames into 64 binary bits. 
+                        <strong>Hamming Distance</strong> measures bitwise differences: 
+                        <code>0</code> = identical duplicate, <code>64</code> = completely inverted image.
+                        <br>
+                        🎯 <strong>Optimal Threshold for CCTV (8–12):</strong> Filters 10–25% of static duplicate scenes (empty hallways/roads) while preserving all vehicle & pedestrian activity!
+                    </p>
+                </div>
+
+                <div class="dev-kpi-grid">
+                    <div class="kpi-card">
+                        <span class="kpi-label">
+                            Total Frames Sampled
+                            <button class="info-btn" data-info="total_frames">i</button>
+                        </span>
+                        <span class="kpi-val" id="kpi-total">55</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-label">
+                            Keyframes Kept (VLM)
+                            <button class="info-btn" data-info="keyframes_kept">i</button>
+                        </span>
+                        <span class="kpi-val text-green" id="kpi-kept">48</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-label">
+                            Static Frames Skipped
+                            <button class="info-btn" data-info="static_frames">i</button>
+                        </span>
+                        <span class="kpi-val text-dim" id="kpi-skipped">7</span>
+                    </div>
+                    <div class="kpi-card highlight-blue">
+                        <span class="kpi-label">
+                            LLM Compute Saved
+                            <button class="info-btn" data-info="compute_saved">i</button>
+                        </span>
+                        <span class="kpi-val text-blue" id="kpi-saved">12.7%</span>
+                    </div>
+                </div>
+
+                <div class="dev-table-wrapper">
+                    <table class="dev-audit-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Timestamp</th>
+                                <th>
+                                    64-Bit Fingerprint (Hex)
+                                    <button class="info-btn" data-info="fingerprint_hex">i</button>
+                                </th>
+                                <th>
+                                    Hamming Dist
+                                    <button class="info-btn" data-info="hamming_threshold">i</button>
+                                </th>
+                                <th>
+                                    Motion %
+                                    <button class="info-btn" data-info="motion_pct">i</button>
+                                </th>
+                                <th>Decision & Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dev-audit-tbody">
+                            <tr>
+                                <td colspan="6" class="placeholder-text" style="text-align:center; padding: 20px;">
+                                    Click "Run Smart Frame Filter" to generate live dHash / pHash Hamming distance audit logs.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 2: Vector Store & Query Execution Debugger -->
+            <div class="dev-tab-content" id="tab-vector" style="display: none;">
+                <div class="vector-debug-grid">
+                    <!-- Vector Sample Box -->
+                    <div class="vdebug-card">
+                        <h4>
+                            Query Embedding Vector (384 Dimensions)
+                            <button class="info-btn" data-info="text_embedding">i</button>
+                        </h4>
+                        <p class="vdebug-sub">
+                            Generated by <code>all-MiniLM-L6-v2</code> · Vector Norm $\|v\|$: <strong id="v-norm" class="text-blue">1.0000</strong>
+                            <button class="info-btn" data-info="vector_norm">i</button>
+                        </p>
+                        <div class="vector-array-box" id="vector-array-display">
+                            [Execute a query in the search bar to inspect dense vector weights]
+                        </div>
+                    </div>
+
+                    <!-- Pipeline Execution Timings -->
+                    <div class="vdebug-card">
+                        <h4>
+                            Pipeline Execution Breakdown
+                            <button class="info-btn" data-info="pipeline_breakdown">i</button>
+                        </h4>
+                        <div class="timing-rows">
+                            <div class="t-row">
+                                <span>
+                                    1. Text Embedding (CPU):
+                                    <button class="info-btn" data-info="text_embedding">i</button>
+                                </span>
+                                <strong id="t-embed">0.0 ms</strong>
+                            </div>
+                            <div class="t-row">
+                                <span>
+                                    2. FAISS Vector Search (Flat IP):
+                                    <button class="info-btn" data-info="faiss_search">i</button>
+                                </span>
+                                <strong id="t-faiss">0.0 ms</strong>
+                            </div>
+                            <div class="t-row">
+                                <span>
+                                    3. Cross-Encoder Rerank (CPU):
+                                    <button class="info-btn" data-info="cross_encoder">i</button>
+                                </span>
+                                <strong id="t-rerank">0.0 ms</strong>
+                            </div>
+                            <div class="t-row highlight-row">
+                                <span>
+                                    4. Qwen3-VL Local Generation (GPU):
+                                    <button class="info-btn" data-info="qwen3_vl">i</button>
+                                </span>
+                                <strong id="t-llm" class="text-blue">0.0 ms</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Prompt Context Block Explorer -->
+                <div class="vdebug-card" style="margin-top: 10px;">
+                    <h4>
+                        Raw Constructed Prompt Sent to Qwen3-VL
+                        <button class="info-btn" data-info="raw_prompt">i</button>
+                    </h4>
+                    <pre class="prompt-preview-box" id="prompt-preview-display">Execute a query above to view system instructions and retrieved evidence context formatted for Qwen3-VL.</pre>
+                </div>
+            </div>
+
+            <!-- TAB 3: JSON Event Chunks Explorer -->
+            <div class="dev-tab-content" id="tab-json" style="display: none;">
+                <div class="json-explorer-header">
+                    <h4>
+                        Indexed CCTV Event Dataset (<code>data/real_cctv_events.json</code>)
+                        <button class="info-btn" data-info="json_explorer">i</button>
+                    </h4>
+                    <button id="refresh-json-btn" class="btn-primary btn-sm">Refresh JSON Data</button>
+                </div>
+                <pre class="json-code-box" id="json-code-display">Loading indexed CCTV events JSON dataset…</pre>
             </div>
         </section>
 
@@ -227,22 +366,34 @@
                         <p class="placeholder-text">Submit a query above to execute local VLM visual search and reasoning.</p>
                     </div>
 
-                    <!-- Evaluation Metrics Bar -->
+                    <!-- Evaluation Metrics Bar with Info Buttons -->
                     <div class="metrics-bar" id="metrics-bar" style="display: none;">
                         <div class="metric-item">
-                            <span class="m-label">Precision@5</span>
+                            <span class="m-label">
+                                Precision@5
+                                <button class="info-btn" data-info="precision_5">i</button>
+                            </span>
                             <span class="m-val text-blue" id="m-precision">1.0</span>
                         </div>
                         <div class="metric-item">
-                            <span class="m-label">MRR</span>
+                            <span class="m-label">
+                                MRR
+                                <button class="info-btn" data-info="mrr">i</button>
+                            </span>
                             <span class="m-val text-blue" id="m-mrr">1.0</span>
                         </div>
                         <div class="metric-item">
-                            <span class="m-label">NDCG@5</span>
+                            <span class="m-label">
+                                NDCG@5
+                                <button class="info-btn" data-info="ndcg_5">i</button>
+                            </span>
                             <span class="m-val text-blue" id="m-ndcg">1.0</span>
                         </div>
                         <div class="metric-item">
-                            <span class="m-label">Context Util</span>
+                            <span class="m-label">
+                                Context Util
+                                <button class="info-btn" data-info="context_util">i</button>
+                            </span>
                             <span class="m-val text-green" id="m-util">100%</span>
                         </div>
                     </div>
@@ -257,7 +408,11 @@
                             </svg>
                             Retrieved Video Moments (<span id="evidence-count">0</span>)
                         </h3>
-                        <span class="sub-text">Ranked by FAISS Cosine Similarity & Cross-Encoder</span>
+                        <span class="sub-text">
+                            Ranked by FAISS Cosine Similarity & Cross-Encoder
+                            <button class="info-btn" data-info="faiss_search">i</button>
+                            <button class="info-btn" data-info="cross_encoder">i</button>
+                        </span>
                     </div>
 
                     <div class="evidence-list" id="evidence-list">
@@ -276,6 +431,22 @@
         <footer class="glass-footer">
             <p>VideoRAG CCTV Intelligence Platform — Defence Systems Group — Powered by Local Qwen3-VL & FAISS Vector Store</p>
         </footer>
+    </div>
+
+    <!-- Metric Info Popover Modal -->
+    <div class="info-modal-backdrop" id="info-modal" style="display: none;">
+        <div class="info-modal-card ui-card">
+            <div class="info-modal-header">
+                <div class="info-modal-title">
+                    <div class="info-icon-badge">i</div>
+                    <h4 id="info-modal-heading">Metric Information</h4>
+                </div>
+                <button class="info-modal-close" id="info-modal-close">&times;</button>
+            </div>
+            <div class="info-modal-body" id="info-modal-body">
+                Explanation text goes here...
+            </div>
+        </div>
     </div>
 
     <script src="/ui/app.js"></script>
