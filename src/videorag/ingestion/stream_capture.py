@@ -110,14 +110,25 @@ class RTSPStreamCapture:
         logger.info("[%s] Stopped stream capture. Total keyframes extracted: %d", self.camera_id, len(self.extracted_keyframes))
 
     def _connect_capture(self) -> Optional[cv2.VideoCapture]:
-        """Attempt to open VideoCapture with RTSP parameters."""
+        """Attempt to open VideoCapture with RTSP/RTMP/YouTube parameters."""
         logger.info("[%s] Opening video source: %s", self.camera_id, self.stream_url)
         
+        url_to_open = self.stream_url
+        if "youtube.com" in url_to_open.lower() or "youtu.be" in url_to_open.lower():
+            try:
+                import subprocess
+                res = subprocess.run(["yt-dlp", "-g", url_to_open], capture_output=True, text=True, timeout=15)
+                if res.returncode == 0 and res.stdout.strip():
+                    url_to_open = res.stdout.strip().split("\n")[0]
+                    logger.info("[%s] Resolved YouTube live stream link via yt-dlp.", self.camera_id)
+            except Exception as e:
+                logger.warning("[%s] Could not resolve YouTube link (%s). Using original URL.", self.camera_id, e)
+
         # Enable FFmpeg TCP transport for RTSP streams
-        if self.stream_url.lower().startswith("rtsp://"):
+        if url_to_open.lower().startswith("rtsp://"):
             os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 
-        cap = cv2.VideoCapture(self.stream_url, cv2.CAP_FFMPEG)
+        cap = cv2.VideoCapture(url_to_open, cv2.CAP_FFMPEG)
         if cap.isOpened():
             self.fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
             self.is_connected = True
