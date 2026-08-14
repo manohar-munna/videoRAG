@@ -656,6 +656,13 @@ def read_root():
     return JSONResponse({"message": "VideoRAG UI loading..."})
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Empty favicon response to prevent 404 in browser console."""
+    from starlette.responses import Response
+    return Response(status_code=204)
+
+
 # ---------------------------------------------------------------------------
 # CLI Runner
 # ---------------------------------------------------------------------------

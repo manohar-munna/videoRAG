@@ -262,62 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let rtspPollInterval = null;
 
     // ------------------------------------------------------------------
-    // RTSP Live Stream Management Handlers
-    // ------------------------------------------------------------------
-    const rtspCamId = document.getElementById('rtsp-cam-id');
-    const rtspUrl = document.getElementById('rtsp-url');
-    const rtspInterval = document.getElementById('rtsp-interval');
-    const addRtspBtn = document.getElementById('add-rtsp-btn');
-    const rtspStreamsList = document.getElementById('rtsp-streams-list');
-
-    if (addRtspBtn) {
-        addRtspBtn.addEventListener('click', async () => {
-            const camId = rtspCamId.value.trim() || `CAM_RTSP_${Date.now().toString().slice(-4)}`;
-            const url = rtspUrl.value.trim();
-            const interval = parseFloat(rtspInterval.value) || 5.0;
-
-            if (!url) {
-                alert('Please enter an RTSP stream URL or video file path.');
-                return;
-            }
-
-            try {
-                addRtspBtn.disabled = true;
-                addRtspBtn.innerHTML = `<span>Launching Stream…</span>`;
-
-                const resp = await fetch('/api/streams/add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        camera_id: camId,
-                        stream_url: url,
-                        sample_interval: interval,
-                        hash_method: 'dhash',
-                        threshold: 10
-                    })
-                });
-
-                if (resp.ok) {
-                    fetchRtspStreamsStatus();
-                    rtspUrl.value = '';
-                } else {
-                    alert('Failed to launch stream capture channel.');
-                }
-            } catch (err) {
-                alert('Error adding RTSP stream: ' + err.message);
-            } finally {
-                addRtspBtn.disabled = false;
-                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Start Async RTSP Capture</span>`;
-            }
-        });
-    }
-
-    async function fetchRtspStreamsStatus() {
-        if (!rtspStreamsList) return;
-        try {
-            const resp = await fetch('/api/streams/status');
-            if (resp.ok) {
-    // ------------------------------------------------------------------
     // Tab 4: RTSP Live Stream Manager & Multi-Camera Stream Controls
     // ------------------------------------------------------------------
     const rtspStreamsList = document.getElementById('rtsp-streams-list');
