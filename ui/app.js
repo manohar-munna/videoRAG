@@ -247,9 +247,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchEventsJson();
             } else if (targetTabId === 'tab-rtsp') {
                 fetchRtspStreamsStatus();
+                if (!rtspPollInterval) {
+                    rtspPollInterval = setInterval(fetchRtspStreamsStatus, 2000);
+                }
+            } else {
+                if (rtspPollInterval) {
+                    clearInterval(rtspPollInterval);
+                    rtspPollInterval = null;
+                }
             }
         });
     });
+
+    let rtspPollInterval = null;
 
     // ------------------------------------------------------------------
     // RTSP Live Stream Management Handlers
