@@ -273,13 +273,59 @@
             <!-- TAB 3: JSON Event Chunks Explorer -->
             <div class="dev-tab-content" id="tab-json" style="display: none;">
                 <div class="json-explorer-header">
-                    <h4>
-                        Indexed CCTV Event Dataset (<code>data/real_cctv_events.json</code>)
-                        <button class="info-btn" data-info="json_explorer">i</button>
-                    </h4>
-                    <button id="refresh-json-btn" class="btn-primary btn-sm">Refresh JSON Data</button>
+                    <div class="json-header-left">
+                        <h4>
+                            Indexed CCTV Event Dataset (<code>data/real_cctv_events.json</code>)
+                            <button class="info-btn" data-info="json_explorer">i</button>
+                        </h4>
+                        <div class="json-stats-chips">
+                            <span class="chip-badge chip-blue" id="json-stat-total">11 Events</span>
+                            <span class="chip-badge chip-green" id="json-stat-cams">2 Cameras</span>
+                            <span class="chip-badge chip-purple" id="json-stat-dim">384-D FAISS</span>
+                            <span class="chip-badge chip-dark" id="json-stat-size">~12 KB</span>
+                        </div>
+                    </div>
+                    <div class="json-header-actions">
+                        <div class="view-toggle-group">
+                            <button id="json-view-cards-btn" class="toggle-view-btn active" title="Visual Cards View">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                <span>Cards</span>
+                            </button>
+                            <button id="json-view-raw-btn" class="toggle-view-btn" title="Raw JSON Code View">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                                <span>Raw JSON</span>
+                            </button>
+                        </div>
+                        <button id="copy-json-btn" class="btn-secondary btn-sm" title="Copy JSON dataset to clipboard">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span>Copy</span>
+                        </button>
+                        <button id="refresh-json-btn" class="btn-primary btn-sm">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                            <span>Refresh JSON Data</span>
+                        </button>
+                    </div>
                 </div>
-                <pre class="json-code-box" id="json-code-display">Loading indexed CCTV events JSON dataset…</pre>
+
+                <!-- Dynamic Filter Toolbar: Camera Pills & Live Search -->
+                <div class="json-filter-toolbar">
+                    <div class="json-cam-pills" id="json-camera-filters">
+                        <!-- Populated dynamically: All Cameras, CAM_01, CAM_3000... -->
+                    </div>
+                    <div class="json-search-wrap">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="json-search-input" placeholder="Filter descriptions or timestamps..." class="dev-input">
+                        <span id="json-match-count" class="json-match-count">11 / 11 items</span>
+                    </div>
+                </div>
+
+                <!-- Structured Visual Cards Grid -->
+                <div id="json-cards-container" class="json-cards-grid">
+                    <!-- Event cards rendered here -->
+                </div>
+
+                <!-- Raw JSON Syntax View -->
+                <pre class="json-code-box" id="json-code-display" style="display: none;">Loading indexed CCTV events JSON dataset…</pre>
             </div>
 
             <!-- TAB 4: RTSP Live Stream Manager -->

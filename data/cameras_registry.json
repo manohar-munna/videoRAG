@@ -7,7 +7,7 @@
     "sample_interval": 15.0,
     "hash_method": "dhash",
     "threshold": 10,
-    "status": "stopped"
+    "status": "paused"
   },
   "CAM_3000": {
     "camera_id": "CAM_3000",

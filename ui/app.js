@@ -56,7 +56,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // JSON Explorer Elements
     const refreshJsonBtn = document.getElementById('refresh-json-btn');
+    const copyJsonBtn = document.getElementById('copy-json-btn');
     const jsonCodeDisplay = document.getElementById('json-code-display');
+    const jsonCardsContainer = document.getElementById('json-cards-container');
+    const jsonViewCardsBtn = document.getElementById('json-view-cards-btn');
+    const jsonViewRawBtn = document.getElementById('json-view-raw-btn');
+    const jsonCameraFilters = document.getElementById('json-camera-filters');
+    const jsonSearchInput = document.getElementById('json-search-input');
+    const jsonMatchCount = document.getElementById('json-match-count');
+    const jsonStatTotal = document.getElementById('json-stat-total');
+    const jsonStatCams = document.getElementById('json-stat-cams');
+    const jsonStatDim = document.getElementById('json-stat-dim');
+    const jsonStatSize = document.getElementById('json-stat-size');
 
     // Floating Popover Card Elements
     const infoPopover = document.getElementById('info-popover');
@@ -478,6 +489,255 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     fetchCameraPills();
+
+    // ------------------------------------------------------------------
+    // Tab 3: JSON Event Chunks Explorer (Dynamic & Interactive)
+    // ------------------------------------------------------------------
+    let loadedJsonEvents = [];
+    let activeJsonCameraFilter = '';
+    let jsonSearchTerm = '';
+    let jsonViewMode = 'cards'; // 'cards' | 'raw'
+
+    if (jsonViewCardsBtn && jsonViewRawBtn) {
+        jsonViewCardsBtn.addEventListener('click', () => {
+            jsonViewMode = 'cards';
+            jsonViewCardsBtn.classList.add('active');
+            jsonViewRawBtn.classList.remove('active');
+            if (jsonCardsContainer) jsonCardsContainer.style.display = 'flex';
+            if (jsonCodeDisplay) jsonCodeDisplay.style.display = 'none';
+            renderJsonExplorer();
+        });
+
+        jsonViewRawBtn.addEventListener('click', () => {
+            jsonViewMode = 'raw';
+            jsonViewRawBtn.classList.add('active');
+            jsonViewCardsBtn.classList.remove('active');
+            if (jsonCardsContainer) jsonCardsContainer.style.display = 'none';
+            if (jsonCodeDisplay) jsonCodeDisplay.style.display = 'block';
+            renderJsonExplorer();
+        });
+    }
+
+    if (jsonSearchInput) {
+        jsonSearchInput.addEventListener('input', (e) => {
+            jsonSearchTerm = e.target.value.trim().toLowerCase();
+            renderJsonExplorer();
+        });
+    }
+
+    if (refreshJsonBtn) {
+        refreshJsonBtn.addEventListener('click', () => {
+            fetchEventsJson();
+        });
+    }
+
+    if (copyJsonBtn) {
+        copyJsonBtn.addEventListener('click', async () => {
+            const filtered = getFilteredJsonEvents();
+            try {
+                await navigator.clipboard.writeText(JSON.stringify(filtered, null, 2));
+                const origText = copyJsonBtn.querySelector('span');
+                if (origText) {
+                    const prev = origText.textContent;
+                    origText.textContent = 'Copied!';
+                    setTimeout(() => { origText.textContent = prev; }, 1500);
+                }
+            } catch (err) {
+                alert('Copy failed: ' + err.message);
+            }
+        });
+    }
+
+    function getFilteredJsonEvents() {
+        return loadedJsonEvents.filter(item => {
+            if (activeJsonCameraFilter && item.camera !== activeJsonCameraFilter) {
+                return false;
+            }
+            if (jsonSearchTerm) {
+                const desc = (item.description || '').toLowerCase();
+                const cam = (item.camera || '').toLowerCase();
+                const ts = (item.timestamp || '').toLowerCase();
+                if (!desc.includes(jsonSearchTerm) && !cam.includes(jsonSearchTerm) && !ts.includes(jsonSearchTerm)) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    async function fetchEventsJson() {
+        try {
+            if (refreshJsonBtn) {
+                refreshJsonBtn.disabled = true;
+                const span = refreshJsonBtn.querySelector('span');
+                if (span) span.textContent = 'Refreshing…';
+            }
+            const resp = await fetch('/api/events?detailed=true');
+            if (resp.ok) {
+                const data = await resp.json();
+                loadedJsonEvents = data.events || [];
+                
+                // Update stats chips
+                if (jsonStatTotal) jsonStatTotal.textContent = `${data.total_count || loadedJsonEvents.length} Events`;
+                if (jsonStatCams) jsonStatCams.textContent = `${(data.cameras || []).length} Cameras`;
+                if (jsonStatDim) jsonStatDim.textContent = `384-D FAISS`;
+                if (jsonStatSize) {
+                    const kb = ((data.file_size_bytes || 0) / 1024).toFixed(1);
+                    jsonStatSize.textContent = `~${kb} KB`;
+                }
+
+                // Render camera filter pills for JSON tab
+                renderJsonCameraFilters(data.cameras || []);
+                renderJsonExplorer();
+            } else {
+                if (jsonCodeDisplay) jsonCodeDisplay.textContent = 'Failed to load CCTV events dataset.';
+            }
+        } catch (err) {
+            console.warn('Failed to fetch events JSON:', err);
+            if (jsonCodeDisplay) jsonCodeDisplay.textContent = 'Error loading JSON: ' + err.message;
+        } finally {
+            if (refreshJsonBtn) {
+                refreshJsonBtn.disabled = false;
+                const span = refreshJsonBtn.querySelector('span');
+                if (span) span.textContent = 'Refresh JSON Data';
+            }
+        }
+    }
+
+    function renderJsonCameraFilters(cameras) {
+        if (!jsonCameraFilters) return;
+        
+        // Count per camera
+        const counts = {};
+        loadedJsonEvents.forEach(e => {
+            counts[e.camera] = (counts[e.camera] || 0) + 1;
+        });
+
+        jsonCameraFilters.innerHTML = `
+            <button class="json-cam-pill ${activeJsonCameraFilter === '' ? 'active' : ''}" data-camera="">
+                All Cameras (${loadedJsonEvents.length})
+            </button>
+            ${cameras.map(c => `
+                <button class="json-cam-pill ${activeJsonCameraFilter === c ? 'active' : ''}" data-camera="${escapeHtml(c)}">
+                    ${escapeHtml(c)} (${counts[c] || 0})
+                </button>
+            `).join('')}
+        `;
+
+        jsonCameraFilters.querySelectorAll('.json-cam-pill').forEach(btn => {
+            btn.addEventListener('click', () => {
+                jsonCameraFilters.querySelectorAll('.json-cam-pill').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                activeJsonCameraFilter = btn.dataset.camera;
+                renderJsonExplorer();
+            });
+        });
+    }
+
+    function renderJsonExplorer() {
+        const filtered = getFilteredJsonEvents();
+        
+        if (jsonMatchCount) {
+            jsonMatchCount.textContent = `${filtered.length} / ${loadedJsonEvents.length} items`;
+        }
+
+        // Render Cards View
+        if (jsonCardsContainer) {
+            if (filtered.length === 0) {
+                jsonCardsContainer.innerHTML = `
+                    <div class="empty-state" style="padding: 24px; text-align: center;">
+                        <p class="placeholder-text">No indexed event chunks match your filter.</p>
+                    </div>
+                `;
+            } else {
+                jsonCardsContainer.innerHTML = filtered.map((item, idx) => {
+                    const imgUrl = item.image_url || (item.image_path ? '/' + item.image_path.replace(/\\/g, '/') : '');
+                    const secs = item.seconds ?? (function(ts) {
+                        if (!ts) return 0;
+                        const p = ts.split(':').map(Number);
+                        return p.length === 3 ? p[0]*3600 + p[1]*60 + p[2] : 0;
+                    })(item.timestamp);
+
+                    return `
+                        <div class="json-event-card" data-camera="${escapeHtml(item.camera || '')}" data-seconds="${secs}" data-timestamp="${escapeHtml(item.timestamp || '')}" data-image="${escapeHtml(imgUrl)}">
+                            <div class="json-card-thumb-wrap" title="Click to preview in Surveillance Monitor">
+                                ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" class="json-card-thumb" alt="Frame preview" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}
+                                <div class="json-card-thumb-placeholder" style="${imgUrl ? 'display:none;' : ''}">
+                                    <span>${escapeHtml(item.camera || 'CCTV')}</span>
+                                </div>
+                            </div>
+                            <div class="json-card-main">
+                                <div class="json-card-header">
+                                    <span class="json-card-index">#${idx + 1}</span>
+                                    <span class="json-card-cam">${escapeHtml(item.camera || 'UNKNOWN')}</span>
+                                    <span class="json-card-ts">${escapeHtml(item.timestamp || '00:00:00')}</span>
+                                </div>
+                                <div class="json-card-desc">${escapeHtml(item.description || '')}</div>
+                                <div class="json-card-source">${escapeHtml(item.image_path || '')}</div>
+                            </div>
+                            <div class="json-card-actions">
+                                <button class="btn-card-seek" title="Redirect Surveillance Monitor to this camera moment">
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                    <span>Seek</span>
+                                </button>
+                                <button class="btn-card-copy" title="Copy this chunk as JSON">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                    <span>JSON</span>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Attach Card Listeners
+                jsonCardsContainer.querySelectorAll('.json-event-card').forEach(card => {
+                    const cam = card.dataset.camera;
+                    const sec = parseFloat(card.dataset.seconds) || 0;
+                    const ts = card.dataset.timestamp;
+                    const img = card.dataset.image;
+
+                    // Thumb click & Seek click
+                    const thumbWrap = card.querySelector('.json-card-thumb-wrap');
+                    const seekBtn = card.querySelector('.btn-card-seek');
+                    const handleSeek = () => {
+                        seekToTime(sec, ts, cam, img);
+                    };
+                    if (thumbWrap) thumbWrap.addEventListener('click', handleSeek);
+                    if (seekBtn) seekBtn.addEventListener('click', handleSeek);
+
+                    // Copy chunk click
+                    const copyBtn = card.querySelector('.btn-card-copy');
+                    if (copyBtn) {
+                        copyBtn.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            const chunkData = {
+                                camera: cam,
+                                timestamp: ts,
+                                seconds: sec,
+                                description: card.querySelector('.json-card-desc')?.textContent || '',
+                                image_path: card.querySelector('.json-card-source')?.textContent || ''
+                            };
+                            try {
+                                await navigator.clipboard.writeText(JSON.stringify(chunkData, null, 2));
+                                const span = copyBtn.querySelector('span');
+                                if (span) {
+                                    span.textContent = 'Copied!';
+                                    setTimeout(() => { span.textContent = 'JSON'; }, 1200);
+                                }
+                            } catch (err) {
+                                alert('Copy failed: ' + err.message);
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        // Render Raw JSON View
+        if (jsonCodeDisplay) {
+            jsonCodeDisplay.textContent = JSON.stringify(filtered, null, 2);
+        }
+    }
 
     // ------------------------------------------------------------------
     // Dev Mode Toggle & Controls

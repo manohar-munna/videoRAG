@@ -191,22 +191,56 @@ def get_health():
 
 
 @app.get("/api/events")
-def get_events():
-    """Return combined CCTV events dataset from registered cameras."""
+def get_events(camera: Optional[str] = None, detailed: bool = False):
+    """Return combined CCTV events dataset with optional camera filtering and metadata."""
     data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+    records = []
     if data_path.exists():
-        with open(data_path, "r", encoding="utf-8") as fh:
-            return json.load(fh)
-    
-    # Fallback: aggregate directly from camera directories
-    aggregated = []
-    for cam_events in (_PROJECT_ROOT / "data" / "cameras").glob("*/events.json"):
         try:
-            with open(cam_events, "r", encoding="utf-8") as fh:
-                aggregated.extend(json.load(fh))
-        except Exception:
-            pass
-    return aggregated
+            with open(data_path, "r", encoding="utf-8") as fh:
+                records = json.load(fh)
+        except Exception as exc:
+            logger.warning("Failed to read %s: %s", data_path, exc)
+    
+    if not records:
+        # Fallback: aggregate directly from camera directories
+        for cam_events in (_PROJECT_ROOT / "data" / "cameras").glob("*/events.json"):
+            try:
+                with open(cam_events, "r", encoding="utf-8") as fh:
+                    records.extend(json.load(fh))
+            except Exception:
+                pass
+
+    # Normalize image_path for browser display
+    for r in records:
+        img_p = r.get("image_path", "")
+        if img_p:
+            clean_img = img_p.replace("\\", "/")
+            if "data/" in clean_img:
+                r["image_url"] = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
+            else:
+                r["image_url"] = "/data/" + clean_img.lstrip("/")
+        else:
+            r["image_url"] = ""
+
+    # Filter by camera if requested
+    filtered = records
+    if camera:
+        filtered = [r for r in records if r.get("camera") == camera]
+
+    if detailed:
+        file_size = data_path.stat().st_size if data_path.exists() else 0
+        all_cams = sorted(list(set(r.get("camera", "Unknown") for r in records if r.get("camera"))))
+        return {
+            "events": filtered,
+            "total_count": len(records),
+            "filtered_count": len(filtered),
+            "cameras": all_cams,
+            "file_size_bytes": file_size,
+            "dataset_path": "data/real_cctv_events.json",
+        }
+
+    return filtered
 
 
 @app.post("/api/search")
