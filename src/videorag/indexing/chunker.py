@@ -140,6 +140,7 @@ class DocumentChunker:
                     "end_timestamp": ts,
                     "doc_ids": [doc["id"]],
                     "description": doc.get("description", ""),
+                    "image_path": doc.get("metadata", {}).get("image_path", ""),
                 },
             }
             chunks.append(chunk)

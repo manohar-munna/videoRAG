@@ -153,6 +153,7 @@ class VLMCaptioner:
                 "camera": cam,
                 "timestamp": ts,
                 "description": description,
+                "image_path": img_path,
             })
 
             if show_progress and idx % 5 == 0:

@@ -143,6 +143,7 @@ def run_indexing(config_path: str, data_path: str) -> None:
             meta["text"] = chunk["text"]
             meta["chunk_id"] = chunk["chunk_id"]
             meta["description"] = chunk["metadata"].get("description", "")
+            meta["image_path"] = chunk["metadata"].get("image_path", "")
         store.add(embeddings, metadata)
         progress.update(task_index, completed=1)
         console.print(f"  [OK] Index built with [green]{store.size}[/green] vectors")

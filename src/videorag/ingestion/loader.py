@@ -87,7 +87,11 @@ class CCTVDataLoader:
             text = (
                 f"Camera: {camera} | Time: {timestamp} | Event: {description}"
             )
-            metadata = {"camera": camera, "timestamp": timestamp}
+            metadata = {
+                "camera": camera,
+                "timestamp": timestamp,
+                "image_path": record.get("image_path", ""),
+            }
 
             doc = {
                 "id": idx,

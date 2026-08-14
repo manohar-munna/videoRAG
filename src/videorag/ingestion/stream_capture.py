@@ -48,7 +48,8 @@ class RTSPStreamCapture:
         """
         self.camera_id = camera_id
         self.stream_url = str(stream_url)
-        self.output_dir = Path(output_dir)
+        cam_dir = Path(output_dir) / "cameras" / camera_id / "extracted_frames"
+        self.output_dir = cam_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.sample_interval = sample_interval
