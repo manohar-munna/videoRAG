@@ -27,8 +27,21 @@ _CCTV_CAPTION_PROMPT = (
 )
 
 
-def _encode_image_base64(image_path: str) -> str:
-    """Encode image file to base64 string."""
+def _encode_image_base64(image_path: str, max_dim: int = 640) -> str:
+    """Encode image file to base64 string with optional downsampling for fast VLM processing."""
+    try:
+        import cv2
+        img = cv2.imread(str(image_path))
+        if img is not None:
+            h, w = img.shape[:2]
+            if max(h, w) > max_dim:
+                scale = max_dim / max(h, w)
+                img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+            _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            return base64.b64encode(buf).decode("utf-8")
+    except Exception:
+        pass
+
     with open(image_path, "rb") as fh:
         return base64.b64encode(fh.read()).decode("utf-8")
 

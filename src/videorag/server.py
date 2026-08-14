@@ -192,15 +192,21 @@ def get_health():
 
 @app.get("/api/events")
 def get_events():
-    """Return raw CCTV events dataset if available."""
+    """Return combined CCTV events dataset from registered cameras."""
     data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-    if not data_path.exists():
-        data_path = _PROJECT_ROOT / "data" / "mock_cctv.json"
-    
     if data_path.exists():
         with open(data_path, "r", encoding="utf-8") as fh:
             return json.load(fh)
-    return []
+    
+    # Fallback: aggregate directly from camera directories
+    aggregated = []
+    for cam_events in (_PROJECT_ROOT / "data" / "cameras").glob("*/events.json"):
+        try:
+            with open(cam_events, "r", encoding="utf-8") as fh:
+                aggregated.extend(json.load(fh))
+        except Exception:
+            pass
+    return aggregated
 
 
 @app.post("/api/search")
@@ -267,22 +273,29 @@ def search_cctv(req: SearchRequest):
             clean_img = img_p.replace("\\", "/")
             if "data/" in clean_img:
                 img_p = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
-        elif cam in ("CAM_01", "CAM_02", "CAM_03", "CAM_04"):
-            snap_file = _PROJECT_ROOT / "data" / "cameras" / cam / "extracted_frames" / f"{cam}_snapshot.jpg"
-            if snap_file.exists():
-                img_p = f"/data/cameras/{cam}/extracted_frames/{cam}_snapshot.jpg"
+        elif cam:
+            # Dynamic lookup for latest extracted frame in camera folder
+            cam_dir = _PROJECT_ROOT / "data" / "cameras" / cam / "extracted_frames"
+            if cam_dir.exists():
+                jpgs = sorted(cam_dir.glob("*.jpg"), key=os.path.getmtime, reverse=True)
+                if jpgs:
+                    img_p = f"/data/cameras/{cam}/extracted_frames/{jpgs[0].name}"
 
         # Determine feed type & streaming details
-        feed_type = "snapshot"
+        cam_info = CAMERA_REGISTRY.get(cam)
+        feed_type = cam_info.get("type", "snapshot") if cam_info else "snapshot"
         feed_url = ""
         embed_url = ""
-        if cam == "CAM_01":
+        if cam_info and cam_info.get("type") == "video_file":
             feed_type = "video_file"
             feed_url = "/video/sample_cctv.mp4"
-        elif "3000" in cam or (cam in STREAM_MANAGER.streams and "youtube.com" in STREAM_MANAGER.streams[cam].stream_url.lower()):
+        elif cam_info and cam_info.get("type") == "youtube_stream":
             feed_type = "youtube_stream"
-            feed_url = "https://www.youtube.com/watch?v=1EiC9bvVGnk"
-            embed_url = "https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1"
+            feed_url = cam_info.get("stream_url", "")
+            import re
+            yt_match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", feed_url)
+            vid_id = yt_match.group(1) if yt_match else "1EiC9bvVGnk"
+            embed_url = f"https://www.youtube-nocookie.com/embed/{vid_id}?autoplay=1&mute=1"
         elif cam in STREAM_MANAGER.streams:
             feed_type = "rtsp_stream"
             feed_url = STREAM_MANAGER.streams[cam].stream_url
@@ -481,30 +494,21 @@ def index_stream_keyframes(req: RemoveStreamRequest):
     with open(cam_json_file, "w", encoding="utf-8") as fh:
         json.dump(updated_cam_records, fh, indent=2, ensure_ascii=False)
 
-    # 3. Update master combined real_cctv_events.json for FAISS vector indexing
+    # 3. Update master combined real_cctv_events.json by aggregating all per-camera event files
     out_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-    mock_file = _PROJECT_ROOT / "data" / "mock_cctv.json"
+    all_events = []
+    for cam_dir in (_PROJECT_ROOT / "data" / "cameras").glob("*"):
+        events_f = cam_dir / "events.json"
+        if events_f.exists():
+            try:
+                with open(events_f, "r", encoding="utf-8") as fh:
+                    all_events.extend(json.load(fh))
+            except Exception:
+                pass
 
-    base_records = []
-    if mock_file.exists():
-        try:
-            with open(mock_file, "r", encoding="utf-8") as fh:
-                base_records = json.load(fh)
-        except Exception:
-            base_records = []
-
-    existing_records = []
-    if out_file.exists():
-        try:
-            with open(out_file, "r", encoding="utf-8") as fh:
-                existing_records = json.load(fh)
-        except Exception:
-            existing_records = []
-
-    all_known = base_records + existing_records + new_records
     seen_keys = set()
     deduped_master = []
-    for r in all_known:
+    for r in all_events:
         key = (r.get("camera"), r.get("timestamp"), r.get("description", "")[:30])
         if key not in seen_keys:
             seen_keys.add(key)
@@ -533,22 +537,13 @@ def index_stream_keyframes(req: RemoveStreamRequest):
 
 @app.get("/api/cameras")
 def get_camera_list():
-    """Return list of all registered and indexed camera IDs."""
+    """Return list of all dynamically registered cameras."""
     registered = [c["camera_id"] for c in CAMERA_REGISTRY.get_all()]
-    data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-    cams = set(registered)
-    if data_path.exists():
-        try:
-            with open(data_path, "r", encoding="utf-8") as fh:
-                records = json.load(fh)
-                for r in records:
-                    c = r.get("camera")
-                    if c:
-                        cams.add(c)
-        except Exception:
-            pass
-
-    return {"cameras": sorted(list(cams))}
+    # Add any cameras that have folders with events
+    for cam_dir in (_PROJECT_ROOT / "data" / "cameras").glob("*"):
+        if cam_dir.is_dir() and (cam_dir / "events.json").exists():
+            registered.append(cam_dir.name)
+    return {"cameras": sorted(list(set(registered)))}
 
 
 @app.get("/api/cameras/feeds")

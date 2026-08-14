@@ -3,8 +3,8 @@
 # All paths can be absolute or relative to the project root.
 
 data:
-  # Path to the mock CCTV JSON file
-  mock_path: "data/mock_cctv.json"
+  # Path to the real CCTV JSON dataset
+  data_path: "data/real_cctv_events.json"
 
 indexing:
   # Sentence-Transformers model for embedding

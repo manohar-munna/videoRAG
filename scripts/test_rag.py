@@ -353,7 +353,7 @@ if __name__ == "__main__":
     cfg_ret = config.get("retrieval", {})
     cfg_llm = config.get("llm", {})
 
-    data_path = args.data or cfg_data.get("mock_path", "data/mock_cctv.json")
+    data_path = args.data or cfg_data.get("data_path", cfg_data.get("mock_path", "data/real_cctv_events.json"))
     model_name = cfg_idx.get("model_name", "all-MiniLM-L6-v2")
     index_path = cfg_idx.get("index_save_path", "index/cctv_index")
     top_k = cfg_ret.get("top_k", 10)

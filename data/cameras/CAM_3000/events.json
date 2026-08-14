@@ -34,40 +34,5 @@
     "timestamp": "18:55:12",
     "description": "Two individuals in dark jackets stand loitering on the sidewalk near the left storefront. A horse-drawn carriage and a large decorative arch are visible in the center of the intersection, with pedestrians gathered nearby. Multiple vehicles, including a black pickup, silver SUV, and white van, are in motion or parked along the wet street.",
     "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_18_55_12_2235.jpg"
-  },
-  {
-    "camera": "CAM_01",
-    "timestamp": "00:00:15",
-    "seconds": 15.0,
-    "description": "Main facility entrance gate. Security booth active, perimeter gate is closed. Ambient daylight and clear surveillance visibility across the roadway.",
-    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_00_15_450.jpg"
-  },
-  {
-    "camera": "CAM_01",
-    "timestamp": "00:01:30",
-    "seconds": 90.0,
-    "description": "Vehicular entrance checkpoint. Clear driveway with no unauthorized vehicles or personnel. Standard surveillance monitoring in effect.",
-    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_01_30_2700.jpg"
-  },
-  {
-    "camera": "CAM_01",
-    "timestamp": "00:03:45",
-    "seconds": 225.0,
-    "description": "Main approach road. Routine traffic and gate clearance operations. No security breaches or loitering observed.",
-    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_03_45_6750.jpg"
-  },
-  {
-    "camera": "CAM_01",
-    "timestamp": "00:07:00",
-    "seconds": 420.0,
-    "description": "Main entrance gate area. Stationary security post and barrier gate operational. Clear scene with regular facility monitoring.",
-    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_07_00_12600.jpg"
-  },
-  {
-    "camera": "CAM_01",
-    "timestamp": "00:11:15",
-    "seconds": 675.0,
-    "description": "Entrance perimeter and access barrier. Clear roadway, no pedestrian or vehicle obstructions present.",
-    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_11_15_20250.jpg"
   }
 ]

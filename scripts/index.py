@@ -83,7 +83,7 @@ def run_indexing(config_path: str, data_path: str) -> None:
     cfg_data = config.get("data", {})
     cfg_idx = config.get("indexing", {})
 
-    effective_data_path = data_path or cfg_data.get("mock_path", "data/mock_cctv.json")
+    effective_data_path = data_path or cfg_data.get("data_path", cfg_data.get("mock_path", "data/real_cctv_events.json"))
     model_name: str = cfg_idx.get("model_name", "all-MiniLM-L6-v2")
     index_save_path: str = cfg_idx.get("index_save_path", "index/cctv_index")
 
