@@ -39,6 +39,7 @@ from videorag.llm.prompter import RAGPrompter, LLMClient
 from videorag.evaluation.evaluator import RAGEvaluator
 from videorag.ingestion.video_processor import VideoFrameExtractor
 from videorag.ingestion.hash_filter import EdgeFrameFilter
+from videorag.ingestion.stream_capture import MultiCameraStreamManager
 from videorag.captioning.vlm_captioner import VLMCaptioner
 
 logging.basicConfig(
@@ -57,8 +58,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global pipeline instances
+# Global pipeline & stream manager instances
 PIPELINE: Dict[str, Any] = {}
+STREAM_MANAGER = MultiCameraStreamManager(output_dir=str(_PROJECT_ROOT / "data" / "extracted_frames"))
 
 
 class SearchRequest(BaseModel):
@@ -76,6 +78,18 @@ class SmartProcessRequest(BaseModel):
     hash_method: Optional[str] = "dhash"
     threshold: Optional[int] = 10
     run_vlm_captioning: Optional[bool] = True
+
+
+class AddStreamRequest(BaseModel):
+    camera_id: str
+    stream_url: str
+    sample_interval: Optional[float] = 5.0
+    hash_method: Optional[str] = "dhash"
+    threshold: Optional[int] = 10
+
+
+class RemoveStreamRequest(BaseModel):
+    camera_id: str
 
 
 # Latest Hash Filter Audit Trail store
@@ -344,6 +358,34 @@ def process_video_smart(req: SmartProcessRequest):
 def get_hash_audit():
     """Return the latest frame hashing audit log for Developer Mode UI inspection."""
     return LATEST_HASH_AUDIT
+
+
+@app.post("/api/streams/add")
+def add_camera_stream(req: AddStreamRequest):
+    """Add and start an async multi-threaded RTSP camera stream channel."""
+    stream = STREAM_MANAGER.add_camera(
+        camera_id=req.camera_id,
+        stream_url=req.stream_url,
+        sample_interval=req.sample_interval or 5.0,
+        hash_method=req.hash_method or "dhash",
+        threshold=req.threshold or 10,
+    )
+    return {"status": "started", "camera_id": req.camera_id, "stream_info": stream.get_status()}
+
+
+@app.get("/api/streams/status")
+def get_streams_status():
+    """Return health metrics and stats for all active multi-camera streams."""
+    return {"active_streams": STREAM_MANAGER.get_all_statuses()}
+
+
+@app.post("/api/streams/remove")
+def remove_camera_stream(req: RemoveStreamRequest):
+    """Stop and remove an active camera stream capture channel."""
+    success = STREAM_MANAGER.remove_camera(req.camera_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Camera {req.camera_id} not found")
+    return {"status": "stopped", "camera_id": req.camera_id}
 
 
 @app.get("/video/sample_cctv.mp4")

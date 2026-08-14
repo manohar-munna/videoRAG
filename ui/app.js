@@ -154,6 +154,10 @@ document.addEventListener('DOMContentLoaded', () => {
         context_util: {
             title: "LLM Context Utilization (%)",
             body: "Percentage of top retrieved CCTV evidence moments explicitly cited and utilized by local Qwen3-VL in its final answer."
+        },
+        rtsp_manager: {
+            title: "Async Multi-Threaded RTSP Stream Capture Engine",
+            body: "Captures live CCTV network feeds (RTSP/RTMP) on non-blocking background producer threads using a <strong>Size-1 Ring Buffer</strong>. Eliminates streaming lag, handles automatic socket reconnection, and extracts keyframes via edge dHash filtering without stalling server GIL."
         }
     };
 
@@ -241,9 +245,115 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (targetTabId === 'tab-json') {
                 fetchEventsJson();
+            } else if (targetTabId === 'tab-rtsp') {
+                fetchRtspStreamsStatus();
             }
         });
     });
+
+    // ------------------------------------------------------------------
+    // RTSP Live Stream Management Handlers
+    // ------------------------------------------------------------------
+    const rtspCamId = document.getElementById('rtsp-cam-id');
+    const rtspUrl = document.getElementById('rtsp-url');
+    const rtspInterval = document.getElementById('rtsp-interval');
+    const addRtspBtn = document.getElementById('add-rtsp-btn');
+    const rtspStreamsList = document.getElementById('rtsp-streams-list');
+
+    if (addRtspBtn) {
+        addRtspBtn.addEventListener('click', async () => {
+            const camId = rtspCamId.value.trim() || `CAM_RTSP_${Date.now().toString().slice(-4)}`;
+            const url = rtspUrl.value.trim();
+            const interval = parseFloat(rtspInterval.value) || 5.0;
+
+            if (!url) {
+                alert('Please enter an RTSP stream URL or video file path.');
+                return;
+            }
+
+            try {
+                addRtspBtn.disabled = true;
+                addRtspBtn.innerHTML = `<span>Launching Stream…</span>`;
+
+                const resp = await fetch('/api/streams/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        camera_id: camId,
+                        stream_url: url,
+                        sample_interval: interval,
+                        hash_method: 'dhash',
+                        threshold: 10
+                    })
+                });
+
+                if (resp.ok) {
+                    fetchRtspStreamsStatus();
+                    rtspUrl.value = '';
+                } else {
+                    alert('Failed to launch stream capture channel.');
+                }
+            } catch (err) {
+                alert('Error adding RTSP stream: ' + err.message);
+            } finally {
+                addRtspBtn.disabled = false;
+                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Start Async RTSP Capture</span>`;
+            }
+        });
+    }
+
+    async function fetchRtspStreamsStatus() {
+        if (!rtspStreamsList) return;
+        try {
+            const resp = await fetch('/api/streams/status');
+            if (resp.ok) {
+                const data = await resp.json();
+                renderRtspStreams(data.active_streams || []);
+            }
+        } catch (err) {
+            console.warn('Failed to fetch RTSP streams status:', err);
+        }
+    }
+
+    function renderRtspStreams(streams) {
+        if (!streams || streams.length === 0) {
+            rtspStreamsList.innerHTML = `<div class="empty-state" style="padding: 20px;"><p class="placeholder-text">No active camera streams running. Enter a stream URL above to launch multi-threaded capture.</p></div>`;
+            return;
+        }
+
+        rtspStreamsList.innerHTML = streams.map(s => `
+            <div class="stream-card ${s.is_connected ? 'active' : ''}">
+                <div class="stream-card-header">
+                    <div class="stream-cam-title">
+                        <span class="status-indicator ${s.is_connected ? 'online' : 'offline'}"></span>
+                        ${escapeHtml(s.camera_id)}
+                    </div>
+                    <button class="btn-shutdown stop-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 2px 8px; font-size: 0.72rem;">Stop Stream</button>
+                </div>
+                <div class="stream-url-tag">URL: ${escapeHtml(s.stream_url)}</div>
+                <div class="stream-metrics-grid">
+                    <div class="sm-item"><span class="sm-label">Status</span><span class="sm-val ${s.is_connected ? 'text-green' : 'text-dim'}">${s.is_connected ? 'LIVE (TCP)' : 'RECONNECTING'}</span></div>
+                    <div class="sm-item"><span class="sm-label">FPS</span><span class="sm-val">${s.fps}</span></div>
+                    <div class="sm-item"><span class="sm-label">Frames Read</span><span class="sm-val">${s.total_frames_read}</span></div>
+                    <div class="sm-item"><span class="sm-label">Ring Dropped</span><span class="sm-val text-dim">${s.total_frames_dropped}</span></div>
+                    <div class="sm-item"><span class="sm-label">Keyframes Kept</span><span class="sm-val text-blue">${s.keyframes_kept}</span></div>
+                    <div class="sm-item"><span class="sm-label">Compute Saved</span><span class="sm-val text-green">${s.llm_compute_saved_pct}%</span></div>
+                </div>
+            </div>
+        `).join('');
+
+        rtspStreamsList.querySelectorAll('.stop-stream-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const camId = btn.dataset.cam;
+                await fetch('/api/streams/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ camera_id: camId })
+                });
+                fetchRtspStreamsStatus();
+            });
+        });
+    }
 
     // ------------------------------------------------------------------
     // Dev Mode Toggle & Controls

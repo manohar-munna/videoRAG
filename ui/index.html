@@ -86,6 +86,10 @@
                         JSON Event Chunks Explorer
                         <button class="info-btn tab-info" data-info="json_explorer" title="What are JSON Chunks?">i</button>
                     </button>
+                    <button class="dev-tab-btn" data-tab="tab-rtsp">
+                        RTSP Live Stream Manager
+                        <button class="info-btn tab-info" data-info="rtsp_manager" title="What is RTSP Live Stream Manager?">i</button>
+                    </button>
                 </div>
             </div>
 
@@ -275,6 +279,50 @@
                     <button id="refresh-json-btn" class="btn-primary btn-sm">Refresh JSON Data</button>
                 </div>
                 <pre class="json-code-box" id="json-code-display">Loading indexed CCTV events JSON dataset…</pre>
+            </div>
+
+            <!-- TAB 4: RTSP Live Stream Manager -->
+            <div class="dev-tab-content" id="tab-rtsp" style="display: none;">
+                <div class="rtsp-form-bar">
+                    <div class="control-group">
+                        <label>Camera ID:</label>
+                        <input type="text" id="rtsp-cam-id" placeholder="CAM_NORTH_RTSP" class="dev-input" style="width: 140px;">
+                    </div>
+
+                    <div class="control-group" style="flex: 1;">
+                        <label>Stream URL (RTSP / RTMP / File):</label>
+                        <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live or Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
+                    </div>
+
+                    <div class="control-group">
+                        <label>Interval (s):</label>
+                        <input type="number" id="rtsp-interval" value="5.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 70px;">
+                    </div>
+
+                    <button id="add-rtsp-btn" class="btn-primary btn-sm">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span>Start Async RTSP Capture</span>
+                    </button>
+                </div>
+
+                <div class="guide-box" style="margin: 10px 0;">
+                    <div class="guide-header">
+                        <strong>⚡ Async Multi-Threaded RTSP Stream Capture Engine</strong>
+                        <button class="info-btn" data-info="rtsp_manager">i</button>
+                    </div>
+                    <p>
+                        Captures live CCTV network feeds (RTSP/RTMP) on non-blocking background producer threads using a <strong>Size-1 Ring Buffer</strong>. Ensures zero streaming lag while running continuous edge dHash keyframe extraction and automatic reconnection watchdogs.
+                    </p>
+                </div>
+
+                <div class="rtsp-streams-grid" id="rtsp-streams-list">
+                    <div class="empty-state" style="padding: 20px;">
+                        <p class="placeholder-text">No active camera streams running. Enter a stream URL above to launch multi-threaded capture.</p>
+                    </div>
+                </div>
             </div>
         </section>
 
