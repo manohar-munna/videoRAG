@@ -168,7 +168,13 @@ class RTSPStreamCapture:
 
             ret, frame = cap.read()
             if not ret or frame is None:
-                logger.warning("[%s] Failed to read frame from stream. Reconnecting...", self.camera_id)
+                # If reading a local MP4 file, stop cleanly at EOF
+                if Path(self.stream_url).exists() and Path(self.stream_url).is_file():
+                    logger.info("[%s] Reached end of local video file (%s). Stream capture completed.", self.camera_id, self.stream_url)
+                    self.is_connected = False
+                    break
+
+                logger.warning("[%s] Failed to read frame from live stream. Reconnecting...", self.camera_id)
                 cap.release()
                 cap = None
                 continue
