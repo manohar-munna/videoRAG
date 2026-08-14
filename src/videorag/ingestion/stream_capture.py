@@ -3,12 +3,15 @@ src/videorag/ingestion/stream_capture.py
 -----------------------------------------
 Async Multi-Threaded RTSP Stream Capture & Producer-Consumer Ring Buffer Queue.
 
-Provides high-performance, non-blocking video stream ingestion for live CCTV network feeds (RTSP/RTMP)
-and video files. Features:
+Provides high-performance, non-blocking video stream ingestion for live CCTV network feeds (RTSP/RTMP),
+YouTube live streams, and local video files.
+Features:
 - Dedicated thread-based frame producer reading into a size-1 Ring Buffer (zero latency).
-- Automatic RTSP socket watchdog with exponential backoff reconnection.
+- Pause/Resume and Stop/Start stream lifecycle controls.
+- Dynamic per-camera folder creation under data/cameras/<camera_id>/extracted_frames/.
+- Automatic RTSP socket watchdog with reconnection backoff.
 - Integrated EdgeFrameFilter (dHash/pHash) keyframe extraction.
-- Multi-camera stream manager for concurrent surveillance feed monitoring.
+- MultiCameraStreamManager integrated with persistent CameraRegistry.
 """
 
 import os
@@ -21,35 +24,40 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 from videorag.ingestion.hash_filter import EdgeFrameFilter
+from videorag.ingestion.camera_registry import CameraRegistry
 
 logger = logging.getLogger("videorag.ingestion.stream_capture")
 
 
 class RTSPStreamCapture:
     """
-    Thread-safe, non-blocking RTSP/RTMP/File stream reader with Ring Buffer & Watchdog.
+    Thread-safe, non-blocking RTSP/RTMP/YouTube/File stream reader with Ring Buffer & Watchdog.
     """
 
     def __init__(
         self,
         camera_id: str,
         stream_url: str,
-        output_dir: str = "data/extracted_frames",
+        output_dir: Optional[str] = None,
         sample_interval: float = 5.0,
         hash_filter: Optional[EdgeFrameFilter] = None,
         max_reconnect_attempts: int = 10,
     ):
         """
-        :param camera_id: Unique camera identifier (e.g. 'CAM_01')
-        :param stream_url: RTSP/RTMP stream URL (e.g. 'rtsp://192.168.1.100/live') or file path
-        :param output_dir: Directory to save extracted keyframe images
+        :param camera_id: Unique camera identifier (e.g. 'CAM_01', 'CAM_3000')
+        :param stream_url: RTSP/RTMP/YouTube stream URL or local video file path
+        :param output_dir: Base output directory (defaults dynamically to data/cameras/<camera_id>/extracted_frames)
         :param sample_interval: Seconds between keyframe evaluations (default: 5.0s)
         :param hash_filter: EdgeFrameFilter (dHash/pHash) instance
         """
-        self.camera_id = camera_id
-        self.stream_url = str(stream_url)
-        cam_dir = Path(output_dir) / "cameras" / camera_id / "extracted_frames"
-        self.output_dir = cam_dir
+        self.camera_id = camera_id.strip()
+        self.stream_url = str(stream_url).strip()
+
+        # Dynamic per-camera directory creation (Zero hardcoding)
+        if output_dir:
+            self.output_dir = Path(output_dir)
+        else:
+            self.output_dir = Path("data/cameras") / self.camera_id / "extracted_frames"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.sample_interval = sample_interval
@@ -58,6 +66,7 @@ class RTSPStreamCapture:
 
         # Threading state
         self._running = False
+        self._paused = False
         self._producer_thread: Optional[threading.Thread] = None
         self._consumer_thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
@@ -79,10 +88,13 @@ class RTSPStreamCapture:
         """Start producer and consumer background worker threads."""
         with self._lock:
             if self._running:
-                logger.warning("[%s] Stream capture already running.", self.camera_id)
+                if self._paused:
+                    self._paused = False
+                    logger.info("[%s] Resumed stream capture threads.", self.camera_id)
                 return
 
             self._running = True
+            self._paused = False
             self._producer_thread = threading.Thread(
                 target=self._producer_loop, name=f"RTSP-Producer-{self.camera_id}", daemon=True
             )
@@ -94,18 +106,38 @@ class RTSPStreamCapture:
             self._consumer_thread.start()
             logger.info("[%s] Started multi-threaded RTSP capture pipeline.", self.camera_id)
 
-    def stop(self) -> None:
-        """Gracefully stop background threads and release resources."""
+    def pause(self) -> None:
+        """Pause extraction without destroying the stream object or removing the camera."""
         with self._lock:
-            if not self._running:
-                return
+            self._paused = True
             self._running = False
 
         if self._producer_thread and self._producer_thread.is_alive():
-            self._producer_thread.join(timeout=3.0)
+            self._producer_thread.join(timeout=2.0)
 
         if self._consumer_thread and self._consumer_thread.is_alive():
-            self._consumer_thread.join(timeout=3.0)
+            self._consumer_thread.join(timeout=2.0)
+
+        self.is_connected = False
+        logger.info("[%s] Stream extraction paused (idle).", self.camera_id)
+
+    def resume(self) -> None:
+        """Resume stream extraction threads."""
+        self.start()
+
+    def stop(self) -> None:
+        """Gracefully stop background threads and release resources."""
+        with self._lock:
+            if not self._running and not self._paused:
+                return
+            self._running = False
+            self._paused = False
+
+        if self._producer_thread and self._producer_thread.is_alive():
+            self._producer_thread.join(timeout=2.0)
+
+        if self._consumer_thread and self._consumer_thread.is_alive():
+            self._consumer_thread.join(timeout=2.0)
 
         self.is_connected = False
         logger.info("[%s] Stopped stream capture. Total keyframes extracted: %d", self.camera_id, len(self.extracted_keyframes))
@@ -256,11 +288,15 @@ class RTSPStreamCapture:
         with self._lock:
             keyframe_count = len(self.extracted_keyframes)
 
+        state_str = "RUNNING" if self._running else ("PAUSED" if self._paused else "STOPPED")
+
         return {
             "camera_id": self.camera_id,
             "stream_url": self.stream_url,
             "is_connected": self.is_connected,
             "is_running": self._running,
+            "is_paused": self._paused,
+            "state": state_str,
             "fps": round(self.fps, 2),
             "total_frames_read": self.total_frames_read,
             "total_frames_dropped": self.total_frames_dropped,
@@ -275,58 +311,122 @@ class RTSPStreamCapture:
 
 class MultiCameraStreamManager:
     """
-    Manages concurrent multi-camera RTSP/RTMP stream captures.
+    Manages concurrent multi-camera RTSP/RTMP stream captures and syncs with persistent CameraRegistry.
     """
 
-    def __init__(self, output_dir: str = "data/extracted_frames"):
-        self.output_dir = output_dir
+    def __init__(self, registry: Optional[CameraRegistry] = None):
+        self.registry = registry or CameraRegistry()
         self.streams: Dict[str, RTSPStreamCapture] = {}
         self._lock = threading.Lock()
+
+    def initialize_from_registry(self) -> None:
+        """Boot up streams that have status 'running' in persistent registry."""
+        configs = self.registry.get_all()
+        for cfg in configs:
+            cam_id = cfg["camera_id"]
+            stream_url = cfg["stream_url"]
+            status = cfg.get("status", "stopped")
+            interval = cfg.get("sample_interval", 5.0)
+            method = cfg.get("hash_method", "dhash")
+            thresh = cfg.get("threshold", 10)
+
+            stream = RTSPStreamCapture(
+                camera_id=cam_id,
+                stream_url=stream_url,
+                sample_interval=interval,
+                hash_filter=EdgeFrameFilter(method=method, threshold=thresh),
+            )
+            self.streams[cam_id] = stream
+
+            if status == "running":
+                stream.start()
+            elif status == "paused":
+                stream._paused = True
+
+        logger.info("MultiCameraStreamManager initialized with %d persistent camera streams.", len(self.streams))
 
     def add_camera(
         self,
         camera_id: str,
         stream_url: str,
+        name: Optional[str] = None,
         sample_interval: float = 5.0,
         hash_method: str = "dhash",
         threshold: int = 10,
+        start_immediately: bool = True,
     ) -> RTSPStreamCapture:
-        """Add and start a new camera stream capture."""
+        """Register camera dynamically, persist to registry, and start capture."""
         with self._lock:
+            # 1. Update Persistent Registry
+            status = "running" if start_immediately else "stopped"
+            self.registry.register_camera(
+                camera_id=camera_id,
+                stream_url=stream_url,
+                name=name,
+                sample_interval=sample_interval,
+                hash_method=hash_method,
+                threshold=threshold,
+                status=status,
+            )
+
+            # 2. Start StreamCapture
             if camera_id in self.streams:
-                logger.info("Camera %s already active. Stopping existing stream...", camera_id)
                 self.streams[camera_id].stop()
 
-            hash_filter = EdgeFrameFilter(method=hash_method, threshold=threshold)
             stream = RTSPStreamCapture(
                 camera_id=camera_id,
                 stream_url=stream_url,
-                output_dir=self.output_dir,
                 sample_interval=sample_interval,
-                hash_filter=hash_filter,
+                hash_filter=EdgeFrameFilter(method=hash_method, threshold=threshold),
             )
             self.streams[camera_id] = stream
-            stream.start()
+            if start_immediately:
+                stream.start()
+
             return stream
 
+    def pause_camera(self, camera_id: str) -> bool:
+        """Pause stream extraction without removing the camera from system."""
+        with self._lock:
+            if camera_id in self.streams:
+                self.streams[camera_id].pause()
+                self.registry.update_status(camera_id, "paused")
+                return True
+            return False
+
+    def resume_camera(self, camera_id: str) -> bool:
+        """Resume paused stream extraction."""
+        with self._lock:
+            if camera_id in self.streams:
+                self.streams[camera_id].resume()
+                self.registry.update_status(camera_id, "running")
+                return True
+            return False
+
     def remove_camera(self, camera_id: str) -> bool:
-        """Stop and remove a camera stream capture."""
+        """Stop and remove a camera from both stream manager and persistent registry."""
         with self._lock:
             if camera_id in self.streams:
                 self.streams[camera_id].stop()
                 del self.streams[camera_id]
-                return True
-            return False
+            self.registry.remove_camera(camera_id)
+            return True
 
     def get_all_statuses(self) -> List[Dict[str, Any]]:
-        """Return health status list for all active camera streams."""
+        """Return status for all registered camera streams."""
         with self._lock:
-            return [stream.get_status() for stream in self.streams.values()]
+            statuses = []
+            for cam_id, stream in self.streams.items():
+                st = stream.get_status()
+                cfg = self.registry.get(cam_id) or {}
+                st["name"] = cfg.get("name", cam_id)
+                st["type"] = cfg.get("type", "rtsp_stream")
+                statuses.append(st)
+            return statuses
 
     def stop_all(self) -> None:
         """Stop all camera stream captures."""
         with self._lock:
             for stream in self.streams.values():
                 stream.stop()
-            self.streams.clear()
         logger.info("Stopped all multi-camera RTSP stream captures.")

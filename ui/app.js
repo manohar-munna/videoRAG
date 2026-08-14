@@ -317,6 +317,66 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const resp = await fetch('/api/streams/status');
             if (resp.ok) {
+    // ------------------------------------------------------------------
+    // Tab 4: RTSP Live Stream Manager & Multi-Camera Stream Controls
+    // ------------------------------------------------------------------
+    const rtspStreamsList = document.getElementById('rtsp-streams-list');
+    const addRtspBtn = document.getElementById('add-rtsp-btn');
+    const rtspCamId = document.getElementById('rtsp-cam-id');
+    const rtspUrl = document.getElementById('rtsp-url');
+    const rtspInterval = document.getElementById('rtsp-interval');
+
+    if (addRtspBtn) {
+        addRtspBtn.addEventListener('click', async () => {
+            const camId = rtspCamId.value.trim();
+            const url = rtspUrl.value.trim();
+            const interval = parseFloat(rtspInterval.value) || 5.0;
+
+            if (!camId || !url) {
+                alert('Please enter both a Camera ID (e.g. CAM_NORTH) and Stream URL.');
+                return;
+            }
+
+            try {
+                addRtspBtn.disabled = true;
+                addRtspBtn.innerHTML = `<span>Starting Capture…</span>`;
+
+                const resp = await fetch('/api/streams/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        camera_id: camId,
+                        stream_url: url,
+                        sample_interval: interval,
+                        hash_method: "dhash",
+                        threshold: 10,
+                    }),
+                });
+
+                if (resp.ok) {
+                    rtspCamId.value = '';
+                    rtspUrl.value = '';
+                    fetchRtspStreamsStatus();
+                    fetchCameraFeeds();
+                    fetchCameraPills();
+                } else {
+                    const err = await resp.json();
+                    alert('Failed to start stream: ' + (err.detail || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Stream connection error: ' + err.message);
+            } finally {
+                addRtspBtn.disabled = false;
+                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Start Async RTSP Capture</span>`;
+            }
+        });
+    }
+
+    async function fetchRtspStreamsStatus() {
+        if (!rtspStreamsList) return;
+        try {
+            const resp = await fetch('/api/streams/status');
+            if (resp.ok) {
                 const data = await resp.json();
                 renderRtspStreams(data.active_streams || []);
             }
@@ -331,45 +391,99 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        rtspStreamsList.innerHTML = streams.map(s => `
-            <div class="stream-card ${s.is_connected ? 'active' : ''}">
-                <div class="stream-card-header">
-                    <div class="stream-cam-title">
-                        <span class="status-indicator ${s.is_connected ? 'online' : 'offline'}"></span>
-                        ${escapeHtml(s.camera_id)}
+        rtspStreamsList.innerHTML = streams.map(s => {
+            const isRunning = s.is_running;
+            const isPaused = s.is_paused;
+            const isConnected = s.is_connected;
+            let statusBadge = isRunning ? (isConnected ? 'LIVE (TCP)' : 'RECONNECTING') : (isPaused ? 'PAUSED' : 'STOPPED');
+            let statusColor = isRunning && isConnected ? 'text-green' : (isPaused ? 'text-blue' : 'text-dim');
+
+            return `
+                <div class="stream-card ${isRunning ? 'active' : ''}">
+                    <div class="stream-card-header">
+                        <div class="stream-cam-title">
+                            <span class="status-indicator ${isConnected ? 'online' : (isPaused ? 'warning' : 'offline')}"></span>
+                            ${escapeHtml(s.camera_id)} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${escapeHtml(s.name || s.camera_id)})</span>
+                        </div>
+                        <span class="feed-badge ${isRunning ? 'live' : ''}">${statusBadge}</span>
                     </div>
-                    <div style="display: flex; gap: 4px;">
-                        <button class="btn-primary index-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 2px 8px; font-size: 0.72rem; background: var(--blue-primary);" ${s.keyframes_kept === 0 ? 'disabled' : ''}>
+                    <div class="stream-url-tag">URL: ${escapeHtml(s.stream_url)}</div>
+                    <div class="stream-metrics-grid">
+                        <div class="sm-item"><span class="sm-label">Status</span><span class="sm-val ${statusColor}">${statusBadge}</span></div>
+                        <div class="sm-item"><span class="sm-label">FPS</span><span class="sm-val">${s.fps}</span></div>
+                        <div class="sm-item"><span class="sm-label">Frames Read</span><span class="sm-val">${s.total_frames_read}</span></div>
+                        <div class="sm-item"><span class="sm-label">Ring Dropped</span><span class="sm-val text-dim">${s.total_frames_dropped}</span></div>
+                        <div class="sm-item"><span class="sm-label">Keyframes Kept</span><span class="sm-val text-blue">${s.keyframes_kept}</span></div>
+                        <div class="sm-item"><span class="sm-label">Compute Saved</span><span class="sm-val text-green">${s.llm_compute_saved_pct}%</span></div>
+                    </div>
+                    <div class="stream-card-actions">
+                        <button class="btn-primary index-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 3px 8px; font-size: 0.72rem;" ${s.keyframes_kept === 0 ? 'disabled' : ''}>
                             ⚡ Index Keyframes (${s.keyframes_kept})
                         </button>
-                        <button class="btn-shutdown stop-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 2px 8px; font-size: 0.72rem;">Stop Stream</button>
+                        ${isPaused ? `
+                            <button class="btn-stream-action btn-resume-stream resume-stream-btn" data-cam="${escapeHtml(s.camera_id)}">
+                                ▶️ Resume Extraction
+                            </button>
+                        ` : `
+                            <button class="btn-stream-action btn-pause-stream pause-stream-btn" data-cam="${escapeHtml(s.camera_id)}">
+                                ⏸️ Pause Extraction
+                            </button>
+                        `}
+                        <button class="btn-stream-action btn-remove-stream remove-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Remove camera from registry">
+                            🗑️ Remove
+                        </button>
                     </div>
                 </div>
-                <div class="stream-url-tag">URL: ${escapeHtml(s.stream_url)}</div>
-                <div class="stream-metrics-grid">
-                    <div class="sm-item"><span class="sm-label">Status</span><span class="sm-val ${s.is_connected ? 'text-green' : 'text-dim'}">${s.is_connected ? 'LIVE (TCP)' : 'RECONNECTING'}</span></div>
-                    <div class="sm-item"><span class="sm-label">FPS</span><span class="sm-val">${s.fps}</span></div>
-                    <div class="sm-item"><span class="sm-label">Frames Read</span><span class="sm-val">${s.total_frames_read}</span></div>
-                    <div class="sm-item"><span class="sm-label">Ring Dropped</span><span class="sm-val text-dim">${s.total_frames_dropped}</span></div>
-                    <div class="sm-item"><span class="sm-label">Keyframes Kept</span><span class="sm-val text-blue">${s.keyframes_kept}</span></div>
-                    <div class="sm-item"><span class="sm-label">Compute Saved</span><span class="sm-val text-green">${s.llm_compute_saved_pct}%</span></div>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
-        rtspStreamsList.querySelectorAll('.stop-stream-btn').forEach(btn => {
+        // Pause button handler
+        rtspStreamsList.querySelectorAll('.pause-stream-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const camId = btn.dataset.cam;
+                await fetch('/api/streams/pause', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ camera_id: camId })
+                });
+                fetchRtspStreamsStatus();
+                fetchCameraFeeds();
+            });
+        });
+
+        // Resume button handler
+        rtspStreamsList.querySelectorAll('.resume-stream-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const camId = btn.dataset.cam;
+                await fetch('/api/streams/resume', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ camera_id: camId })
+                });
+                fetchRtspStreamsStatus();
+                fetchCameraFeeds();
+            });
+        });
+
+        // Remove button handler
+        rtspStreamsList.querySelectorAll('.remove-stream-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const camId = btn.dataset.cam;
+                const confirmed = confirm(`Are you sure you want to remove ${camId} from the persistent registry?`);
+                if (!confirmed) return;
+
                 await fetch('/api/streams/remove', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ camera_id: camId })
                 });
                 fetchRtspStreamsStatus();
+                fetchCameraFeeds();
                 fetchCameraPills();
             });
         });
 
+        // Index Keyframes handler
         rtspStreamsList.querySelectorAll('.index-stream-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const camId = btn.dataset.cam;
@@ -434,162 +548,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDevModeActive) {
                 fetchHashAuditLogs();
                 fetchEventsJson();
-            }
-        });
-    }
-
-    if (thresholdRange && thresholdVal) {
-        thresholdRange.addEventListener('input', (e) => {
-            thresholdVal.textContent = e.target.value;
-        });
-    }
-
-    if (runSmartFilterBtn) {
-        runSmartFilterBtn.addEventListener('click', async () => {
-            try {
-                runSmartFilterBtn.disabled = true;
-                runSmartFilterBtn.innerHTML = `<span>Processing Filter…</span>`;
-                
-                const resp = await fetch('/api/process_video_smart', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        video_path: "Video Footage/sample_cctv.mp4",
-                        camera_id: "CAM_01",
-                        sample_interval: 15.0,
-                        enable_hash_filter: true,
-                        hash_method: hashAlgoSelect.value,
-                        threshold: parseInt(thresholdRange.value, 10),
-                        run_vlm_captioning: true,
-                    }),
-                });
-
-                if (resp.ok) {
-                    const data = await resp.json();
-                    renderDevAuditLogs(data.filter_stats, data.audit_trail);
-                    checkHealth();
-                    fetchEventsJson();
-                }
-            } catch (err) {
-                alert('Smart filter execution failed: ' + err.message);
-            } finally {
-                runSmartFilterBtn.disabled = false;
-                runSmartFilterBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Run Smart Frame Filter</span>`;
-            }
-        });
-    }
-
-    async function fetchHashAuditLogs() {
-        try {
-            const resp = await fetch('/api/hash_audit');
-            if (resp.ok) {
-                const data = await resp.json();
-                renderDevAuditLogs(data.stats, data.audit_trail);
-            }
-        } catch (err) {
-            console.warn('Failed to fetch audit logs:', err);
-        }
-    }
-
-    function renderDevAuditLogs(stats, trail) {
-        if (stats) {
-            kpiTotal.textContent = stats.total_frames ?? 55;
-            kpiKept.textContent = stats.keyframes_kept ?? 48;
-            kpiSkipped.textContent = stats.frames_skipped ?? 7;
-            kpiSaved.textContent = `${stats.llm_compute_saved_pct ?? 12.7}%`;
-        }
-
-        if (!trail || trail.length === 0) {
-            devAuditTbody.innerHTML = `<tr><td colspan="6" class="placeholder-text" style="text-align:center; padding: 20px;">No audit trail generated yet. Click "Run Smart Frame Filter" above.</td></tr>`;
-            return;
-        }
-
-        devAuditTbody.innerHTML = trail.map((item, idx) => `
-            <tr class="animate-slide-in" style="animation-delay: ${idx * 0.02}s;">
-                <td style="font-family: var(--font-mono); color: var(--text-muted);">${idx + 1}</td>
-                <td style="font-family: var(--font-mono); font-weight:600; color: var(--blue-primary);">${item.timestamp}</td>
-                <td style="font-family: var(--font-mono); font-size: 0.75rem; color: #64748b;"><code>${item.hash_hex}</code></td>
-                <td style="font-family: var(--font-mono); text-align: center;"><strong>${item.hamming_distance}</strong> / ${item.threshold}</td>
-                <td style="font-family: var(--font-mono); color: var(--text-muted); text-align: center;">${item.motion_pct}%</td>
-                <td>
-                    <span class="${item.is_keyframe ? 'badge-keep' : 'badge-skip'}">${item.status}</span>
-                    <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 6px;">${escapeHtml(item.reason)}</span>
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    // ------------------------------------------------------------------
-    // Fetch & Display JSON Event Chunks
-    // ------------------------------------------------------------------
-    if (refreshJsonBtn) {
-        refreshJsonBtn.addEventListener('click', fetchEventsJson);
-    }
-
-    async function fetchEventsJson() {
-        if (!jsonCodeDisplay) return;
-        try {
-            jsonCodeDisplay.textContent = "Loading indexed CCTV event chunks…";
-            const resp = await fetch('/api/events');
-            if (resp.ok) {
-                const data = await resp.json();
-                jsonCodeDisplay.textContent = JSON.stringify(data, null, 2);
-            }
-        } catch (err) {
-            jsonCodeDisplay.textContent = "Failed to load JSON dataset: " + err.message;
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Shutdown Button Handler
-    // ------------------------------------------------------------------
-    if (shutdownBtn) {
-        shutdownBtn.addEventListener('click', async () => {
-            const confirmed = confirm('Are you sure you want to stop the VideoRAG Web Server?');
-            if (!confirmed) return;
-
-            try {
-                shutdownBtn.disabled = true;
-                shutdownBtn.innerHTML = `<span>Stopping…</span>`;
-                const resp = await fetch('/api/shutdown', { method: 'POST' });
-                if (resp.ok) {
-                    if (statStatus) {
-                        statStatus.textContent = 'OFFLINE';
-                        statStatus.style.color = '#dc2626';
-                    }
-                    if (statusDot) {
-                        statusDot.classList.remove('online');
-                        statusDot.classList.add('offline');
-                    }
-                    alert('VideoRAG Web Server has been shut down successfully. You can close this browser tab.');
-                }
-            } catch (err) {
-                alert('Server shutdown initiated.');
+                fetchRtspStreamsStatus();
             }
         });
     }
 
     // ------------------------------------------------------------------
-    // System Health Check
-    // ------------------------------------------------------------------
-    async function checkHealth() {
-        try {
-            const resp = await fetch('/api/health');
-            if (resp.ok) {
-                const data = await resp.json();
-                statVectors.textContent = `${data.vector_count} Vectors`;
-                statModel.textContent = `${data.llm_backend.toUpperCase()} (${data.llm_model.split('/').pop()})`;
-            }
-        } catch (err) {
-            console.warn('Health check failed:', err);
-        }
-    }
-    checkHealth();
-
-    // ------------------------------------------------------------------
-    // Multi-Camera Surveillance Feed Switcher & Monitor Controller
+    // Multi-Camera Surveillance Feed Switcher & Multi-Monitor View
     // ------------------------------------------------------------------
     const cameraFeedSwitcher = document.getElementById('camera-feed-switcher');
+    const singleVideoWrapper = document.getElementById('single-video-wrapper');
+    const allFeedsContainer = document.getElementById('all-feeds-container');
     const ytPlayer = document.getElementById('yt-player');
     const cctvSnapshotView = document.getElementById('cctv-snapshot-view');
     const snapshotScreenImg = document.getElementById('snapshot-screen-img');
@@ -612,6 +581,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await resp.json();
                 availableFeeds = data.feeds || [];
                 renderCameraFeedSwitcher();
+                if (activeFeedCamId === 'ALL') {
+                    renderAllFeedsGrid();
+                }
             }
         } catch (err) {
             console.warn('Failed to load camera feeds:', err);
@@ -620,7 +592,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderCameraFeedSwitcher() {
         if (!cameraFeedSwitcher) return;
-        cameraFeedSwitcher.innerHTML = availableFeeds.map(f => {
+
+        // First button: ALL FEEDS (Multi-Monitor View)
+        let html = `
+            <button class="feed-btn ${activeFeedCamId === 'ALL' ? 'active' : ''}" data-cam="ALL">
+                <span>🔲 ALL FEEDS</span>
+                <span class="feed-badge mp4">MULTI-VIEW</span>
+            </button>
+        `;
+
+        html += availableFeeds.map(f => {
             const isActive = f.camera_id === activeFeedCamId;
             let badgeClass = 'feed-badge';
             let badgeText = f.status || 'FEED';
@@ -630,6 +611,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (f.type === 'video_file') {
                 badgeClass += ' mp4';
                 badgeText = '📹 MP4';
+            } else if (f.status === 'PAUSED') {
+                badgeText = '⏸️ PAUSED';
             }
 
             return `
@@ -639,6 +622,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             `;
         }).join('');
+
+        cameraFeedSwitcher.innerHTML = html;
 
         cameraFeedSwitcher.querySelectorAll('.feed-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -652,6 +637,24 @@ document.addEventListener('DOMContentLoaded', () => {
         activeFeedCamId = camId;
         renderCameraFeedSwitcher();
 
+        // 1. If "ALL FEEDS" mode
+        if (camId === 'ALL') {
+            if (singleVideoWrapper) singleVideoWrapper.style.display = 'none';
+            if (allFeedsContainer) {
+                allFeedsContainer.style.display = 'flex';
+                renderAllFeedsGrid();
+            }
+            if (currentFeedName) currentFeedName.textContent = 'Multi-Monitor View (All Feeds Active)';
+            if (subSource) subSource.innerHTML = `Mode: <code>Multi-Feed Overview</code>`;
+            if (subFps) subFps.innerHTML = `Total Feeds: <code>${availableFeeds.length}</code>`;
+            if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">ALL ONLINE</strong>`;
+            return;
+        }
+
+        // 2. Single Camera Focus Mode
+        if (allFeedsContainer) allFeedsContainer.style.display = 'none';
+        if (singleVideoWrapper) singleVideoWrapper.style.display = 'block';
+
         const feed = availableFeeds.find(f => f.camera_id === camId) || {
             camera_id: camId,
             name: camId,
@@ -664,7 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (currentFeedName) currentFeedName.textContent = `${feed.camera_id} (${feed.name})`;
 
-        // 1. If Video File (e.g. CAM_01)
+        // Video File (e.g. CAM_01)
         if (feed.type === 'video_file') {
             if (cctvPlayer) {
                 cctvPlayer.style.display = 'block';
@@ -691,7 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 2. If YouTube Live Stream (e.g. CAM_3000)
+        // YouTube Live Stream (e.g. CAM_3000)
         if (feed.type === 'youtube_stream' && !targetImage) {
             if (cctvPlayer) {
                 cctvPlayer.pause();
@@ -706,7 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (subSource) subSource.innerHTML = `Source: <code>YouTube Live HLS</code>`;
+            if (subSource) subSource.innerHTML = `Source: <code>YouTube Live Stream</code>`;
             if (subFps) subFps.innerHTML = `FPS: <code>30.0</code>`;
             if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">🔴 LIVE STREAM</strong>`;
 
@@ -718,7 +721,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 3. Snapshot / Keyframe Image Display (e.g. CAM_02, CAM_03, or indexed moment snapshot)
+        // Snapshot / Keyframe Image Display
         if (cctvPlayer) {
             cctvPlayer.pause();
             cctvPlayer.style.display = 'none';
@@ -730,7 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (cctvSnapshotView && snapshotScreenImg) {
             cctvSnapshotView.style.display = 'block';
-            const imgPath = targetImage || feed.preview_image || feed.src || `/data/cameras/${camId}/extracted_frames/${camId}_snapshot.jpg`;
+            const imgPath = targetImage || feed.preview_image || `/data/cameras/${camId}/extracted_frames/${camId}_snapshot.jpg`;
             snapshotScreenImg.src = imgPath;
 
             const ts = targetTimestamp || (targetSeconds !== null ? formatSecondsToTs(targetSeconds) : '00:00:00');
@@ -749,6 +752,59 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
             }
         }
+    }
+
+    function renderAllFeedsGrid() {
+        if (!allFeedsContainer) return;
+        if (availableFeeds.length === 0) {
+            allFeedsContainer.innerHTML = `<div class="empty-state"><p>No camera feeds available.</p></div>`;
+            return;
+        }
+
+        allFeedsContainer.innerHTML = availableFeeds.map(f => {
+            let screenContent = '';
+            if (f.type === 'video_file') {
+                screenContent = `
+                    <video controls muted autoplay loop style="width:100%; height:100%; object-fit:contain;">
+                        <source src="/video/sample_cctv.mp4" type="video/mp4">
+                    </video>
+                `;
+            } else if (f.type === 'youtube_stream') {
+                const embedUrl = f.embed_url || 'https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1';
+                screenContent = `
+                    <iframe src="${embedUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%; height:100%; border:none;"></iframe>
+                `;
+            } else {
+                const img = f.preview_image || `/data/cameras/${f.camera_id}/extracted_frames/${f.camera_id}_snapshot.jpg`;
+                screenContent = `
+                    <img src="${img}" alt="${escapeHtml(f.camera_id)}" style="width:100%; height:100%; object-fit:contain;">
+                `;
+            }
+
+            return `
+                <div class="all-feed-card">
+                    <div class="all-feed-header">
+                        <div class="all-feed-title">
+                            <span class="status-indicator ${f.status.includes('LIVE') ? 'online' : (f.status === 'PAUSED' ? 'warning' : 'online')}"></span>
+                            <strong>${escapeHtml(f.camera_id)}</strong> — ${escapeHtml(f.name)}
+                        </div>
+                        <button class="btn-primary focus-feed-btn" data-cam="${escapeHtml(f.camera_id)}" style="padding: 2px 8px; font-size: 0.72rem;">
+                            Focus Feed
+                        </button>
+                    </div>
+                    <div class="all-feed-screen">
+                        ${screenContent}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        allFeedsContainer.querySelectorAll('.focus-feed-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const camId = btn.dataset.cam;
+                switchSurveillanceFeed(camId);
+            });
+        });
     }
 
     function formatSecondsToTs(totalSecs) {

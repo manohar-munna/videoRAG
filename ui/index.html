@@ -393,7 +393,7 @@
                     <span class="timestamp-display" id="video-timer">00:00:00</span>
                 </div>
 
-                <div class="video-wrapper">
+                <div class="video-wrapper" id="single-video-wrapper">
                     <!-- 1. HTML5 Video Player for MP4 files -->
                     <video id="cctv-player" controls preload="auto">
                         <source src="/video/sample_cctv.mp4" type="video/mp4">
@@ -407,13 +407,18 @@
                     <div id="cctv-snapshot-view" class="monitor-screen" style="display: none; width: 100%; height: 100%; position: relative; background: #0b1120;">
                         <img id="snapshot-screen-img" src="" alt="CCTV Snapshot" style="width: 100%; height: 100%; object-fit: contain;">
                         <div class="cctv-hud-telemetry">
-                            <span class="hud-tag" id="hud-cam-id">CAM_02</span>
+                            <span class="hud-tag" id="hud-cam-id">CAM_01</span>
                             <span class="hud-tag" id="hud-timestamp">00:00:00</span>
                             <span class="hud-tag text-green" id="hud-status">REC ● 1080P</span>
                         </div>
                     </div>
 
                     <div class="video-overlay-badge" id="seek-notice">Ready — Click any timestamp or Seek button</div>
+                </div>
+
+                <!-- 4. ALL FEEDS Multi-Monitor Grid Layout -->
+                <div id="all-feeds-container" class="all-feeds-container" style="display: none;">
+                    <!-- Populated dynamically with all active camera feeds -->
                 </div>
 
                 <div class="player-subbar" id="player-subbar">

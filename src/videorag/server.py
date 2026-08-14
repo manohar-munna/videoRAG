@@ -58,9 +58,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global pipeline & stream manager instances
+from videorag.ingestion.camera_registry import CameraRegistry
+
+# Global pipeline & persistent stream manager instances
 PIPELINE: Dict[str, Any] = {}
-STREAM_MANAGER = MultiCameraStreamManager(output_dir=str(_PROJECT_ROOT / "data" / "extracted_frames"))
+CAMERA_REGISTRY = CameraRegistry(_PROJECT_ROOT / "data" / "cameras_registry.json")
+STREAM_MANAGER = MultiCameraStreamManager(registry=CAMERA_REGISTRY)
 
 
 class SearchRequest(BaseModel):
@@ -164,6 +167,9 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
     PIPELINE["prompter"] = prompter
     PIPELINE["evaluator"] = evaluator
     PIPELINE["config_path"] = str(cfg_file)
+
+    # Initialize active camera streams from persistent registry
+    STREAM_MANAGER.initialize_from_registry()
 
 
 # ---------------------------------------------------------------------------
@@ -404,17 +410,33 @@ def add_camera_stream(req: AddStreamRequest):
 
 @app.get("/api/streams/status")
 def get_streams_status():
-    """Return health metrics and stats for all active multi-camera streams."""
+    """Return health metrics and stats for all registered multi-camera streams."""
     return {"active_streams": STREAM_MANAGER.get_all_statuses()}
+
+
+@app.post("/api/streams/pause")
+def pause_camera_stream(req: RemoveStreamRequest):
+    """Pause stream extraction while keeping camera registered in system and searchable."""
+    success = STREAM_MANAGER.pause_camera(req.camera_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Camera '{req.camera_id}' not found.")
+    return {"status": "paused", "camera_id": req.camera_id}
+
+
+@app.post("/api/streams/resume")
+def resume_camera_stream(req: RemoveStreamRequest):
+    """Resume paused stream extraction worker threads."""
+    success = STREAM_MANAGER.resume_camera(req.camera_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Camera '{req.camera_id}' not found.")
+    return {"status": "resumed", "camera_id": req.camera_id}
 
 
 @app.post("/api/streams/remove")
 def remove_camera_stream(req: RemoveStreamRequest):
-    """Stop and remove an active camera stream capture channel."""
+    """Stop and completely remove camera stream from registry."""
     success = STREAM_MANAGER.remove_camera(req.camera_id)
-    if not success:
-        raise HTTPException(status_code=404, detail=f"Camera {req.camera_id} not found")
-    return {"status": "stopped", "camera_id": req.camera_id}
+    return {"status": "removed", "camera_id": req.camera_id}
 
 
 @app.post("/api/streams/index_now")
@@ -425,7 +447,7 @@ def index_stream_keyframes(req: RemoveStreamRequest):
     """
     cam_id = req.camera_id
     if cam_id not in STREAM_MANAGER.streams:
-        raise HTTPException(status_code=404, detail=f"Active stream camera '{cam_id}' not found.")
+        raise HTTPException(status_code=404, detail=f"Camera '{cam_id}' not found.")
 
     stream = STREAM_MANAGER.streams[cam_id]
     keyframes = list(stream.extracted_keyframes)
@@ -498,12 +520,12 @@ def index_stream_keyframes(req: RemoveStreamRequest):
 
     # 5. Reload in-memory FAISS store
     init_pipeline(config_path=cfg_file)
-    logger.info("Successfully indexed %d new keyframes for %s. Total vectors: %d", len(unique_new), cam_id, PIPELINE["vector_store"].size)
+    logger.info("Successfully indexed %d new keyframes for %s. Total vectors: %d", len(unique_cam_new), cam_id, PIPELINE["vector_store"].size)
 
     return {
         "status": "success",
         "camera_id": cam_id,
-        "indexed_count": len(unique_new),
+        "indexed_count": len(unique_cam_new),
         "total_vectors": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
         "camera_json_path": str(cam_json_file),
     }
@@ -511,9 +533,10 @@ def index_stream_keyframes(req: RemoveStreamRequest):
 
 @app.get("/api/cameras")
 def get_camera_list():
-    """Return list of all unique camera IDs indexed in the system."""
+    """Return list of all registered and indexed camera IDs."""
+    registered = [c["camera_id"] for c in CAMERA_REGISTRY.get_all()]
     data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-    cams = set()
+    cams = set(registered)
     if data_path.exists():
         try:
             with open(data_path, "r", encoding="utf-8") as fh:
@@ -525,88 +548,65 @@ def get_camera_list():
         except Exception:
             pass
 
-    for stream_id in STREAM_MANAGER.streams:
-        cams.add(stream_id)
-
-    if not cams:
-        cams = {"CAM_01", "CAM_02", "CAM_03", "CAM_3000"}
-
     return {"cameras": sorted(list(cams))}
 
 
 @app.get("/api/cameras/feeds")
 def get_camera_feeds():
-    """Return rich surveillance feed profiles for the multi-camera monitor switcher."""
-    feeds = [
-        {
-            "camera_id": "CAM_01",
-            "name": "Main Entrance & Driveway",
-            "type": "video_file",
-            "src": "/video/sample_cctv.mp4",
-            "status": "RECORDED MP4",
-            "fps": 30.0,
-            "duration": "13m 31s",
-            "preview_image": "/data/cameras/CAM_01/extracted_frames/CAM_01_snapshot.jpg",
-        },
-        {
-            "camera_id": "CAM_3000",
-            "name": "YouTube Live Feed",
-            "type": "youtube_stream",
-            "src": "https://www.youtube.com/watch?v=1EiC9bvVGnk",
-            "embed_url": "https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1",
-            "status": "LIVE (TCP)",
-            "fps": 30.0,
-            "duration": "LIVE STREAM",
-            "preview_image": "/data/cameras/CAM_3000/extracted_frames/CAM_3000_snapshot.jpg",
-        },
-        {
-            "camera_id": "CAM_02",
-            "name": "Parking Lot B",
-            "type": "snapshot",
-            "src": "/data/cameras/CAM_02/extracted_frames/CAM_02_snapshot.jpg",
-            "status": "ACTIVE FEED",
-            "fps": 15.0,
-            "duration": "24h CCTV",
-            "preview_image": "/data/cameras/CAM_02/extracted_frames/CAM_02_snapshot.jpg",
-        },
-        {
-            "camera_id": "CAM_03",
-            "name": "Warehouse & Loading Bay",
-            "type": "snapshot",
-            "src": "/data/cameras/CAM_03/extracted_frames/CAM_03_snapshot.jpg",
-            "status": "ACTIVE FEED",
-            "fps": 15.0,
-            "duration": "24h CCTV",
-            "preview_image": "/data/cameras/CAM_03/extracted_frames/CAM_03_snapshot.jpg",
-        },
-        {
-            "camera_id": "CAM_04",
-            "name": "Lobby & North Gate",
-            "type": "snapshot",
-            "src": "/data/cameras/CAM_04/extracted_frames/CAM_04_snapshot.jpg",
-            "status": "ACTIVE FEED",
-            "fps": 15.0,
-            "duration": "24h CCTV",
-            "preview_image": "/data/cameras/CAM_04/extracted_frames/CAM_04_snapshot.jpg",
-        }
-    ]
+    """Return live and recorded surveillance feeds from persistent CameraRegistry."""
+    feeds = []
+    registered_cams = CAMERA_REGISTRY.get_all()
 
-    # Incorporate any dynamically running RTSP / custom streams from STREAM_MANAGER
-    existing_cam_ids = {f["camera_id"] for f in feeds}
-    for stream_id, stream in STREAM_MANAGER.streams.items():
-        if stream_id not in existing_cam_ids:
-            is_yt = "youtube.com" in stream.stream_url.lower() or "youtu.be" in stream.stream_url.lower()
-            feeds.append({
-                "camera_id": stream_id,
-                "name": f"Live Stream ({stream_id})",
-                "type": "youtube_stream" if is_yt else "rtsp_stream",
-                "src": stream.stream_url,
-                "embed_url": "https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1" if is_yt else "",
-                "status": "LIVE (TCP)" if stream.is_connected else "RECONNECTING",
-                "fps": stream.fps,
-                "duration": "LIVE STREAM",
-                "preview_image": "",
-            })
+    for cfg in registered_cams:
+        cam_id = cfg["camera_id"]
+        cam_type = cfg.get("type", "rtsp_stream")
+        stream_url = cfg.get("stream_url", "")
+        status = cfg.get("status", "stopped")
+
+        # Find latest frame snapshot if available
+        cam_frames_dir = _PROJECT_ROOT / "data" / "cameras" / cam_id / "extracted_frames"
+        preview_img = ""
+        if cam_frames_dir.exists():
+            jpgs = sorted(cam_frames_dir.glob("*.jpg"), key=os.path.getmtime, reverse=True)
+            if jpgs:
+                preview_img = f"/data/cameras/{cam_id}/extracted_frames/{jpgs[0].name}"
+
+        is_connected = False
+        fps_val = 30.0
+        stream = STREAM_MANAGER.streams.get(cam_id)
+        if stream:
+            st = stream.get_status()
+            is_connected = st.get("is_connected", False)
+            fps_val = st.get("fps", 30.0)
+            if st.get("is_running"):
+                status = "LIVE (TCP)" if is_connected else "RECONNECTING"
+            elif st.get("is_paused"):
+                status = "PAUSED"
+            else:
+                status = "STOPPED"
+        elif cam_type == "video_file":
+            status = "RECORDED MP4"
+
+        embed_url = ""
+        if "youtube.com" in stream_url.lower() or "youtu.be" in stream_url.lower():
+            # Extract video ID for clean embed
+            import re
+            yt_match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", stream_url)
+            vid_id = yt_match.group(1) if yt_match else "1EiC9bvVGnk"
+            embed_url = f"https://www.youtube-nocookie.com/embed/{vid_id}?autoplay=1&mute=1"
+
+        feed_item = {
+            "camera_id": cam_id,
+            "name": cfg.get("name", f"Camera {cam_id}"),
+            "type": cam_type,
+            "src": stream_url if cam_type != "video_file" else "/video/sample_cctv.mp4",
+            "embed_url": embed_url,
+            "status": status,
+            "fps": fps_val,
+            "duration": "13m 31s" if cam_type == "video_file" else "LIVE STREAM",
+            "preview_image": preview_img,
+        }
+        feeds.append(feed_item)
 
     return {"feeds": feeds}
 
