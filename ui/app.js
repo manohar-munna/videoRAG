@@ -338,7 +338,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="status-indicator ${s.is_connected ? 'online' : 'offline'}"></span>
                         ${escapeHtml(s.camera_id)}
                     </div>
-                    <button class="btn-shutdown stop-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 2px 8px; font-size: 0.72rem;">Stop Stream</button>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="btn-primary index-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 2px 8px; font-size: 0.72rem; background: var(--blue-primary);" ${s.keyframes_kept === 0 ? 'disabled' : ''}>
+                            ⚡ Index Keyframes (${s.keyframes_kept})
+                        </button>
+                        <button class="btn-shutdown stop-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 2px 8px; font-size: 0.72rem;">Stop Stream</button>
+                    </div>
                 </div>
                 <div class="stream-url-tag">URL: ${escapeHtml(s.stream_url)}</div>
                 <div class="stream-metrics-grid">
@@ -361,9 +366,60 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ camera_id: camId })
                 });
                 fetchRtspStreamsStatus();
+                fetchCameraPills();
+            });
+        });
+
+        rtspStreamsList.querySelectorAll('.index-stream-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const camId = btn.dataset.cam;
+                try {
+                    btn.disabled = true;
+                    btn.innerHTML = `<span>Indexing VLM…</span>`;
+                    const resp = await fetch('/api/streams/index_now', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ camera_id: camId })
+                    });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        alert(`Successfully indexed ${data.indexed_count} keyframes for ${camId}! Total vectors in database: ${data.total_vectors}`);
+                        checkHealth();
+                        fetchCameraPills();
+                        fetchEventsJson();
+                    } else {
+                        const err = await resp.json();
+                        alert('Indexing failed: ' + (err.detail || 'Unknown error'));
+                    }
+                } catch (err) {
+                    alert('Indexing error: ' + err.message);
+                } finally {
+                    btn.disabled = false;
+                }
             });
         });
     }
+
+    async function fetchCameraPills() {
+        if (!cameraFilterContainer) return;
+        try {
+            const resp = await fetch('/api/cameras');
+            if (resp.ok) {
+                const data = await resp.json();
+                const cams = data.cameras || [];
+                cameraFilterContainer.innerHTML = `
+                    <span class="filter-label">Camera:</span>
+                    <button class="filter-pill ${activeCameraFilter === '' ? 'active' : ''}" data-camera="">All Feeds</button>
+                    ${cams.map(c => `
+                        <button class="filter-pill ${activeCameraFilter === c ? 'active' : ''}" data-camera="${escapeHtml(c)}">${escapeHtml(c)}</button>
+                    `).join('')}
+                `;
+            }
+        } catch (err) {
+            console.warn('Failed to fetch camera pills:', err);
+        }
+    }
+    fetchCameraPills();
 
     // ------------------------------------------------------------------
     // Dev Mode Toggle & Controls
@@ -702,8 +758,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        evidenceList.innerHTML = results.map((item) => `
-            <div class="evidence-item" data-seconds="${item.seconds}" data-timestamp="${item.timestamp}">
+        evidenceList.innerHTML = results.map((item, idx) => `
+            <div class="evidence-item" data-seconds="${item.seconds}" data-timestamp="${item.timestamp}" data-image="${escapeHtml(item.image_path || '')}" data-camera="${escapeHtml(item.camera)}">
                 <div class="evidence-meta">
                     <div class="ev-header">
                         <span class="ev-rank">#${item.rank}</span>
@@ -719,7 +775,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="5 3 19 12 5 21 5 3"></polygon>
                         </svg>
-                        Seek
+                        ${item.image_path ? 'View Frame' : 'Seek'}
                     </button>
                 </div>
             </div>
@@ -731,9 +787,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.classList.add('selected');
                 const secs = parseFloat(card.dataset.seconds);
                 const ts = card.dataset.timestamp;
-                seekToTime(secs, ts);
+                const img = card.dataset.image;
+                const cam = card.dataset.camera;
+
+                if (img) {
+                    showImageSnapshotInViewer(img, cam, ts);
+                } else {
+                    seekToTime(secs, ts);
+                }
             });
         });
+    }
+
+    function showImageSnapshotInViewer(imagePath, camera, timestamp) {
+        const videoWrapper = document.querySelector('.video-wrapper');
+        const currentFeedName = document.getElementById('current-feed-name');
+        if (currentFeedName) currentFeedName.textContent = `${camera} @ ${timestamp}`;
+        if (videoTimer) videoTimer.textContent = timestamp;
+
+        if (videoWrapper) {
+            let imgOverlay = videoWrapper.querySelector('.snapshot-overlay-img');
+            if (!imgOverlay) {
+                imgOverlay = document.createElement('img');
+                imgOverlay.className = 'snapshot-overlay-img';
+                imgOverlay.style.cssText = 'position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:2;';
+                videoWrapper.appendChild(imgOverlay);
+            }
+            imgOverlay.src = imagePath;
+            imgOverlay.style.display = 'block';
+        }
+
+        if (seekNotice) {
+            seekNotice.textContent = `Viewing Frame Snapshot — ${camera} @ ${timestamp}`;
+            seekNotice.style.opacity = '1';
+            seekNotice.style.zIndex = '3';
+        }
     }
 
     function escapeHtml(text) {

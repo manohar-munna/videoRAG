@@ -256,12 +256,19 @@ def search_cctv(req: SearchRequest):
         except Exception:
             secs = 0
 
+        img_p = meta.get("image_path", "")
+        if img_p:
+            clean_img = img_p.replace("\\", "/")
+            if "data/" in clean_img:
+                img_p = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
+
         items.append({
             "rank": rank,
             "camera": cam,
             "timestamp": ts,
             "seconds": secs,
             "description": desc,
+            "image_path": img_p,
             "faiss_score": round(float(r.get("score", 0.0)), 4),
             "rerank_score": round(float(r.get("rerank_score", 0.0)), 4),
         })
@@ -388,6 +395,88 @@ def remove_camera_stream(req: RemoveStreamRequest):
     return {"status": "stopped", "camera_id": req.camera_id}
 
 
+@app.post("/api/streams/index_now")
+def index_stream_keyframes(req: RemoveStreamRequest):
+    """
+    Run VLM visual captioning and FAISS vector indexing on all captured keyframes
+    for the specified camera stream (e.g. 'CAM_3000').
+    """
+    cam_id = req.camera_id
+    if cam_id not in STREAM_MANAGER.streams:
+        raise HTTPException(status_code=404, detail=f"Active stream camera '{cam_id}' not found.")
+
+    stream = STREAM_MANAGER.streams[cam_id]
+    keyframes = list(stream.extracted_keyframes)
+
+    if not keyframes:
+        raise HTTPException(status_code=400, detail=f"No keyframes extracted yet for camera '{cam_id}'.")
+
+    logger.info("Indexing %d keyframes for camera '%s' using Qwen3-VL VLM...", len(keyframes), cam_id)
+
+    # 1. VLM Captioning
+    captioner = VLMCaptioner(backend="local")
+    new_records = captioner.caption_batch(keyframes, show_progress=False)
+
+    # 2. Update real_cctv_events.json
+    out_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+    existing_records = []
+    if out_file.exists():
+        try:
+            with open(out_file, "r", encoding="utf-8") as fh:
+                existing_records = json.load(fh)
+        except Exception:
+            existing_records = []
+
+    # Filter out duplicates by image_path
+    existing_paths = {r.get("image_path") for r in existing_records if "image_path" in r}
+    unique_new = [r for r in new_records if r.get("image_path") not in existing_paths]
+    combined_records = existing_records + unique_new
+
+    with open(out_file, "w", encoding="utf-8") as fh:
+        json.dump(combined_records, fh, indent=2, ensure_ascii=False)
+
+    # 3. Rebuild FAISS Vector Index
+    from scripts.index import run_indexing
+    cfg_file = PIPELINE.get("config_path", str(_PROJECT_ROOT / "config" / "config.yaml"))
+    run_indexing(config_path=cfg_file, data_path=str(out_file))
+
+    # 4. Reload in-memory FAISS store
+    init_pipeline(config_path=cfg_file)
+    logger.info("Successfully indexed %d new keyframes for %s. Total vectors: %d", len(unique_new), cam_id, PIPELINE["vector_store"].size)
+
+    return {
+        "status": "success",
+        "camera_id": cam_id,
+        "indexed_count": len(unique_new),
+        "total_vectors": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
+    }
+
+
+@app.get("/api/cameras")
+def get_camera_list():
+    """Return list of all unique camera IDs indexed in the system."""
+    data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+    cams = set()
+    if data_path.exists():
+        try:
+            with open(data_path, "r", encoding="utf-8") as fh:
+                records = json.load(fh)
+                for r in records:
+                    c = r.get("camera")
+                    if c:
+                        cams.add(c)
+        except Exception:
+            pass
+
+    for stream_id in STREAM_MANAGER.streams:
+        cams.add(stream_id)
+
+    if not cams:
+        cams = {"CAM_01", "CAM_02", "CAM_03"}
+
+    return {"cameras": sorted(list(cams))}
+
+
 @app.get("/video/sample_cctv.mp4")
 def get_sample_video():
     """Stream the sample CCTV video file."""
@@ -412,6 +501,11 @@ def shutdown_server():
     threading.Thread(target=kill_process, daemon=True).start()
     return {"status": "shutting_down", "message": "Server is shutting down..."}
 
+
+# Mount data static files for frame snapshot images
+data_dir = _PROJECT_ROOT / "data"
+data_dir.mkdir(exist_ok=True)
+app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
 
 # Mount UI static files
 ui_dir = _PROJECT_ROOT / "ui"
