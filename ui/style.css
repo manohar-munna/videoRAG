@@ -842,8 +842,85 @@ body {
     padding: 18px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
 }
+
+/* Multi-Camera Feed Switcher Bar */
+.camera-feed-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-subtle);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    flex-wrap: wrap;
+}
+.feed-bar-label {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.camera-feed-switcher {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+.feed-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-heading);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.feed-btn:hover {
+    border-color: var(--blue-primary);
+    background: var(--blue-bg-subtle);
+    color: var(--blue-primary);
+}
+.feed-btn.active {
+    background: var(--blue-bg-subtle);
+    border-color: var(--blue-primary);
+    color: var(--blue-primary);
+    font-weight: 600;
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+.feed-badge {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-light);
+    color: var(--text-muted);
+}
+.feed-badge.live {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #dc2626;
+    font-weight: 600;
+}
+.feed-badge.mp4 {
+    background: var(--blue-bg-subtle);
+    border-color: var(--blue-border);
+    color: var(--blue-primary);
+    font-weight: 600;
+}
+
 .panel-header {
     display: flex;
     justify-content: space-between;
@@ -871,7 +948,7 @@ body {
     position: relative;
     border-radius: var(--radius-md);
     overflow: hidden;
-    background: #000000;
+    background: #0b1120;
     border: 1px solid var(--border-light);
     aspect-ratio: 16/9;
 }
@@ -879,6 +956,33 @@ body {
     width: 100%;
     height: 100%;
     object-fit: contain;
+}
+.monitor-screen {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* CCTV HUD Telemetry Overlay */
+.cctv-hud-telemetry {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(11, 17, 32, 0.85);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 4px 10px;
+    border-radius: 4px;
+    z-index: 5;
+}
+.hud-tag {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: #e2e8f0;
+    font-weight: 600;
 }
 .video-overlay-badge {
     position: absolute;

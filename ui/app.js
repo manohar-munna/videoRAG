@@ -587,28 +587,194 @@ document.addEventListener('DOMContentLoaded', () => {
     checkHealth();
 
     // ------------------------------------------------------------------
-    // Video Timer Tracking & Seeking
+    // Multi-Camera Surveillance Feed Switcher & Monitor Controller
     // ------------------------------------------------------------------
-    if (cctvPlayer) {
-        cctvPlayer.addEventListener('timeupdate', () => {
-            const cur = Math.floor(cctvPlayer.currentTime);
-            const hrs = Math.floor(cur / 3600);
-            const mins = Math.floor((cur % 3600) / 60);
-            const secs = cur % 60;
-            videoTimer.textContent = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    const cameraFeedSwitcher = document.getElementById('camera-feed-switcher');
+    const ytPlayer = document.getElementById('yt-player');
+    const cctvSnapshotView = document.getElementById('cctv-snapshot-view');
+    const snapshotScreenImg = document.getElementById('snapshot-screen-img');
+    const hudCamId = document.getElementById('hud-cam-id');
+    const hudTimestamp = document.getElementById('hud-timestamp');
+    const hudStatus = document.getElementById('hud-status');
+    const currentFeedName = document.getElementById('current-feed-name');
+    const subSource = document.getElementById('sub-source');
+    const subFps = document.getElementById('sub-fps');
+    const subDuration = document.getElementById('sub-duration');
+
+    let activeFeedCamId = 'CAM_01';
+    let availableFeeds = [];
+
+    async function fetchCameraFeeds() {
+        if (!cameraFeedSwitcher) return;
+        try {
+            const resp = await fetch('/api/cameras/feeds');
+            if (resp.ok) {
+                const data = await resp.json();
+                availableFeeds = data.feeds || [];
+                renderCameraFeedSwitcher();
+            }
+        } catch (err) {
+            console.warn('Failed to load camera feeds:', err);
+        }
+    }
+
+    function renderCameraFeedSwitcher() {
+        if (!cameraFeedSwitcher) return;
+        cameraFeedSwitcher.innerHTML = availableFeeds.map(f => {
+            const isActive = f.camera_id === activeFeedCamId;
+            let badgeClass = 'feed-badge';
+            let badgeText = f.status || 'FEED';
+            if (f.type === 'youtube_stream' || f.status.includes('LIVE')) {
+                badgeClass += ' live';
+                badgeText = '🔴 LIVE';
+            } else if (f.type === 'video_file') {
+                badgeClass += ' mp4';
+                badgeText = '📹 MP4';
+            }
+
+            return `
+                <button class="feed-btn ${isActive ? 'active' : ''}" data-cam="${escapeHtml(f.camera_id)}">
+                    <span>${escapeHtml(f.camera_id)}</span>
+                    <span class="${badgeClass}">${badgeText}</span>
+                </button>
+            `;
+        }).join('');
+
+        cameraFeedSwitcher.querySelectorAll('.feed-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const camId = btn.dataset.cam;
+                switchSurveillanceFeed(camId);
+            });
         });
     }
 
-    function seekToTime(seconds, label = '') {
-        if (cctvPlayer) {
-            cctvPlayer.currentTime = seconds;
-            cctvPlayer.play().catch(() => {});
-            seekNotice.textContent = `Seeked to ${label || seconds + 's'}`;
-            seekNotice.style.opacity = '1';
-            setTimeout(() => {
-                seekNotice.textContent = 'Ready — Click any timestamp result to seek';
-            }, 3000);
+    function switchSurveillanceFeed(camId, targetSeconds = null, targetImage = null, targetTimestamp = null) {
+        activeFeedCamId = camId;
+        renderCameraFeedSwitcher();
+
+        const feed = availableFeeds.find(f => f.camera_id === camId) || {
+            camera_id: camId,
+            name: camId,
+            type: camId === 'CAM_01' ? 'video_file' : (camId === 'CAM_3000' ? 'youtube_stream' : 'snapshot'),
+            src: camId === 'CAM_01' ? '/video/sample_cctv.mp4' : '',
+            embed_url: camId === 'CAM_3000' ? 'https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1' : '',
+            fps: 30.0,
+            duration: '24h CCTV',
+        };
+
+        if (currentFeedName) currentFeedName.textContent = `${feed.camera_id} (${feed.name})`;
+
+        // 1. If Video File (e.g. CAM_01)
+        if (feed.type === 'video_file') {
+            if (cctvPlayer) {
+                cctvPlayer.style.display = 'block';
+                if (targetSeconds !== null && !isNaN(targetSeconds)) {
+                    cctvPlayer.currentTime = targetSeconds;
+                    cctvPlayer.play().catch(() => {});
+                }
+            }
+            if (ytPlayer) {
+                ytPlayer.style.display = 'none';
+                ytPlayer.src = '';
+            }
+            if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
+
+            if (subSource) subSource.innerHTML = `Source: <code>sample_cctv.mp4</code>`;
+            if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 30.0}</code>`;
+            if (subDuration) subDuration.innerHTML = `Duration: <code>${feed.duration || '13m 31s'}</code>`;
+
+            if (targetSeconds !== null && seekNotice) {
+                seekNotice.textContent = `Seeked ${feed.camera_id} to ${targetTimestamp || targetSeconds + 's'}`;
+                seekNotice.style.opacity = '1';
+                setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
+            }
+            return;
         }
+
+        // 2. If YouTube Live Stream (e.g. CAM_3000)
+        if (feed.type === 'youtube_stream' && !targetImage) {
+            if (cctvPlayer) {
+                cctvPlayer.pause();
+                cctvPlayer.style.display = 'none';
+            }
+            if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
+            if (ytPlayer) {
+                ytPlayer.style.display = 'block';
+                const embedUrl = feed.embed_url || 'https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1';
+                if (!ytPlayer.src || !ytPlayer.src.includes('1EiC9bvVGnk')) {
+                    ytPlayer.src = embedUrl;
+                }
+            }
+
+            if (subSource) subSource.innerHTML = `Source: <code>YouTube Live HLS</code>`;
+            if (subFps) subFps.innerHTML = `FPS: <code>30.0</code>`;
+            if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">🔴 LIVE STREAM</strong>`;
+
+            if (seekNotice) {
+                seekNotice.textContent = `Active Stream: ${feed.camera_id} (YouTube Live Feed)`;
+                seekNotice.style.opacity = '1';
+                setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
+            }
+            return;
+        }
+
+        // 3. Snapshot / Keyframe Image Display (e.g. CAM_02, CAM_03, or indexed moment snapshot)
+        if (cctvPlayer) {
+            cctvPlayer.pause();
+            cctvPlayer.style.display = 'none';
+        }
+        if (ytPlayer) {
+            ytPlayer.style.display = 'none';
+            ytPlayer.src = '';
+        }
+
+        if (cctvSnapshotView && snapshotScreenImg) {
+            cctvSnapshotView.style.display = 'block';
+            const imgPath = targetImage || feed.preview_image || feed.src || `/data/cameras/${camId}/extracted_frames/${camId}_snapshot.jpg`;
+            snapshotScreenImg.src = imgPath;
+
+            const ts = targetTimestamp || (targetSeconds !== null ? formatSecondsToTs(targetSeconds) : '00:00:00');
+            if (hudCamId) hudCamId.textContent = camId;
+            if (hudTimestamp) hudTimestamp.textContent = ts;
+            if (hudStatus) hudStatus.textContent = 'REC ● 1080P';
+            if (videoTimer) videoTimer.textContent = ts;
+
+            if (subSource) subSource.innerHTML = `Source: <code>${imgPath.split('/').pop()}</code>`;
+            if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 15.0}</code>`;
+            if (subDuration) subDuration.innerHTML = `Frame: <code>${ts}</code>`;
+
+            if (seekNotice) {
+                seekNotice.textContent = `Surveillance View — ${camId} @ ${ts}`;
+                seekNotice.style.opacity = '1';
+                setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
+            }
+        }
+    }
+
+    function formatSecondsToTs(totalSecs) {
+        const s = Math.floor(totalSecs || 0);
+        const hrs = Math.floor(s / 3600);
+        const mins = Math.floor((s % 3600) / 60);
+        const secs = s % 60;
+        return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    fetchCameraFeeds();
+
+    // ------------------------------------------------------------------
+    // Video Timer Tracking for MP4 Player
+    // ------------------------------------------------------------------
+    if (cctvPlayer) {
+        cctvPlayer.addEventListener('timeupdate', () => {
+            if (cctvPlayer.style.display !== 'none') {
+                const cur = Math.floor(cctvPlayer.currentTime);
+                videoTimer.textContent = formatSecondsToTs(cur);
+            }
+        });
+    }
+
+    function seekToTime(seconds, label = '', camera = 'CAM_01', imagePath = '') {
+        switchSurveillanceFeed(camera, seconds, imagePath, label);
     }
 
     // ------------------------------------------------------------------
@@ -725,10 +891,10 @@ document.addEventListener('DOMContentLoaded', () => {
         formattedAnswer = formattedAnswer.replace(/(\b\d{2}:\d{2}:\d{2}\b)/g, (match) => {
             const parts = match.split(':').map(Number);
             const secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
-            return `<span class="ev-ts interactive-ts" data-seconds="${secs}" style="cursor:pointer;" title="Click to seek video to ${match}">${match}</span>`;
+            return `<span class="ev-ts interactive-ts" data-seconds="${secs}" style="cursor:pointer;" title="Click to redirect monitor to ${match}">${match}</span>`;
         });
 
-        formattedAnswer = formattedAnswer.replace(/(\bCAM_\d{2}\b)/g, `<strong class="text-blue">$1</strong>`);
+        formattedAnswer = formattedAnswer.replace(/(\bCAM_\w+\b)/g, `<strong class="text-blue">$1</strong>`);
 
         aiAnswerBody.innerHTML = `<div class="animate-slide-in" style="white-space: pre-wrap;">${formattedAnswer}</div>`;
 
@@ -743,39 +909,41 @@ document.addEventListener('DOMContentLoaded', () => {
             metricsBar.style.display = 'grid';
         }
 
+        const results = data.results || [];
+        evidenceCount.textContent = results.length;
+
+        // Auto-detect camera from primary top result for interactive timestamp clicks in answer
+        const topCam = results.length > 0 ? results[0].camera : 'CAM_01';
         aiAnswerBody.querySelectorAll('.interactive-ts').forEach(el => {
             el.addEventListener('click', () => {
                 const sec = parseFloat(el.dataset.seconds);
-                seekToTime(sec, el.textContent);
+                seekToTime(sec, el.textContent, topCam);
             });
         });
-
-        const results = data.results || [];
-        evidenceCount.textContent = results.length;
 
         if (results.length === 0) {
             evidenceList.innerHTML = `<div class="empty-state"><p>No relevant video moments found for this camera/query filter.</p></div>`;
             return;
         }
 
-        evidenceList.innerHTML = results.map((item, idx) => `
-            <div class="evidence-item" data-seconds="${item.seconds}" data-timestamp="${item.timestamp}" data-image="${escapeHtml(item.image_path || '')}" data-camera="${escapeHtml(item.camera)}">
+        evidenceList.innerHTML = results.map((item) => `
+            <div class="evidence-item" data-seconds="${item.seconds}" data-timestamp="${item.timestamp}" data-image="${escapeHtml(item.image_path || '')}" data-camera="${escapeHtml(item.camera)}" data-feed-type="${escapeHtml(item.feed_type || '')}">
                 <div class="evidence-meta">
                     <div class="ev-header">
                         <span class="ev-rank">#${item.rank}</span>
-                        <span class="ev-camera">${item.camera}</span>
-                        <span class="ev-ts">${item.timestamp}</span>
+                        <span class="ev-camera">${escapeHtml(item.camera)}</span>
+                        <span class="ev-ts">${escapeHtml(item.timestamp)}</span>
                     </div>
                     <div class="ev-desc">${escapeHtml(item.description)}</div>
                 </div>
                 <div class="ev-scores">
                     <span class="score-badge rerank">Rerank: ${item.rerank_score}</span>
                     <span class="score-badge">FAISS: ${item.faiss_score}</span>
-                    <button class="btn-seek">
+                    <button class="btn-seek" title="Redirect monitor to this camera moment">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="5 3 19 12 5 21 5 3"></polygon>
                         </svg>
-                        ${item.image_path ? 'View Frame' : 'Seek'}
+                        Seek
                     </button>
                 </div>
             </div>
@@ -790,38 +958,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const img = card.dataset.image;
                 const cam = card.dataset.camera;
 
-                if (img) {
-                    showImageSnapshotInViewer(img, cam, ts);
-                } else {
-                    seekToTime(secs, ts);
-                }
+                seekToTime(secs, ts, cam, img);
             });
         });
-    }
-
-    function showImageSnapshotInViewer(imagePath, camera, timestamp) {
-        const videoWrapper = document.querySelector('.video-wrapper');
-        const currentFeedName = document.getElementById('current-feed-name');
-        if (currentFeedName) currentFeedName.textContent = `${camera} @ ${timestamp}`;
-        if (videoTimer) videoTimer.textContent = timestamp;
-
-        if (videoWrapper) {
-            let imgOverlay = videoWrapper.querySelector('.snapshot-overlay-img');
-            if (!imgOverlay) {
-                imgOverlay = document.createElement('img');
-                imgOverlay.className = 'snapshot-overlay-img';
-                imgOverlay.style.cssText = 'position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; background:#000; z-index:2;';
-                videoWrapper.appendChild(imgOverlay);
-            }
-            imgOverlay.src = imagePath;
-            imgOverlay.style.display = 'block';
-        }
-
-        if (seekNotice) {
-            seekNotice.textContent = `Viewing Frame Snapshot — ${camera} @ ${timestamp}`;
-            seekNotice.style.opacity = '1';
-            seekNotice.style.zIndex = '3';
-        }
     }
 
     function escapeHtml(text) {

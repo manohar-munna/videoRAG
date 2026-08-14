@@ -261,6 +261,25 @@ def search_cctv(req: SearchRequest):
             clean_img = img_p.replace("\\", "/")
             if "data/" in clean_img:
                 img_p = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
+        elif cam in ("CAM_01", "CAM_02", "CAM_03", "CAM_04"):
+            snap_file = _PROJECT_ROOT / "data" / "cameras" / cam / "extracted_frames" / f"{cam}_snapshot.jpg"
+            if snap_file.exists():
+                img_p = f"/data/cameras/{cam}/extracted_frames/{cam}_snapshot.jpg"
+
+        # Determine feed type & streaming details
+        feed_type = "snapshot"
+        feed_url = ""
+        embed_url = ""
+        if cam == "CAM_01":
+            feed_type = "video_file"
+            feed_url = "/video/sample_cctv.mp4"
+        elif "3000" in cam or (cam in STREAM_MANAGER.streams and "youtube.com" in STREAM_MANAGER.streams[cam].stream_url.lower()):
+            feed_type = "youtube_stream"
+            feed_url = "https://www.youtube.com/watch?v=1EiC9bvVGnk"
+            embed_url = "https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1"
+        elif cam in STREAM_MANAGER.streams:
+            feed_type = "rtsp_stream"
+            feed_url = STREAM_MANAGER.streams[cam].stream_url
 
         items.append({
             "rank": rank,
@@ -269,6 +288,9 @@ def search_cctv(req: SearchRequest):
             "seconds": secs,
             "description": desc,
             "image_path": img_p,
+            "feed_type": feed_type,
+            "feed_url": feed_url,
+            "embed_url": embed_url,
             "faiss_score": round(float(r.get("score", 0.0)), 4),
             "rerank_score": round(float(r.get("rerank_score", 0.0)), 4),
         })
@@ -507,9 +529,86 @@ def get_camera_list():
         cams.add(stream_id)
 
     if not cams:
-        cams = {"CAM_01", "CAM_02", "CAM_03"}
+        cams = {"CAM_01", "CAM_02", "CAM_03", "CAM_3000"}
 
     return {"cameras": sorted(list(cams))}
+
+
+@app.get("/api/cameras/feeds")
+def get_camera_feeds():
+    """Return rich surveillance feed profiles for the multi-camera monitor switcher."""
+    feeds = [
+        {
+            "camera_id": "CAM_01",
+            "name": "Main Entrance & Driveway",
+            "type": "video_file",
+            "src": "/video/sample_cctv.mp4",
+            "status": "RECORDED MP4",
+            "fps": 30.0,
+            "duration": "13m 31s",
+            "preview_image": "/data/cameras/CAM_01/extracted_frames/CAM_01_snapshot.jpg",
+        },
+        {
+            "camera_id": "CAM_3000",
+            "name": "YouTube Live Feed",
+            "type": "youtube_stream",
+            "src": "https://www.youtube.com/watch?v=1EiC9bvVGnk",
+            "embed_url": "https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1",
+            "status": "LIVE (TCP)",
+            "fps": 30.0,
+            "duration": "LIVE STREAM",
+            "preview_image": "/data/cameras/CAM_3000/extracted_frames/CAM_3000_snapshot.jpg",
+        },
+        {
+            "camera_id": "CAM_02",
+            "name": "Parking Lot B",
+            "type": "snapshot",
+            "src": "/data/cameras/CAM_02/extracted_frames/CAM_02_snapshot.jpg",
+            "status": "ACTIVE FEED",
+            "fps": 15.0,
+            "duration": "24h CCTV",
+            "preview_image": "/data/cameras/CAM_02/extracted_frames/CAM_02_snapshot.jpg",
+        },
+        {
+            "camera_id": "CAM_03",
+            "name": "Warehouse & Loading Bay",
+            "type": "snapshot",
+            "src": "/data/cameras/CAM_03/extracted_frames/CAM_03_snapshot.jpg",
+            "status": "ACTIVE FEED",
+            "fps": 15.0,
+            "duration": "24h CCTV",
+            "preview_image": "/data/cameras/CAM_03/extracted_frames/CAM_03_snapshot.jpg",
+        },
+        {
+            "camera_id": "CAM_04",
+            "name": "Lobby & North Gate",
+            "type": "snapshot",
+            "src": "/data/cameras/CAM_04/extracted_frames/CAM_04_snapshot.jpg",
+            "status": "ACTIVE FEED",
+            "fps": 15.0,
+            "duration": "24h CCTV",
+            "preview_image": "/data/cameras/CAM_04/extracted_frames/CAM_04_snapshot.jpg",
+        }
+    ]
+
+    # Incorporate any dynamically running RTSP / custom streams from STREAM_MANAGER
+    existing_cam_ids = {f["camera_id"] for f in feeds}
+    for stream_id, stream in STREAM_MANAGER.streams.items():
+        if stream_id not in existing_cam_ids:
+            is_yt = "youtube.com" in stream.stream_url.lower() or "youtu.be" in stream.stream_url.lower()
+            feeds.append({
+                "camera_id": stream_id,
+                "name": f"Live Stream ({stream_id})",
+                "type": "youtube_stream" if is_yt else "rtsp_stream",
+                "src": stream.stream_url,
+                "embed_url": "https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1" if is_yt else "",
+                "status": "LIVE (TCP)" if stream.is_connected else "RECONNECTING",
+                "fps": stream.fps,
+                "duration": "LIVE STREAM",
+                "preview_image": "",
+            })
+
+    return {"feeds": feeds}
 
 
 @app.get("/video/sample_cctv.mp4")
