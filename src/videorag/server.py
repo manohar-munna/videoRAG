@@ -378,7 +378,7 @@ def get_events(camera: Optional[str] = None, detailed: bool = False):
                 r["epoch_time"] = round(local_img.stat().st_mtime, 3)
 
     # Dynamic camera discovery across all system sources
-    registered_cams = set(CAMERA_REGISTRY.keys())
+    registered_cams = set(c["camera_id"] for c in CAMERA_REGISTRY.get_all())
     stream_cams = set(STREAM_MANAGER.streams.keys())
     dir_cams = set(p.name for p in cam_base.iterdir() if p.is_dir()) if cam_base.exists() else set()
     event_cams = set(r.get("camera") for r in records if r.get("camera"))
