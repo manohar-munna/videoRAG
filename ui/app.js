@@ -879,49 +879,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ytPlayerInstance = null;
     let isYtPlayerReady = false;
     let pendingDvrSeekOffset = null; // One-shot deltaSeconds to seek
-
-    function getYtPlayerInstance(vidId, onReadyCb) {
-        if (ytPlayerInstance && isYtPlayerReady && typeof ytPlayerInstance.seekTo === 'function') {
-            if (onReadyCb) onReadyCb(ytPlayerInstance);
-            return ytPlayerInstance;
-        }
-
-        if (window.YT && window.YT.Player) {
-            try {
-                ytPlayerInstance = new YT.Player('yt-player', {
-                    videoId: vidId,
-                    playerVars: {
-                        autoplay: 1,
-                        mute: 1,
-                        enablejsapi: 1,
-                        origin: window.location.origin
-                    },
-                    events: {
-                        onReady: (event) => {
-                            isYtPlayerReady = true;
-                            if (pendingDvrSeekOffset !== null && pendingDvrSeekOffset > 0) {
-                                executeOneShotSeek(event.target, pendingDvrSeekOffset);
-                                pendingDvrSeekOffset = null;
-                            }
-                            if (onReadyCb) onReadyCb(event.target);
-                        },
-                        onStateChange: (event) => {
-                            // When video starts playing, execute pending seek ONCE only
-                            if (event.data === 1 && pendingDvrSeekOffset !== null && pendingDvrSeekOffset > 0) {
-                                const offset = pendingDvrSeekOffset;
-                                pendingDvrSeekOffset = null; // Clear immediately to prevent any looping!
-                                executeOneShotSeek(event.target, offset);
-                            }
-                        }
-                    }
-                });
-                return ytPlayerInstance;
-            } catch (err) {
-                console.warn('YT.Player instantiation error:', err);
-            }
-        }
-        return null;
-    }
+    let currentLoadedVideoId = null;
 
     function executeOneShotSeek(player, deltaSeconds) {
         try {
@@ -938,31 +896,76 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function seekYouTubeLiveDVR(vidId, deltaSeconds, displayTs, camera_id) {
+    function loadOrSeekYouTubeStream(vidId, deltaSeconds = null) {
         if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
         if (cctvSnapshotView) { cctvSnapshotView.style.display = 'none'; }
+        if (ytPlayer) { ytPlayer.style.display = 'block'; }
 
-        if (ytPlayer) {
-            ytPlayer.style.display = 'block';
+        // If API player already exists and is ready
+        if (ytPlayerInstance && isYtPlayerReady && typeof ytPlayerInstance.loadVideoById === 'function') {
+            if (currentLoadedVideoId !== vidId) {
+                currentLoadedVideoId = vidId;
+                if (deltaSeconds !== null && deltaSeconds > 0) {
+                    pendingDvrSeekOffset = deltaSeconds;
+                }
+                ytPlayerInstance.loadVideoById({ videoId: vidId });
+            } else if (deltaSeconds !== null && deltaSeconds > 0) {
+                executeOneShotSeek(ytPlayerInstance, deltaSeconds);
+            }
+            return;
+        }
+
+        // Initialize new YT.Player or queue seek
+        currentLoadedVideoId = vidId;
+        if (deltaSeconds !== null && deltaSeconds > 0) {
+            pendingDvrSeekOffset = deltaSeconds;
+        }
+
+        if (window.YT && window.YT.Player) {
+            if (!ytPlayerInstance) {
+                try {
+                    ytPlayerInstance = new YT.Player('yt-player', {
+                        videoId: vidId,
+                        playerVars: {
+                            autoplay: 1,
+                            mute: 1,
+                            enablejsapi: 1,
+                            origin: window.location.origin
+                        },
+                        events: {
+                            onReady: (event) => {
+                                isYtPlayerReady = true;
+                                if (pendingDvrSeekOffset !== null && pendingDvrSeekOffset > 0) {
+                                    executeOneShotSeek(event.target, pendingDvrSeekOffset);
+                                    pendingDvrSeekOffset = null;
+                                }
+                            },
+                            onStateChange: (event) => {
+                                if (event.data === 1 && pendingDvrSeekOffset !== null && pendingDvrSeekOffset > 0) {
+                                    const offset = pendingDvrSeekOffset;
+                                    pendingDvrSeekOffset = null;
+                                    executeOneShotSeek(event.target, offset);
+                                }
+                            }
+                        }
+                    });
+                } catch (err) {
+                    console.warn('YT.Player instantiation error:', err);
+                }
+            } else if (isYtPlayerReady) {
+                ytPlayerInstance.loadVideoById({ videoId: vidId });
+            }
+        } else {
+            // Fallback iframe src load if YT API script hasn't loaded yet
             const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
-            if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
+            if (ytPlayer && (!ytPlayer.src || !ytPlayer.src.includes(vidId))) {
                 ytPlayer.src = embedUrl;
             }
         }
+    }
 
-        // If player is already initialized and active, perform seek immediately
-        if (ytPlayerInstance && isYtPlayerReady && typeof ytPlayerInstance.seekTo === 'function') {
-            executeOneShotSeek(ytPlayerInstance, deltaSeconds);
-        } else {
-            // Queue one-shot seek for when player finishes handshake
-            pendingDvrSeekOffset = deltaSeconds;
-            getYtPlayerInstance(vidId, (player) => {
-                if (pendingDvrSeekOffset !== null) {
-                    executeOneShotSeek(player, pendingDvrSeekOffset);
-                    pendingDvrSeekOffset = null;
-                }
-            });
-        }
+    function seekYouTubeLiveDVR(vidId, deltaSeconds, displayTs, camera_id) {
+        loadOrSeekYouTubeStream(vidId, deltaSeconds);
 
         if (seekNotice) {
             const mins = Math.round(deltaSeconds / 60);
@@ -1307,13 +1310,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
             if (monitorModeBar) monitorModeBar.style.display = 'none';
 
-            if (ytPlayer) {
-                ytPlayer.style.display = 'block';
-                const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
-                if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
-                    ytPlayer.src = embedUrl;
-                }
-            }
+            loadOrSeekYouTubeStream(vidId, null);
 
             if (hudCamId) hudCamId.textContent = camId;
             if (hudTimestamp) hudTimestamp.textContent = displayTs;

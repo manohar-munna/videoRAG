@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "camera": "CAM_4000",
+    "timestamp": "23:44:58",
+    "seconds": 1786817698.76,
+    "epoch_time": 1786817698.764,
+    "description": "Multiple pedestrians, including families and individuals, are walking or loitering along a crowded boardwalk lined with palm trees and vendor tents; attire varies, with no uniform or distinctive color patterns. No vehicles are visible in the frame; the area appears to be a high-traffic public promenade with no parked or moving vehicles. No security incidents, restricted areas, or anomalous activity are evident; the scene depicts normal, high-volume public activity.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_23_44_58_1.jpg",
+    "hash_hex": "0x77460498e428c8a0",
+    "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "23:45:04",
+    "seconds": 1786817704.87,
+    "epoch_time": 1786817704.869,
+    "description": "1. Numerous pedestrians (estimated 50–100+), mostly casual attire, are walking or loitering among market stalls; some wear white tops, red shirts, or dark shorts; no suspicious behavior observed.  \n2. One motorbike is visible in motion; no cars or vehicles are parked or moving in the frame.  \n3. No security events or restricted areas detected; scene is a busy public market with no apparent anomalies.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_23_45_04_435.jpg",
+    "hash_hex": "0x7c988a23b25292a1",
+    "motion_pct": 98.68
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "23:45:10",
+    "seconds": 1786817710.59,
+    "epoch_time": 1786817710.589,
+    "description": "1. A large crowd of pedestrians (estimated 50–100+ individuals) is moving through a crowded outdoor market area; many are walking, some loitering near stalls or under umbrellas; attire is casual, with varied colors including red, white, and yellow.  \n2. No vehicles are visible in the frame; the area is pedestrian-only with market tents and umbrellas dominating the scene.  \n3. No security incidents or restricted areas are evident; activity is consistent with a public market or festival, with no signs of trespassing, conflict, or unusual behavior.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_23_45_10_733.jpg",
+    "hash_hex": "0x5cb10a2baac2a289",
+    "motion_pct": 82.84
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "23:45:16",
+    "seconds": 1786817716.27,
+    "epoch_time": 1786817716.27,
+    "description": "1. A large crowd of pedestrians, mostly dressed in casual summer attire, is moving through a crowded outdoor market area; many are loitering near vendor stalls or walking slowly, with no apparent suspicious behavior.  \n2. No vehicles are visible in the frame; the area is pedestrian-only with market tents and umbrellas dominating the scene.  \n3. No security events or restricted areas are evident; the scene depicts normal public activity at a busy outdoor venue.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_23_45_16_883.jpg",
+    "hash_hex": "0x5cb10813a27292c9",
+    "motion_pct": 59.8
+  }
+]
