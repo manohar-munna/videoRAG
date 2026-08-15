@@ -1,1 +1,632 @@
-[]
+[
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:29:07",
+    "seconds": 1786813147.5,
+    "epoch_time": 1786813147.502,
+    "description": "1. Three pedestrians are crossing the street near the center, with one in a dark jacket and two in lighter-colored tops; no loitering observed.  \n2. A black pickup truck is parked on the right side of the road, while a purple sedan and a silver SUV are in motion or stationary; multiple vehicles are in traffic flow.  \n3. No security incidents or restricted area breaches are evident; normal commercial street activity with no unusual behavior.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_29_07_1.jpg",
+    "hash_hex": "0xdccc662666ebe352",
+    "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:29:12",
+    "seconds": 1786813152.52,
+    "epoch_time": 1786813152.523,
+    "description": "1. Multiple pedestrians (approx. 10–15) are crossing the street at the intersection; some are loitering near crosswalks, while others are actively crossing. A group of three pedestrians in dark clothing walks along the right sidewalk.  \n2. Two silver SUVs are in motion on the road, one in the foreground and another mid-crossing. A dark-colored SUV is parked on the right side of the road.  \n3. No security events or restricted area breaches are evident. Pedestrians are crossing legally; vehicles are moving or parked as per traffic flow.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_29_12_226.jpg",
+    "hash_hex": "0xdccc66267cececc2",
+    "motion_pct": 37.35
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:29:17",
+    "seconds": 1786813157.53,
+    "epoch_time": 1786813157.53,
+    "description": "1. Multiple pedestrians (approx. 10–15) are crossing the street and loitering near the crosswalk; some are walking in groups, others standing near storefronts.  \n2. A silver SUV is moving through the intersection; a black SUV is parked in the foreground, and a silver pickup truck is parked on the right side of the street.  \n3. No security events or restricted area breaches are evident; traffic lights are green, and no unusual activity is observed.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_29_17_348.jpg",
+    "hash_hex": "0xd8cc66267ef4fa13",
+    "motion_pct": 22.08
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:29:27",
+    "seconds": 1786813167.54,
+    "epoch_time": 1786813167.542,
+    "description": "1. Multiple pedestrians (approx. 10–15) are loitering near the crosswalk and storefronts; some are standing still, others are walking across the street.  \n2. A white pickup truck and a silver SUV are moving through the intersection; a black SUV is parked on the left side of the street.  \n3. No security events or restricted area breaches are evident; traffic lights are green, and the scene shows normal commercial street activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_29_27_756.jpg",
+    "hash_hex": "0x88cc66267ee3faea",
+    "motion_pct": 11.39
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:29:43",
+    "seconds": 1786813183.24,
+    "epoch_time": 1786813183.239,
+    "description": "1. Multiple pedestrians are loitering near the crosswalk and storefronts; one group gathers near a purple tent, while others walk or stand idle. A dark SUV and a white SUV are parked or stopped on the street, with a black off-road vehicle crossing the intersection.  \n2. Several vehicles are visible: a dark SUV on the left, a white SUV turning right, and a black off-road vehicle in the center crossing the intersection. A line of cars is parked or moving slowly on the right side of the road.  \n3. No security events or restricted area breaches are evident. The scene depicts normal street activity with no signs of forced entry, suspicious behavior, or unauthorized access.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_29_43_1467.jpg",
+    "hash_hex": "0xe8cc66266cfc6bca",
+    "motion_pct": 11.9
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:29:50",
+    "seconds": 1786813190.59,
+    "epoch_time": 1786813190.595,
+    "description": "1. Multiple pedestrians (approx. 15–20) are loitering near the crosswalk and storefronts; some are walking, others standing still. A group in dark clothing is clustered near the left corner.  \n2. A dark sedan is crossing the intersection; a silver SUV is parked on the left side of the street. Several vehicles are moving or parked along the right side of the road, including a white van in the foreground.  \n3. No security incidents or restricted area breaches are evident. A decorative archway and event tents suggest a public gathering or festival, with no signs of forced entry, vandalism, or suspicious behavior.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_29_50_1635.jpg",
+    "hash_hex": "0xe8cc66266ce8d83a",
+    "motion_pct": 12.17
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:29:55",
+    "seconds": 1786813195.98,
+    "epoch_time": 1786813195.982,
+    "description": "1. Multiple pedestrians are visible: a group of 3–4 people in casual attire loitering near the left storefront; others crossing the street or walking along sidewalks; a lone individual in a dark jacket stands near the center crosswalk.  \n2. Vehicles: A white SUV and a black SUV are in motion at the intersection; a white van is turning right; several cars are parked or moving slowly in the background; a large white truck is parked on the right side of the road.  \n3. No security events or restricted area breaches are evident; traffic flows normally with no signs of conflict or unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_29_55_1785.jpg",
+    "hash_hex": "0xe8ce66267cecc9cb",
+    "motion_pct": 10.38
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:30:13",
+    "seconds": 1786813213.25,
+    "epoch_time": 1786813213.25,
+    "description": "Multiple pedestrians are crossing the street at the intersection, including a group of four walking together and individuals crossing near crosswalks; no loitering is observed. A gray minivan is parked in the foreground, and several cars are moving or stopped at the intersection, including a black SUV and a silver sedan. No security events or restricted areas are evident; activity appears routine and non-urgent.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_30_13_2235.jpg",
+    "hash_hex": "0xe8cc66267ef4cc98",
+    "motion_pct": 16.1
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:30:28",
+    "seconds": 1786813228.28,
+    "epoch_time": 1786813228.283,
+    "description": "1. Multiple pedestrians (approx. 15–20) are crossing the street at a marked crosswalk; some are loitering near the intersection, while others are actively crossing. A group of three people (two adults, one child) walks across the street in the foreground.  \n2. A dark gray pickup truck is in motion, crossing the intersection; a silver minivan is stationary in the foreground. Several other vehicles are parked or moving slowly in the background.  \n3. No security events or restricted area breaches are evident. Pedestrian traffic is normal, with no signs of trespassing, conflict, or unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_30_28_2825.jpg",
+    "hash_hex": "0xe8ce6626eaf3ca9a",
+    "motion_pct": 8.73
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:30:33",
+    "seconds": 1786813233.29,
+    "epoch_time": 1786813233.292,
+    "description": "1. Three pedestrians are crossing the street at the crosswalk; one is wearing a yellow top, another a dark jacket, and the third a light-colored shirt. A group of four people loiter near the left sidewalk, near a storefront.  \n2. A gray minivan is parked in the foreground, stationary. A black pickup truck is stopped at the intersection, and multiple cars are moving through the intersection.  \n3. No security incidents or restricted area breaches are evident. Traffic is flowing normally, with no unusual activity or obstructions.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_30_33_2948.jpg",
+    "hash_hex": "0xe8ce66267ef4ccd8",
+    "motion_pct": 9.25
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:30:43",
+    "seconds": 1786813243.31,
+    "epoch_time": 1786813243.311,
+    "description": "1. Multiple pedestrians (approx. 10–15) are crossing the street at the crosswalk; some are loitering near the intersection, while others are actively walking. One person in a bright yellow jacket is visible near the crosswalk.  \n2. Vehicles include a silver minivan in motion, a red pickup truck moving straight through the intersection, and several parked cars along the curb. A black truck is parked on the right side of the road.  \n3. No security events or restricted area violations are evident. Traffic is flowing normally with no signs of obstruction or emergency activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_30_43_3156.jpg",
+    "hash_hex": "0xeacc66267ce4e4ae",
+    "motion_pct": 13.99
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:30:55",
+    "seconds": 1786813255.39,
+    "epoch_time": 1786813255.392,
+    "description": "1. Multiple pedestrians are visible loitering near the crosswalk and storefronts; one group of three appears to be standing near the left-side shop entrance.  \n2. A white van is in the intersection, with a silver SUV and a black pickup truck in motion or parked nearby; a silver sedan is also moving through the intersection.  \n3. No security incidents or restricted area breaches are evident; traffic is flowing normally with no unusual activity or obstructions.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_30_55_3585.jpg",
+    "hash_hex": "0xcace662676c6c666",
+    "motion_pct": 13.87
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:31:01",
+    "seconds": 1786813261.11,
+    "epoch_time": 1786813261.108,
+    "description": "1. Multiple pedestrians (approx. 10–15) are loitering near the crosswalk and storefronts; some are standing still, others walking slowly. No individuals are actively crossing or engaging in suspicious behavior.  \n2. A silver pickup truck is parked in the foreground, a dark SUV and a black Mini Cooper are moving through the intersection, and a black van is parked on the right side of the road.  \n3. No security events or restricted areas are visibly breached. Traffic is flowing normally with no apparent incidents or anomalies.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_31_01_3735.jpg",
+    "hash_hex": "0xe8cc66266cc6ecea",
+    "motion_pct": 9.17
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:31:11",
+    "seconds": 1786813271.75,
+    "epoch_time": 1786813271.752,
+    "description": "1. Several pedestrians are loitering near the crosswalk and storefronts; some are grouped near the left sidewalk, while others are dispersed across the street corner. No individuals are actively crossing or running; attire is varied but not distinctive.  \n2. A red pickup truck is in the foreground, moving right; a red SUV and black SUV are in motion on the road; multiple vehicles are parked or idling on the right side of the street, including a black van and a dark sedan.  \n3. No security events are evident; no restricted areas are visibly breached or marked. Traffic is flowing normally with no apparent incidents or anomalies.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_31_11_4035.jpg",
+    "hash_hex": "0xeace66266ce5d91a",
+    "motion_pct": 15.18
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:31:29",
+    "seconds": 1786813289.8,
+    "epoch_time": 1786813289.798,
+    "description": "1. Multiple pedestrians are visible: a group of three people in casual attire loitering near the left storefront; others are walking across the street or gathered near the center crosswalk.  \n2. A dark gray Jeep Wrangler is in motion, crossing the intersection; other vehicles include a maroon sedan, a white SUV, and several parked cars along the right side of the street.  \n3. No security events or restricted areas are evident; traffic is flowing normally with no apparent incidents or unauthorized access.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_31_29_4635.jpg",
+    "hash_hex": "0xc8cc66266ceccc4e",
+    "motion_pct": 11.02
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:31:35",
+    "seconds": 1786813295.35,
+    "epoch_time": 1786813295.346,
+    "description": "1. Multiple pedestrians are visible on sidewalks and crosswalks; some appear to be loitering near storefronts, while others are crossing or walking along the street. No individuals are engaged in suspicious or anomalous behavior.\n2. Several vehicles are present: a white SUV and a black pickup truck are in motion near the intersection, while a black SUV is parked on the right side. Other cars are stationary or moving slowly in the background.\n3. No security events or restricted area breaches are evident. Traffic is flowing normally, with no signs of emergency vehicles, trespassing, or unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_31_35_4785.jpg",
+    "hash_hex": "0xe8ce66265ce6e7ca",
+    "motion_pct": 13.49
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:31:40",
+    "seconds": 1786813300.91,
+    "epoch_time": 1786813300.913,
+    "description": "1. Three pedestrians are visible on the left sidewalk near a storefront; two appear to be walking together, one is standing. A group of people is loitering near a decorative tree in the center of the intersection.  \n2. Multiple vehicles are present: a black SUV and a white pickup truck are in motion on the road; a black SUV is parked on the right side of the street; other cars are stationary or moving slowly.  \n3. No security incidents or restricted area breaches are evident. Traffic is flowing normally with standard traffic signals and no unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_31_40_4935.jpg",
+    "hash_hex": "0xe8ce66262ce5f3f6",
+    "motion_pct": 10.24
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:31:46",
+    "seconds": 1786813306.55,
+    "epoch_time": 1786813306.546,
+    "description": "1. Three pedestrians are visible: two near the left storefront, one crossing the street with a white bag; a fourth person walks on the right sidewalk. No loitering detected; all appear to be moving or in transit.\n2. Multiple vehicles: a black SUV, a dark pickup truck, and several sedans are in motion or parked along the street; a line of vehicles is queued at the intersection.\n3. No security events or restricted area breaches observed. Normal traffic flow and pedestrian movement across the intersection.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_31_46_5085.jpg",
+    "hash_hex": "0xe8cc66265cedf1e8",
+    "motion_pct": 7.39
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:31:58",
+    "seconds": 1786813318.46,
+    "epoch_time": 1786813318.458,
+    "description": "1. Multiple pedestrians (approx. 12–15) are crossing the street in a crosswalk; most are dressed in casual attire, with visible dark, light, and patterned clothing; no loitering observed, all appear to be in transit.  \n2. A silver pickup truck is parked on the right side of the road; other vehicles, including SUVs and sedans, are moving or parked along the street; no unusual vehicle activity noted.  \n3. No security incidents or restricted area breaches observed; normal crosswalk activity and traffic flow are present.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_31_58_5385.jpg",
+    "hash_hex": "0xe8cc66267ad1eaea",
+    "motion_pct": 13.97
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:32:03",
+    "seconds": 1786813323.58,
+    "epoch_time": 1786813323.576,
+    "description": "Multiple pedestrians (approx. 15–20) are crossing the street in a crosswalk; some are loitering near the curb, others are actively crossing. A black SUV is stopped at the intersection, and a silver pickup truck is parked on the left side. No vehicles are in motion or violating traffic rules; no security incidents or restricted areas are visible.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_32_03_5535.jpg",
+    "hash_hex": "0xe8cc66266ce4f44a",
+    "motion_pct": 11.37
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:32:13",
+    "seconds": 1786813333.6,
+    "epoch_time": 1786813333.601,
+    "description": "1. Multiple pedestrians (approx. 10–15) are crossing the street at the crosswalk; some are loitering near the traffic signal and storefronts, while others are actively walking. Most are dressed in casual attire, with no distinct uniform or color patterns noted.\n2. Several vehicles are present: a white pickup truck is parked in the foreground, a dark SUV and sedan are moving through the intersection, and other cars are in traffic or parked along the street. No vehicles are illegally parked or obstructing traffic.\n3. No security events or restricted area breaches are evident. Pedestrians are crossing safely at the crosswalk, and traffic is flowing normally with no apparent incidents or anomalies.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_32_13_5928.jpg",
+    "hash_hex": "0xe8cc662666f8d82a",
+    "motion_pct": 11.21
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:32:18",
+    "seconds": 1786813338.61,
+    "epoch_time": 1786813338.611,
+    "description": "Multiple pedestrians, including a group of four walking across the crosswalk, are present; some are dressed in dark and light-colored clothing. A white pickup truck is parked in the foreground, while several cars, including a black SUV and a silver sedan, are in motion or stopped at the intersection. No security incidents or restricted area breaches are evident; traffic appears normal with no unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_32_18_6021.jpg",
+    "hash_hex": "0xe8cc66267ce5c15a",
+    "motion_pct": 11.79
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:32:23",
+    "seconds": 1786813343.65,
+    "epoch_time": 1786813343.646,
+    "description": "1. Multiple pedestrians are visible crossing the street and loitering near storefronts; some wear dark or light-colored jackets, with no uniformed individuals observed.  \n2. Several vehicles are present: a white pickup truck and black SUV are parked or stopped at the curb; a dark sedan and other cars are in motion or parked further down the street.  \n3. No security incidents or restricted area breaches are evident; traffic flows normally with no unusual activity or flagged behavior.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_32_23_6284.jpg",
+    "hash_hex": "0xe8cc66266eeca9c3",
+    "motion_pct": 15.33
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:32:33",
+    "seconds": 1786813353.68,
+    "epoch_time": 1786813353.68,
+    "description": "1. Multiple pedestrians (approx. 5–7) are loitering near the left sidewalk and crossing the street; one person in a dark jacket walks across the crosswalk.  \n2. A white pickup truck is stationary at the intersection, while a black van is in motion across the frame; a silver sedan is parked on the left.  \n3. No security events or restricted areas are evident; traffic signals are green, and no unusual activity is observed.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_32_33_6556.jpg",
+    "hash_hex": "0xe8cc66265ef4e2c6",
+    "motion_pct": 13.37
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:32:38",
+    "seconds": 1786813358.68,
+    "epoch_time": 1786813358.685,
+    "description": "1. Multiple pedestrians (approx. 10–15) are loitering near the crosswalk and storefronts; some are standing in groups, others walking across the street.  \n2. A white SUV is in motion across the intersection, a white pickup truck is turning right, and a black van is approaching from the right lane; several vehicles are parked along the street.  \n3. No security incidents or restricted area breaches are evident; traffic is flowing normally with no signs of obstruction or unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_32_38_6684.jpg",
+    "hash_hex": "0xe8cc66267ce5ddca",
+    "motion_pct": 9.05
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:32:58",
+    "seconds": 1786813378.76,
+    "epoch_time": 1786813378.758,
+    "description": "1. Multiple pedestrians are visible loitering near the crosswalk and storefronts; a group of people stands near a purple tent, while others walk across the street.  \n2. Several vehicles are in motion or parked: a silver SUV is turning left, a black sedan is stopped at the intersection, and multiple cars and trucks travel through the intersection; a white SUV is parked on the left.  \n3. No security incidents or restricted area breaches are evident; traffic flows normally with no unusual activity or flagged behavior.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_32_58_7277.jpg",
+    "hash_hex": "0xe0cc66266eeeae6a",
+    "motion_pct": 15.01
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:33:13",
+    "seconds": 1786813393.79,
+    "epoch_time": 1786813393.794,
+    "description": "1. Multiple pedestrians (approx. 10–15) are loitering near the left sidewalk and crosswalk, some in casual attire; a group of motorcyclists is stopped at the intersection.  \n2. A silver pickup truck and a black pickup truck are in motion on the road; a silver sedan is parked on the left side of the street.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally with no apparent anomalies.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_33_13_7731.jpg",
+    "hash_hex": "0xe0cc66265eedcdce",
+    "motion_pct": 11.33
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:33:18",
+    "seconds": 1786813398.8,
+    "epoch_time": 1786813398.797,
+    "description": "1. Three pedestrians in casual attire (one in blue jacket, one in dark jacket, one in light top) are crossing the street at the crosswalk; no loitering observed.  \n2. A red SUV is in motion, a white van is stationary on the right side of the road, and a silver sedan is parked on the left; no other vehicles are actively moving or parked abnormally.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally with no unusual activity or suspicious behavior.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_33_18_7899.jpg",
+    "hash_hex": "0xe1cc66265ce4f63a",
+    "motion_pct": 12.53
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:33:28",
+    "seconds": 1786813408.83,
+    "epoch_time": 1786813408.825,
+    "description": "1. Multiple pedestrians (approx. 5–8) are crossing the street near the crosswalk; some are loitering near storefronts, while others are actively walking. A group of individuals in casual attire, including one in a red jacket, are visible near the center of the intersection.\n2. Vehicles include a black SUV in the foreground, a red sedan turning right, several sedans and SUVs in traffic, and a white van further down the road. A large truck is parked on the right side of the road, partially obstructing the lane.\n3. No security incidents are evident. The intersection appears to be a normal commercial area with no restricted zones or unusual activity. Traffic is flowing as expected, with no signs of obstruction or emergency response.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_33_28_8094.jpg",
+    "hash_hex": "0xe1cc66264ceccc56",
+    "motion_pct": 11.96
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:33:49",
+    "seconds": 1786813429.12,
+    "epoch_time": 1786813429.116,
+    "description": "1. Multiple pedestrians (approx. 15–20) are loitering near the crosswalk and storefronts; some are walking across the street, while others stand near the “Yeah Buddy Pizza” establishment.  \n2. A white pickup truck is parked in the center of the intersection, with other vehicles (including a black SUV and silver SUV) in motion or stopped at the intersection.  \n3. No security events or restricted area breaches are evident; traffic and pedestrian movement appear normal with no signs of conflict or unauthorized access.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_33_49_8703.jpg",
+    "hash_hex": "0xe1cc66267ed6ac5e",
+    "motion_pct": 15.29
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:33:59",
+    "seconds": 1786813439.14,
+    "epoch_time": 1786813439.139,
+    "description": "1. A group of pedestrians, including several adults and children, are loitering near the crosswalk and sidewalk on the left side of the frame, some appearing to wait or move slowly.  \n2. Multiple vehicles are present: a white pickup truck and a red SUV are parked or moving slowly on the left; two black SUVs are in motion in the center-right lanes; a black pickup truck is further down the road; and a white van is visible in the background.  \n3. No security events or restricted areas are evident; traffic is flowing normally with no signs of trespassing, obstruction, or unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_33_59_9039.jpg",
+    "hash_hex": "0xe0cc66265ce5c7aa",
+    "motion_pct": 18.41
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:34:09",
+    "seconds": 1786813449.16,
+    "epoch_time": 1786813449.159,
+    "description": "1. Multiple pedestrians (approx. 15–20) are crossing the street at the crosswalk; some are walking in groups, others loitering near the curb; attire is varied, including dark jackets and casual wear.  \n2. A white SUV is moving straight through the intersection; a dark SUV is parked or stopped at the bottom left; other vehicles are in motion or parked along the street.  \n3. No security incidents or restricted area breaches are evident; traffic is flowing normally with no unusual activity or obstructions.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_34_09_9295.jpg",
+    "hash_hex": "0xe0cc662674f2c49a",
+    "motion_pct": 10.55
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:34:14",
+    "seconds": 1786813454.17,
+    "epoch_time": 1786813454.165,
+    "description": "1. Multiple pedestrians (approx. 5–7) are crossing the street near the crosswalk; some are loitering near storefronts on the left. A group of individuals in dark clothing is walking together across the street.  \n2. A black SUV is in motion in the foreground, a white SUV is turning right at the intersection, and several other vehicles are moving or parked along the street.  \n3. No security events or restricted area breaches are evident. The scene depicts normal traffic and pedestrian movement at a commercial intersection during daytime.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_34_14_9439.jpg",
+    "hash_hex": "0xe0cc66265ce4e42e",
+    "motion_pct": 10.21
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:34:41",
+    "seconds": 1786813481.05,
+    "epoch_time": 1786813481.052,
+    "description": "1. Multiple pedestrians are loitering near storefronts and crossing the street; some are in casual attire, including light-colored shirts and dark pants. A group of cyclists is visible near the center crosswalk.  \n2. A red pickup truck is stopped at the intersection, while a dark SUV and a dark sedan are parked or moving slowly in the foreground. Several vehicles are parked along the street, including a black sedan and a dark SUV.  \n3. No security events are evident; traffic signals are green, and no restricted areas are visibly breached. Activity appears routine, with no signs of suspicious behavior or unauthorized access.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_34_41_9719.jpg",
+    "hash_hex": "0xe0cc66266efcf212",
+    "motion_pct": 10.44
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:34:51",
+    "seconds": 1786813491.25,
+    "epoch_time": 1786813491.249,
+    "description": "1. Multiple pedestrians are visible: a group of 4–5 people in casual attire loitering near a storefront; others are crossing or walking along sidewalks; a person in a dark jacket is near a crosswalk.  \n2. Vehicles include a red SUV in the foreground, a white van parked on the left, and several cars (black, dark gray, silver) moving or stopped at the intersection; a black pickup truck is in motion across the street.  \n3. No security incidents or restricted area breaches are evident; traffic is flowing normally with no unusual activity or obstructions.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_34_51_10003.jpg",
+    "hash_hex": "0xe0cc66264cf4b0ea",
+    "motion_pct": 8.68
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:34:56",
+    "seconds": 1786813496.5,
+    "epoch_time": 1786813496.503,
+    "description": "1. Multiple pedestrians are loitering near a decorative arch and crosswalk; some are walking or standing near storefronts, while others are gathered in groups.  \n2. A white bus is parked on the left, stationary; several cars (including black sedans and SUVs) are moving or stopped at the intersection, with traffic lights green for eastbound traffic.  \n3. No security incidents or restricted area breaches are evident; normal traffic flow and pedestrian activity are observed.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_34_56_10153.jpg",
+    "hash_hex": "0xe0cc6626ce24e42e",
+    "motion_pct": 14.63
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:35:06",
+    "seconds": 1786813506.52,
+    "epoch_time": 1786813506.523,
+    "description": "1. Multiple pedestrians are visible: a group of 4–5 people in casual attire loitering near the left storefront; others are crossing the street or walking along the sidewalk; a small crowd gathers near the center of the intersection.  \n2. Vehicles include a black Smart car turning left at the intersection, several cars moving through the intersection, and a line of parked vehicles on the right side of the street, including a black pickup truck and a white van.  \n3. No security events or restricted area breaches are evident; normal traffic and pedestrian activity are observed, with no signs of suspicious behavior or unauthorized access.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_35_06_10545.jpg",
+    "hash_hex": "0xe0cc66267af8f0ca",
+    "motion_pct": 6.34
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:35:31",
+    "seconds": 1786813531.55,
+    "epoch_time": 1786813531.548,
+    "description": "Multiple pedestrians, including adults and children, are crossing the street in a crosswalk; some are walking in groups, others loitering near the curb. A red SUV is parked on the left side of the frame, stationary. Several vehicles, including a black sedan and a silver sedan, are in motion or stopped at the intersection, with additional cars visible in the background traffic.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_35_31_10753.jpg",
+    "hash_hex": "0xe0cc662634e4d21a",
+    "motion_pct": 16.09
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:36:09",
+    "seconds": 1786813569.23,
+    "epoch_time": 1786813569.231,
+    "description": "1. Three pedestrians are visible near the crosswalk: one in a dark jacket walking left, one in a light-colored top standing near a tree, and another in a dark coat loitering near a vendor tent.  \n2. A silver SUV, red SUV, and a gray pickup truck are stopped at the intersection; a white pickup truck is moving through the intersection; a black SUV is parked on the left.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally with no unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_36_09_10769.jpg",
+    "hash_hex": "0xc0ce66263af5f5d3",
+    "motion_pct": 22.89
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:36:14",
+    "seconds": 1786813574.49,
+    "epoch_time": 1786813574.485,
+    "description": "1. Three pedestrians in casual attire (one in red, one in dark, one in light) are loitering near a crosswalk; a group of four people stands near a storefront entrance.  \n2. A white van is parked on the left side of the street; a red SUV and black SUV are moving through the intersection; a black pickup truck is parked on the right.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally with no unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_36_14_10903.jpg",
+    "hash_hex": "0xc8ce66266ef49559",
+    "motion_pct": 17.04
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:36:25",
+    "seconds": 1786813585.16,
+    "epoch_time": 1786813585.162,
+    "description": "1. Multiple pedestrians are visible: a group near the left storefront, some loitering near the center crosswalk, and others walking across the street; attire includes dark and light-colored jackets and pants.  \n2. Vehicles include a silver SUV, a red SUV, a dark gray pickup truck, and a dark gray station wagon; all are in motion or parked at the intersection, with no vehicles violating traffic control.  \n3. No security events or restricted area breaches are evident; activity appears routine, with no unusual behavior or unauthorized access.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_36_25_11203.jpg",
+    "hash_hex": "0xc9ce662654e5b13a",
+    "motion_pct": 15.27
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:36:31",
+    "seconds": 1786813591.18,
+    "epoch_time": 1786813591.181,
+    "description": "1. Three individuals in casual attire are loitering near a storefront on the left; one appears to be holding a bag. A group of people in dark and light-colored clothing are gathered near a decorative archway in the center of the intersection.  \n2. A silver SUV is in the foreground, moving leftward; a red SUV is turning right, and a white sedan is approaching the intersection. A black pickup truck is parked on the left side of the road.  \n3. No security events or restricted area breaches are evident. Traffic is flowing normally with no apparent incidents or anomalies.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_36_31_11353.jpg",
+    "hash_hex": "0xc8ce66269cf5c4ca",
+    "motion_pct": 12.08
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:36:42",
+    "seconds": 1786813602.1,
+    "epoch_time": 1786813602.1,
+    "description": "1. Three pedestrians are visible near the left storefront, one in dark clothing and two in lighter attire, standing still; a group of people loiter near a purple tent in the background.  \n2. Multiple vehicles are present: a blue pickup truck and silver SUV parked on the left, a white SUV and black SUV in motion on the road, and a black pickup truck stopped at the intersection.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally with no unusual activity or violations observed.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_36_42_11672.jpg",
+    "hash_hex": "0xc8ce66266ca5e3ca",
+    "motion_pct": 12.56
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:36:52",
+    "seconds": 1786813612.11,
+    "epoch_time": 1786813612.112,
+    "description": "Multiple pedestrians are crossing the street at a marked crosswalk; some are loitering near the intersection, while others are actively walking. A white minivan and a red compact car are visible, with the red car parked on the left and the white van in motion across the intersection. No security events or restricted areas are evident; traffic signals are active, and no unusual activity is observed.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_36_52_12007.jpg",
+    "hash_hex": "0xc8ce66267cf8f198",
+    "motion_pct": 15.27
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:36:57",
+    "seconds": 1786813617.15,
+    "epoch_time": 1786813617.148,
+    "description": "1. Multiple pedestrians (approx. 10–15) are crossing the street at the crosswalk; most are walking in groups, some appear to be loitering near the crosswalk edge. One individual in a green top is walking alone toward the left side of the frame.  \n2. A red compact car is parked in the foreground, stationary. A black pickup truck is in motion, crossing the intersection. Other vehicles include a silver sedan and a dark SUV, all moving or parked in the background.  \n3. No security incidents are evident. The scene shows normal pedestrian and vehicular traffic at an urban intersection with no restricted area breaches or unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_36_57_12141.jpg",
+    "hash_hex": "0xc8ce662666e6ec9a",
+    "motion_pct": 16.43
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:37:02",
+    "seconds": 1786813622.16,
+    "epoch_time": 1786813622.156,
+    "description": "Multiple pedestrians (approx. 15–20) are crossing the street in a crosswalk; some are loitering near the curb, others are actively crossing. A red hatchback is stationary in the foreground, and a dark sedan is parked on the left side of the street. No vehicles are in motion across the intersection, and no security events or restricted areas are visibly breached.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_37_02_12273.jpg",
+    "hash_hex": "0xc8ce66266afbd39a",
+    "motion_pct": 15.25
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:37:12",
+    "seconds": 1786813632.16,
+    "epoch_time": 1786813632.161,
+    "description": "Four pedestrians, including two adults and two children, are crossing the street from left to right; one adult is wearing a dark jacket and the other a green top. A red hatchback is parked in the foreground, while a dark sedan and a silver SUV are moving through the intersection. No security incidents or restricted areas are evident; traffic signals are active, and the scene shows normal pedestrian and vehicular activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_37_12_12594.jpg",
+    "hash_hex": "0xc8ce662666b0f89a",
+    "motion_pct": 10.58
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:37:32",
+    "seconds": 1786813652.25,
+    "epoch_time": 1786813652.251,
+    "description": "Multiple pedestrians, including a group crossing the street and individuals loitering near the crosswalk, are visible; some wear dark or light-colored clothing. A red hatchback, blue SUV, and a silver van are in motion or parked on the road, with a white pickup truck and a large white RV parked on the left. No security incidents or restricted areas are evident; traffic flows normally through the intersection.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_37_32_13237.jpg",
+    "hash_hex": "0xc8ce66267c70616b",
+    "motion_pct": 18.24
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:37:37",
+    "seconds": 1786813657.28,
+    "epoch_time": 1786813657.278,
+    "description": "1. Multiple pedestrians are loitering near the crosswalk and a large decorative sphere; some appear to be walking or standing still, with no clear action beyond waiting or observing.  \n2. A red compact car and a blue SUV are in motion on the road, with the red car turning right and the blue SUV proceeding straight; a white RV is parked in the foreground.  \n3. No security events or restricted area breaches are evident; the scene shows normal traffic and pedestrian activity at an urban intersection.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_37_37_13405.jpg",
+    "hash_hex": "0xc8ce66266eb431bb",
+    "motion_pct": 18.69
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:37:42",
+    "seconds": 1786813662.29,
+    "epoch_time": 1786813662.294,
+    "description": "1. Multiple pedestrians are visible loitering near a decorative arch and a purple tent on the left side of the intersection; one person in a red shirt is walking toward the crosswalk.  \n2. A white recreational vehicle is stopped at the intersection, with a white SUV and a blue sedan in adjacent lanes; a blue car is parked on the right side of the road.  \n3. No security events or restricted area breaches are evident; traffic signals are active, and vehicles are moving or parked normally within the frame.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_37_42_13538.jpg",
+    "hash_hex": "0xc8ce662676e4c622",
+    "motion_pct": 12.44
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:37:47",
+    "seconds": 1786813667.3,
+    "epoch_time": 1786813667.298,
+    "description": "1. A group of approximately 15–20 pedestrians, mostly dressed in casual attire with varied colors, are loitering near the crosswalk and storefronts on the left side of the intersection.  \n2. Multiple vehicles are present: a blue SUV and a white SUV are in motion through the intersection; a blue sedan is turning left; a white RV is parked on the left side; and several other cars are stationary or moving slowly on the right.  \n3. No security incidents or restricted area breaches are evident; the scene depicts normal traffic and pedestrian activity at a commercial intersection.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_37_47_13708.jpg",
+    "hash_hex": "0xc8ce66267ce5e5ca",
+    "motion_pct": 9.27
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:38:09",
+    "seconds": 1786813689.16,
+    "epoch_time": 1786813689.159,
+    "description": "1. A group of approximately 15–20 pedestrians, mostly dressed in casual attire with varied colors, are loitering near a decorative tree at the crosswalk; some appear to be waiting or observing.  \n2. A white SUV is turning right at the intersection, while a white pickup truck is parked on the left side of the street; a white van is visible further down the road, and a white SUV is approaching from the right.  \n3. No security events or restricted area breaches are evident; the scene depicts normal traffic and pedestrian activity at a commercial intersection.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_38_09_14365.jpg",
+    "hash_hex": "0xc8ce66265cf2f0e9",
+    "motion_pct": 7.85
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:38:19",
+    "seconds": 1786813699.18,
+    "epoch_time": 1786813699.178,
+    "description": "1. Multiple pedestrians are loitering near a large decorative sphere and a small pavilion; some are walking or standing near the crosswalk, while others are gathered near storefronts.  \n2. A white pickup truck is parked on the left side of the street, while a dark SUV and a white sedan are moving through the intersection; a silver SUV is partially visible in the foreground.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally, and no unusual activity is observed.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_38_19_14711.jpg",
+    "hash_hex": "0xc8ce66266eecf4ca",
+    "motion_pct": 8.77
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:38:49",
+    "seconds": 1786813729.35,
+    "epoch_time": 1786813729.35,
+    "description": "1. Multiple pedestrians are visible on the crosswalk and sidewalks; some appear to be loitering near the center of the intersection, while others are walking or standing near storefronts. No individuals are engaged in suspicious or rapid movement.\n2. A dark SUV and a white van are stopped or moving slowly in the foreground; a black SUV is turning right at the intersection. Several other vehicles, including a white sedan and a dark sedan, are in motion or parked along the street.\n3. No security events or restricted area breaches are evident. The scene shows normal traffic and pedestrian activity at a commercial intersection with no signs of intrusion, conflict, or unusual behavior.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_38_49_15762.jpg",
+    "hash_hex": "0xc8ce66267cf89c9e",
+    "motion_pct": 17.4
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:39:14",
+    "seconds": 1786813754.38,
+    "epoch_time": 1786813754.383,
+    "description": "1. Multiple pedestrians are visible: a group near the crosswalk, some loitering near storefronts, and others crossing the street; one person in a dark top and light pants stands near the left sidewalk.  \n2. Vehicles include two black pickup trucks moving straight through the intersection, a white hatchback in the foreground, and several other cars in traffic; no vehicles are parked.  \n3. No security events or restricted area breaches are evident; the scene shows normal traffic flow and pedestrian movement at an urban intersection.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_39_14_16574.jpg",
+    "hash_hex": "0xc8ce66266cc7ebaa",
+    "motion_pct": 12.45
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:39:26",
+    "seconds": 1786813766.28,
+    "epoch_time": 1786813766.285,
+    "description": "1. Multiple pedestrians are visible: a group near the center of the intersection, some loitering near a large white floral arch; others crossing or walking along sidewalks. A few individuals are near storefronts, including one in a dark top and light pants standing near a building entrance.\n2. Vehicles include a dark blue SUV and a dark gray SUV in the foreground, a white pickup truck mid-crossing, and several other cars in traffic or parked along the street. A black sedan is parked on the left side near a building.\n3. No security events or restricted area breaches are evident. The scene shows normal traffic flow and pedestrian movement at an active street intersection with no unusual activity or alarms triggered.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_39_26_16903.jpg",
+    "hash_hex": "0xc0cc66263ceccbcb",
+    "motion_pct": 13.75
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:39:46",
+    "seconds": 1786813786.31,
+    "epoch_time": 1786813786.306,
+    "description": "1. Multiple pedestrians are visible: a group near the crosswalk, some loitering near a storefront, and others crossing the street; one person in a white shirt walks toward the left sidewalk.  \n2. Vehicles include a white sedan, a black SUV, and a dark-colored SUV in motion; a white van is parked on the left, and several cars are in traffic or stopped at the intersection.  \n3. No security events or restricted area violations are evident; normal traffic and pedestrian activity are observed at the intersection.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_39_46_17655.jpg",
+    "hash_hex": "0xc0cc66266ae1fbca",
+    "motion_pct": 11.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:39:52",
+    "seconds": 1786813792.33,
+    "epoch_time": 1786813792.332,
+    "description": "1. Multiple pedestrians are visible: a group near the crosswalk, some loitering near storefronts, and others crossing or walking along sidewalks; one person in a dark jacket walks toward the left side of the frame.  \n2. Vehicles include a black SUV in the foreground, a silver sedan, and several other cars in traffic; vehicles are moving or parked along the street, with no apparent parking violations or unusual movement.  \n3. No security incidents or restricted area breaches are evident; the scene depicts normal daytime street activity with no suspicious behavior or alarms triggered.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_39_52_17803.jpg",
+    "hash_hex": "0xc2cc662638f9c8da",
+    "motion_pct": 12.42
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:40:20",
+    "seconds": 1786813820.34,
+    "epoch_time": 1786813820.337,
+    "description": "Multiple pedestrians are crossing the street and loitering near crosswalks and storefronts; some wear light-colored jackets, others dark clothing. Several vehicles, including SUVs and pickup trucks, are stopped or moving slowly at the intersection; a black SUV is prominent in the foreground. No security incidents or restricted area breaches are evident; traffic appears normal with no unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_40_20_18553.jpg",
+    "hash_hex": "0xc6cc66266ae2cade",
+    "motion_pct": 20.13
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:40:35",
+    "seconds": 1786813835.36,
+    "epoch_time": 1786813835.36,
+    "description": "1. Multiple pedestrians are crossing the street at the intersection; some are loitering near the crosswalk, while others are actively walking. A group of people is gathered near the “Yeah Buddy Pizza” storefront, and a few individuals are seen near the traffic light poles.\n2. Several vehicles are present: a black SUV and a black Jeep are in motion through the intersection, a black pickup truck is parked on the right, and other cars are moving or parked along the street. Traffic is flowing normally with no apparent congestion or stoppage.\n3. No security events or restricted area breaches are evident. The scene depicts normal commercial street activity with no unusual or suspicious behavior.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_40_35_19013.jpg",
+    "hash_hex": "0xe6cc66263cc4ceda",
+    "motion_pct": 14.99
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:40:50",
+    "seconds": 1786813850.47,
+    "epoch_time": 1786813850.473,
+    "description": "Multiple pedestrians are visible on sidewalks and crosswalks, including a group near the left storefront and individuals loitering near the center intersection; attire is varied but mostly casual. Several vehicles are present: a black SUV and a silver SUV are in motion on the road, while a black Jeep is parked or stopped on the right; other cars are in traffic or parked along the street. No security events or restricted area breaches are evident; the scene depicts normal daytime street activity with no unusual behavior or flagged activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_40_50_19495.jpg",
+    "hash_hex": "0xe6ce662e6ce563fa",
+    "motion_pct": 18.81
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:41:20",
+    "seconds": 1786813880.53,
+    "epoch_time": 1786813880.532,
+    "description": "1. Multiple pedestrians are visible loitering near the crosswalk and storefronts; one person in a dark jacket walks across the street, while others stand or move slowly near the curb.  \n2. A white van and a black sedan are in motion through the intersection; several other vehicles, including SUVs and trucks, are parked or moving slowly on adjacent streets.  \n3. No security events or restricted area violations are evident; the scene shows normal traffic and pedestrian activity at a commercial intersection.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_41_20_20440.jpg",
+    "hash_hex": "0xe6ce662e6ce8bcc8",
+    "motion_pct": 9.44
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "22:41:25",
+    "seconds": 1786813885.55,
+    "epoch_time": 1786813885.551,
+    "description": "1. Multiple pedestrians are visible: some loitering near storefronts and a market stall, others crossing the street or walking along sidewalks; attire includes casual jackets and jeans, with no distinct uniform or color patterns.  \n2. Vehicles include a white SUV in motion on the left, a black sedan turning right, and several cars moving through the intersection; no vehicles are parked or stationary.  \n3. No security events or restricted areas are evident; activity appears to be normal commercial street traffic with pedestrians and vehicles in expected motion.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_22_41_25_20567.jpg",
+    "hash_hex": "0xeece662eace9786a",
+    "motion_pct": 12.63
+  }
+]

@@ -1235,45 +1235,74 @@ document.addEventListener('DOMContentLoaded', () => {
             const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{11})/);
             if (match) vidId = match[1];
 
-            activeEvidenceState = { camId, targetSeconds, targetImage, targetTimestamp, vidId };
-
-            // When seeking a specific moment evidence: Display high-definition snapshot evidence with Live toggle
-            if (targetImage || targetTimestamp) {
-                if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
-                if (ytPlayer) { ytPlayer.style.display = 'none'; }
-
-                if (cctvSnapshotView && snapshotScreenImg) {
-                    cctvSnapshotView.style.display = 'block';
-                    const imgPath = targetImage || `/data/cameras/${camId}/extracted_frames/${camId}_snapshot.jpg`;
-                    snapshotScreenImg.src = imgPath;
-                }
-
-                if (hudCamId) hudCamId.textContent = camId;
-                if (hudTimestamp) hudTimestamp.textContent = displayTs;
-                if (hudStatus) hudStatus.textContent = '📸 MOMENT EVIDENCE';
-                if (videoTimer) videoTimer.textContent = displayTs;
-
-                if (monitorModeBar) {
-                    monitorModeBar.style.display = 'flex';
-                    if (btnShowEvidence) btnShowEvidence.classList.add('active');
-                    if (btnShowLive) btnShowLive.classList.remove('active');
-                    if (evidenceBtnText) evidenceBtnText.textContent = `📸 Moment Evidence (${displayTs})`;
-                    if (liveBtnText) liveBtnText.textContent = `🔴 Switch to Live Video`;
-                }
-
-                if (subSource) subSource.innerHTML = `Source: <code>${targetImage ? targetImage.split('/').pop() : 'Evidence Snapshot'}</code>`;
-                if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 30.0}</code>`;
-                if (subDuration) subDuration.innerHTML = `Moment: <code>${displayTs}</code>`;
-
-                if (seekNotice) {
-                    seekNotice.textContent = `📸 Displaying Moment Evidence — ${camId} @ ${displayTs}`;
-                    seekNotice.style.opacity = '1';
-                    setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
-                }
-                return;
+            // Compute delta in seconds: Current Wall Clock - Event Time
+            let deltaSeconds = 0;
+            if (targetEpochTime && targetEpochTime > 0) {
+                deltaSeconds = Math.max(0, (Date.now() / 1000) - targetEpochTime);
+            } else if (targetTimestamp) {
+                const now = new Date();
+                const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                const parts = targetTimestamp.split(':').map(Number);
+                const eventSec = parts.length === 3 ? parts[0]*3600 + parts[1]*60 + parts[2] : (parts.length === 2 ? parts[0]*60 + parts[1] : 0);
+                let diff = nowSec - eventSec;
+                if (diff < 0) diff += 86400; // handle midnight rollover
+                deltaSeconds = diff;
             }
 
-            // Normal Live Stream View (Camera selected without specific moment)
+            activeEvidenceState = { camId, targetSeconds, targetImage, targetTimestamp, targetEpochTime, deltaSeconds, vidId };
+
+            // When seeking a specific moment evidence:
+            if (targetImage || targetTimestamp) {
+                // If event happened within available live buffer (e.g. under 12 hours)
+                if (deltaSeconds > 0 && deltaSeconds <= 12 * 3600) {
+                    seekYouTubeLiveDVR(vidId, deltaSeconds, displayTs, camId);
+
+                    if (hudCamId) hudCamId.textContent = camId;
+                    const mins = Math.round(deltaSeconds / 60);
+                    if (hudTimestamp) hudTimestamp.textContent = `${displayTs} (-${mins}m)`;
+                    if (hudStatus) hudStatus.textContent = '▶️ PLAYING (DVR)';
+                    if (videoTimer) videoTimer.textContent = displayTs;
+
+                    if (monitorModeBar) {
+                        monitorModeBar.style.display = 'flex';
+                        if (btnShowEvidence) btnShowEvidence.classList.remove('active');
+                        if (btnShowLive) btnShowLive.classList.add('active');
+                        if (evidenceBtnText) evidenceBtnText.textContent = `📸 Snapshot Evidence (${displayTs})`;
+                        if (liveBtnText) liveBtnText.textContent = `▶️ Rewound Video (-${mins}m)`;
+                    }
+
+                    if (subSource) subSource.innerHTML = `Source: <code>YouTube Live DVR (-${mins}m)</code>`;
+                    if (subFps) subFps.innerHTML = `FPS: <code>30.0</code>`;
+                    if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">▶️ REWOUND PLAYBACK</strong>`;
+                    return;
+                } else {
+                    // Out-of-bounds (>12h old) -> Fallback to snapshot image
+                    if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
+                    if (ytPlayer) { ytPlayer.style.display = 'none'; }
+
+                    if (cctvSnapshotView && snapshotScreenImg) {
+                        cctvSnapshotView.style.display = 'block';
+                        const imgPath = targetImage || `/data/cameras/${camId}/extracted_frames/${camId}_snapshot.jpg`;
+                        snapshotScreenImg.src = imgPath;
+                    }
+
+                    if (hudCamId) hudCamId.textContent = camId;
+                    if (hudTimestamp) hudTimestamp.textContent = displayTs;
+                    if (hudStatus) hudStatus.textContent = '📸 ARCHIVED SNAPSHOT (>12h)';
+                    if (videoTimer) videoTimer.textContent = displayTs;
+
+                    if (monitorModeBar) {
+                        monitorModeBar.style.display = 'flex';
+                        if (btnShowEvidence) btnShowEvidence.classList.add('active');
+                        if (btnShowLive) btnShowLive.classList.remove('active');
+                        if (evidenceBtnText) evidenceBtnText.textContent = `📸 Archived Snapshot (${displayTs})`;
+                        if (liveBtnText) liveBtnText.textContent = `🔴 Switch to Live Video`;
+                    }
+                    return;
+                }
+            }
+
+            // Normal Live Stream View (Camera selected directly without specific moment)
             if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
             if (monitorModeBar) monitorModeBar.style.display = 'none';
@@ -1292,7 +1321,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (videoTimer) videoTimer.textContent = displayTs;
 
             if (subSource) subSource.innerHTML = `Source: <code>YouTube Live Stream</code>`;
-            if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 30.0}</code>`;
+            if (subFps) subFps.innerHTML = `FPS: <code>30.0</code>`;
             if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">🔴 LIVE STREAM</strong>`;
 
             if (seekNotice) {
