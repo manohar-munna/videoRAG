@@ -853,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cameraFeedSwitcher = document.getElementById('camera-feed-switcher');
     const singleVideoWrapper = document.getElementById('single-video-wrapper');
     const allFeedsContainer = document.getElementById('all-feeds-container');
-    function getYtPlayerEl() { return document.getElementById('yt-player'); }
+    const ytPlayer = document.getElementById('yt-player');
     const cctvSnapshotView = document.getElementById('cctv-snapshot-view');
     const snapshotScreenImg = document.getElementById('snapshot-screen-img');
     const monitorModeBar = document.getElementById('monitor-mode-bar');
@@ -879,7 +879,49 @@ document.addEventListener('DOMContentLoaded', () => {
     let ytPlayerInstance = null;
     let isYtPlayerReady = false;
     let pendingDvrSeekOffset = null; // One-shot deltaSeconds to seek
-    let currentLoadedVideoId = null;
+
+    function getYtPlayerInstance(vidId, onReadyCb) {
+        if (ytPlayerInstance && isYtPlayerReady && typeof ytPlayerInstance.seekTo === 'function') {
+            if (onReadyCb) onReadyCb(ytPlayerInstance);
+            return ytPlayerInstance;
+        }
+
+        if (window.YT && window.YT.Player) {
+            try {
+                ytPlayerInstance = new YT.Player('yt-player', {
+                    videoId: vidId,
+                    playerVars: {
+                        autoplay: 1,
+                        mute: 1,
+                        enablejsapi: 1,
+                        origin: window.location.origin
+                    },
+                    events: {
+                        onReady: (event) => {
+                            isYtPlayerReady = true;
+                            if (pendingDvrSeekOffset !== null && pendingDvrSeekOffset > 0) {
+                                executeOneShotSeek(event.target, pendingDvrSeekOffset);
+                                pendingDvrSeekOffset = null;
+                            }
+                            if (onReadyCb) onReadyCb(event.target);
+                        },
+                        onStateChange: (event) => {
+                            // When video starts playing, execute pending seek ONCE only
+                            if (event.data === 1 && pendingDvrSeekOffset !== null && pendingDvrSeekOffset > 0) {
+                                const offset = pendingDvrSeekOffset;
+                                pendingDvrSeekOffset = null; // Clear immediately to prevent any looping!
+                                executeOneShotSeek(event.target, offset);
+                            }
+                        }
+                    }
+                });
+                return ytPlayerInstance;
+            } catch (err) {
+                console.warn('YT.Player instantiation error:', err);
+            }
+        }
+        return null;
+    }
 
     function executeOneShotSeek(player, deltaSeconds) {
         try {
@@ -896,80 +938,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function loadOrSeekYouTubeStream(vidId, deltaSeconds = null) {
+    function seekYouTubeLiveDVR(vidId, deltaSeconds, displayTs, camera_id) {
         if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
         if (cctvSnapshotView) { cctvSnapshotView.style.display = 'none'; }
-        const ytEl = getYtPlayerEl();
-        if (ytEl) { ytEl.style.display = 'block'; }
 
-        // If API player already exists and is ready
-        if (ytPlayerInstance && isYtPlayerReady && typeof ytPlayerInstance.loadVideoById === 'function') {
-            if (currentLoadedVideoId !== vidId) {
-                currentLoadedVideoId = vidId;
-                if (deltaSeconds !== null && deltaSeconds > 0) {
-                    pendingDvrSeekOffset = deltaSeconds;
-                }
-                ytPlayerInstance.loadVideoById({ videoId: vidId });
-            } else if (deltaSeconds !== null && deltaSeconds > 0) {
-                executeOneShotSeek(ytPlayerInstance, deltaSeconds);
-            }
-            return;
-        }
-
-        // Initialize new YT.Player or queue seek
-        currentLoadedVideoId = vidId;
-        if (deltaSeconds !== null && deltaSeconds > 0) {
-            pendingDvrSeekOffset = deltaSeconds;
-        }
-
-        if (window.YT && window.YT.Player) {
-            if (!ytPlayerInstance) {
-                try {
-                    ytPlayerInstance = new YT.Player('yt-player', {
-                        videoId: vidId,
-                        playerVars: {
-                            autoplay: 1,
-                            mute: 1,
-                            enablejsapi: 1,
-                            origin: window.location.origin
-                        },
-                        events: {
-                            onReady: (event) => {
-                                isYtPlayerReady = true;
-                                const activeYtEl = getYtPlayerEl();
-                                if (activeYtEl) activeYtEl.style.display = 'block';
-                                if (pendingDvrSeekOffset !== null && pendingDvrSeekOffset > 0) {
-                                    executeOneShotSeek(event.target, pendingDvrSeekOffset);
-                                    pendingDvrSeekOffset = null;
-                                }
-                            },
-                            onStateChange: (event) => {
-                                if (event.data === 1 && pendingDvrSeekOffset !== null && pendingDvrSeekOffset > 0) {
-                                    const offset = pendingDvrSeekOffset;
-                                    pendingDvrSeekOffset = null;
-                                    executeOneShotSeek(event.target, offset);
-                                }
-                            }
-                        }
-                    });
-                } catch (err) {
-                    console.warn('YT.Player instantiation error:', err);
-                }
-            } else if (isYtPlayerReady) {
-                ytPlayerInstance.loadVideoById({ videoId: vidId });
-            }
-        } else {
-            // Fallback iframe src load if YT API script hasn't loaded yet
+        if (ytPlayer) {
+            ytPlayer.style.display = 'block';
             const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
-            const fallbackYtEl = getYtPlayerEl();
-            if (fallbackYtEl && (!fallbackYtEl.src || !fallbackYtEl.src.includes(vidId))) {
-                fallbackYtEl.src = embedUrl;
+            if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
+                ytPlayer.src = embedUrl;
             }
         }
-    }
 
-    function seekYouTubeLiveDVR(vidId, deltaSeconds, displayTs, camera_id) {
-        loadOrSeekYouTubeStream(vidId, deltaSeconds);
+        // If player is already initialized and active, perform seek immediately
+        if (ytPlayerInstance && isYtPlayerReady && typeof ytPlayerInstance.seekTo === 'function') {
+            executeOneShotSeek(ytPlayerInstance, deltaSeconds);
+        } else {
+            // Queue one-shot seek for when player finishes handshake
+            pendingDvrSeekOffset = deltaSeconds;
+            getYtPlayerInstance(vidId, (player) => {
+                if (pendingDvrSeekOffset !== null) {
+                    executeOneShotSeek(player, pendingDvrSeekOffset);
+                    pendingDvrSeekOffset = null;
+                }
+            });
+        }
 
         if (seekNotice) {
             const mins = Math.round(deltaSeconds / 60);
@@ -983,8 +976,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btnShowEvidence.addEventListener('click', () => {
             btnShowEvidence.classList.add('active');
             btnShowLive.classList.remove('active');
-            const ytEl = getYtPlayerEl();
-            if (ytEl) { ytEl.style.display = 'none'; }
+            if (ytPlayer) { ytPlayer.style.display = 'none'; }
             if (cctvPlayer) { cctvPlayer.style.display = 'none'; cctvPlayer.pause(); }
             if (cctvSnapshotView) {
                 cctvSnapshotView.style.display = 'block';
@@ -1007,10 +999,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isLiveStream) {
                 const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
                 let vidId = '1EiC9bvVGnk';
-                const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{8,15})/);
+                const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{11})/);
                 if (match) vidId = match[1];
 
-                loadOrSeekYouTubeStream(vidId, null);
+                if (ytPlayer) {
+                    ytPlayer.style.display = 'block';
+                    const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
+                    if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
+                        ytPlayer.src = embedUrl;
+                    }
+                }
                 if (hudStatus) hudStatus.textContent = '🔴 LIVE STREAM';
             } else if (feed.type === 'video_file') {
                 if (cctvPlayer) {
@@ -1111,10 +1109,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const feed = availableFeeds.find(f => f.camera_id === camId) || {
             camera_id: camId,
             name: camId,
-            type: camId === 'CAM_01' ? 'video_file' : 'youtube_stream',
+            type: camId === 'CAM_01' ? 'video_file' : (camId === 'CAM_3000' ? 'youtube_stream' : 'snapshot'),
             src: camId === 'CAM_01' ? '/video/sample_cctv.mp4' : '',
-            embed_url: `https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1`,
-            stream_url: `https://www.youtube.com/watch?v=1EiC9bvVGnk`,
+            embed_url: camId === 'CAM_3000' ? 'https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1' : '',
+            stream_url: camId === 'CAM_3000' ? 'https://www.youtube.com/watch?v=1EiC9bvVGnk' : '',
             fps: 30.0,
             duration: '24h CCTV',
         };
@@ -1132,8 +1130,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // If outside duration bounds and snapshot image is available, display snapshot evidence
             if (isOutOfBounds && targetImage) {
                 if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
-                const ytEl = getYtPlayerEl();
-                if (ytEl) { ytEl.style.display = 'none'; ytEl.src = ''; }
+                if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
                 if (monitorModeBar) monitorModeBar.style.display = 'none';
 
                 if (cctvSnapshotView && snapshotScreenImg) {
@@ -1153,15 +1150,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Normal in-bounds video playback
+            if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
-            const ytEl = getYtPlayerEl();
-            if (ytEl) { ytEl.style.display = 'none'; ytEl.src = ''; }
             if (monitorModeBar) monitorModeBar.style.display = 'none';
 
             if (cctvPlayer) {
                 cctvPlayer.style.display = 'block';
                 if (!cctvPlayer.src || !cctvPlayer.src.includes('sample_cctv.mp4')) {
-                    cctvPlayer.src = feed.src || '/video/sample_cctv.mp4';
+                    cctvPlayer.src = '/video/sample_cctv.mp4';
                 }
                 if (targetSeconds !== null && !isNaN(targetSeconds)) {
                     cctvPlayer.currentTime = Math.min(targetSeconds, maxDuration);
@@ -1192,7 +1188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (feed.type === 'youtube_video') {
             const vidUrl = feed.stream_url || feed.embed_url || '';
             let vidId = '';
-            const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{8,15})/);
+            const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
             if (match) vidId = match[1];
 
             const maxDuration = feed.total_duration_sec || 3600;
@@ -1200,8 +1196,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isOutOfBounds && targetImage) {
                 if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
-                const ytEl = getYtPlayerEl();
-                if (ytEl) { ytEl.style.display = 'none'; ytEl.src = ''; }
+                if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
                 if (monitorModeBar) monitorModeBar.style.display = 'none';
 
                 if (cctvSnapshotView && snapshotScreenImg) {
@@ -1218,12 +1213,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
             if (monitorModeBar) monitorModeBar.style.display = 'none';
 
-            const ytEl = getYtPlayerEl();
-            if (ytEl && vidId) {
-                ytEl.style.display = 'block';
+            if (ytPlayer && vidId) {
+                ytPlayer.style.display = 'block';
                 const startSec = Math.floor(targetSeconds || 0);
                 const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&start=${startSec}&origin=${encodeURIComponent(window.location.origin)}`;
-                ytEl.src = embedUrl;
+                ytPlayer.src = embedUrl;
             }
 
             if (hudCamId) hudCamId.textContent = camId;
@@ -1238,7 +1232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (feed.type === 'youtube_stream' || feed.type === 'rtsp_stream' || (feed.stream_url && (feed.stream_url.includes('youtube.com') || feed.stream_url.includes('youtu.be')))) {
             const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
             let vidId = '1EiC9bvVGnk';
-            const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{8,15})/);
+            const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{11})/);
             if (match) vidId = match[1];
 
             // Compute delta in seconds: Current Wall Clock - Event Time
@@ -1284,8 +1278,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     // Out-of-bounds (>12h old) -> Fallback to snapshot image
                     if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
-                    const ytEl = getYtPlayerEl();
-                    if (ytEl) { ytEl.style.display = 'none'; }
+                    if (ytPlayer) { ytPlayer.style.display = 'none'; }
 
                     if (cctvSnapshotView && snapshotScreenImg) {
                         cctvSnapshotView.style.display = 'block';
@@ -1314,7 +1307,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
             if (monitorModeBar) monitorModeBar.style.display = 'none';
 
-            loadOrSeekYouTubeStream(vidId, null);
+            if (ytPlayer) {
+                ytPlayer.style.display = 'block';
+                const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
+                if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
+                    ytPlayer.src = embedUrl;
+                }
+            }
 
             if (hudCamId) hudCamId.textContent = camId;
             if (hudTimestamp) hudTimestamp.textContent = displayTs;
@@ -1338,10 +1337,9 @@ document.addEventListener('DOMContentLoaded', () => {
             cctvPlayer.pause();
             cctvPlayer.style.display = 'none';
         }
-        const ytEl = getYtPlayerEl();
-        if (ytEl) {
-            ytEl.style.display = 'none';
-            ytEl.src = '';
+        if (ytPlayer) {
+            ytPlayer.style.display = 'none';
+            ytPlayer.src = '';
         }
         if (monitorModeBar) monitorModeBar.style.display = 'none';
 
@@ -1382,7 +1380,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <source src="/video/sample_cctv.mp4" type="video/mp4">
                     </video>
                 `;
-            } else if (f.type === 'youtube_stream' || f.type === 'youtube_video' || f.type === 'rtsp_stream' || f.embed_url) {
+            } else if (f.type === 'youtube_stream') {
                 const embedUrl = f.embed_url || 'https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1';
                 screenContent = `
                     <iframe src="${embedUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%; height:100%; border:none;"></iframe>
