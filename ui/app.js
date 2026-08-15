@@ -1002,16 +1002,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isLiveStream) {
                 const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
                 let vidId = '1EiC9bvVGnk';
-                const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{11})/);
+                const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{8,15})/);
                 if (match) vidId = match[1];
 
-                if (ytPlayer) {
-                    ytPlayer.style.display = 'block';
-                    const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
-                    if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
-                        ytPlayer.src = embedUrl;
-                    }
-                }
+                loadOrSeekYouTubeStream(vidId, null);
                 if (hudStatus) hudStatus.textContent = '🔴 LIVE STREAM';
             } else if (feed.type === 'video_file') {
                 if (cctvPlayer) {
@@ -1112,10 +1106,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const feed = availableFeeds.find(f => f.camera_id === camId) || {
             camera_id: camId,
             name: camId,
-            type: camId === 'CAM_01' ? 'video_file' : (camId === 'CAM_3000' ? 'youtube_stream' : 'snapshot'),
+            type: camId === 'CAM_01' ? 'video_file' : 'youtube_stream',
             src: camId === 'CAM_01' ? '/video/sample_cctv.mp4' : '',
-            embed_url: camId === 'CAM_3000' ? 'https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1' : '',
-            stream_url: camId === 'CAM_3000' ? 'https://www.youtube.com/watch?v=1EiC9bvVGnk' : '',
+            embed_url: `https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1`,
+            stream_url: `https://www.youtube.com/watch?v=1EiC9bvVGnk`,
             fps: 30.0,
             duration: '24h CCTV',
         };
@@ -1153,14 +1147,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Normal in-bounds video playback
-            if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
+            if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
             if (monitorModeBar) monitorModeBar.style.display = 'none';
 
             if (cctvPlayer) {
                 cctvPlayer.style.display = 'block';
                 if (!cctvPlayer.src || !cctvPlayer.src.includes('sample_cctv.mp4')) {
-                    cctvPlayer.src = '/video/sample_cctv.mp4';
+                    cctvPlayer.src = feed.src || '/video/sample_cctv.mp4';
                 }
                 if (targetSeconds !== null && !isNaN(targetSeconds)) {
                     cctvPlayer.currentTime = Math.min(targetSeconds, maxDuration);
@@ -1191,7 +1185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (feed.type === 'youtube_video') {
             const vidUrl = feed.stream_url || feed.embed_url || '';
             let vidId = '';
-            const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
+            const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{8,15})/);
             if (match) vidId = match[1];
 
             const maxDuration = feed.total_duration_sec || 3600;
@@ -1235,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (feed.type === 'youtube_stream' || feed.type === 'rtsp_stream' || (feed.stream_url && (feed.stream_url.includes('youtube.com') || feed.stream_url.includes('youtu.be')))) {
             const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
             let vidId = '1EiC9bvVGnk';
-            const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{11})/);
+            const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{8,15})/);
             if (match) vidId = match[1];
 
             // Compute delta in seconds: Current Wall Clock - Event Time
@@ -1377,7 +1371,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <source src="/video/sample_cctv.mp4" type="video/mp4">
                     </video>
                 `;
-            } else if (f.type === 'youtube_stream') {
+            } else if (f.type === 'youtube_stream' || f.type === 'youtube_video' || f.type === 'rtsp_stream' || f.embed_url) {
                 const embedUrl = f.embed_url || 'https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1';
                 screenContent = `
                     <iframe src="${embedUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%; height:100%; border:none;"></iframe>

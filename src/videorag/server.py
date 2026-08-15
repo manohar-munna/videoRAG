@@ -836,7 +836,7 @@ def get_camera_feeds():
         if "youtube.com" in stream_url.lower() or "youtu.be" in stream_url.lower():
             # Extract video ID for clean embed
             import re
-            yt_match = re.search(r"(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{11})", stream_url)
+            yt_match = re.search(r"(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{8,15})", stream_url)
             vid_id = yt_match.group(1) if yt_match else "1EiC9bvVGnk"
             embed_url = f"https://www.youtube-nocookie.com/embed/{vid_id}?autoplay=1&mute=1&enablejsapi=1"
 
