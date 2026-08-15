@@ -62,21 +62,40 @@ import queue
 import threading
 import time
 
+import collections
+import queue
+import threading
+import time
 from videorag.ingestion.camera_registry import CameraRegistry
 
 # Global pipeline & persistent stream manager instances
 PIPELINE: Dict[str, Any] = {}
 CAMERA_REGISTRY = CameraRegistry(_PROJECT_ROOT / "data" / "cameras_registry.json")
 
-# Auto-Indexing Queue for Real-Time Keyframe Ingestion
-AUTO_INDEX_QUEUE: queue.Queue = queue.Queue()
+# Fair Round-Robin Auto-Indexing Queue for Real-Time Multi-Camera Ingestion
+CAMERA_QUEUES: Dict[str, collections.deque] = collections.defaultdict(lambda: collections.deque(maxlen=10))
+QUEUE_LOCK = threading.Lock()
+QUEUE_NOTIFY = threading.Condition(QUEUE_LOCK)
 
 
 def _queue_auto_index_keyframe(keyframe_meta: Dict[str, Any]) -> None:
     """Callback invoked by stream workers when a new keyframe is kept by dHash/pHash."""
-    logger.info("[Auto-Indexer] Queued new keyframe from %s @ %s for background VLM indexing.", 
-                keyframe_meta.get("camera"), keyframe_meta.get("timestamp"))
-    AUTO_INDEX_QUEUE.put(keyframe_meta)
+    cam = keyframe_meta.get("camera")
+    if not cam:
+        return
+    with QUEUE_NOTIFY:
+        CAMERA_QUEUES[cam].append(keyframe_meta)
+        QUEUE_NOTIFY.notify_all()
+    logger.info("[Auto-Indexer] Queued new keyframe for %s @ %s (cam pending: %d).", 
+                cam, keyframe_meta.get("timestamp"), len(CAMERA_QUEUES[cam]))
+
+
+def _clear_camera_queue(cam_id: str) -> None:
+    """Instantly clears pending auto-index backlog for a paused/removed camera."""
+    with QUEUE_NOTIFY:
+        if cam_id in CAMERA_QUEUES:
+            CAMERA_QUEUES[cam_id].clear()
+            logger.info("[Auto-Indexer] Cleared pending auto-index queue for %s.", cam_id)
 
 
 STREAM_MANAGER = MultiCameraStreamManager(
@@ -87,23 +106,36 @@ STREAM_MANAGER = MultiCameraStreamManager(
 
 def _auto_index_worker_loop() -> None:
     """
-    Background worker thread: consumes keyframes from AUTO_INDEX_QUEUE,
-    captions them with local Qwen3-VL VLM, updates per-camera & master JSON,
-    and dynamically inserts vectors into the in-memory FAISS vector store.
+    Background worker thread: round-robins across active camera queues so no single camera
+    can starve other cameras, captions keyframes with Qwen3-VL, and updates per-camera JSON.
     """
     captioner = None
+    current_cam_idx = 0
+
     while True:
         try:
-            keyframe = AUTO_INDEX_QUEUE.get()
-            if keyframe is None:
-                break
+            keyframe = None
+            with QUEUE_NOTIFY:
+                # Wait until at least one camera has a pending keyframe
+                while not any(len(q) > 0 for q in CAMERA_QUEUES.values()):
+                    QUEUE_NOTIFY.wait(timeout=1.0)
+
+                # Fair round-robin across cameras that have pending frames
+                available_cams = [c for c, q in CAMERA_QUEUES.items() if len(q) > 0]
+                if available_cams:
+                    current_cam_idx = current_cam_idx % len(available_cams)
+                    chosen_cam = available_cams[current_cam_idx]
+                    keyframe = CAMERA_QUEUES[chosen_cam].popleft()
+                    current_cam_idx = (current_cam_idx + 1) % len(available_cams)
+
+            if not keyframe:
+                continue
 
             cam_id = keyframe.get("camera")
             ts_str = keyframe.get("timestamp")
             img_path = keyframe.get("image_path")
 
             if not img_path or not Path(img_path).exists():
-                AUTO_INDEX_QUEUE.task_done()
                 continue
 
             if captioner is None:
@@ -112,10 +144,10 @@ def _auto_index_worker_loop() -> None:
                 except Exception as exc:
                     logger.error("[Auto-Indexer] Failed to initialize VLM captioner: %s", exc)
                     time.sleep(2)
-                    AUTO_INDEX_QUEUE.task_done()
                     continue
 
-            logger.info("[Auto-Indexer] Running VLM captioning on %s @ %s (%s)...", cam_id, ts_str, Path(img_path).name)
+            logger.info("[Auto-Indexer] [%s] Running VLM captioning on %s @ %s (%s)...", 
+                        cam_id, cam_id, ts_str, Path(img_path).name)
             desc = captioner.caption_frame(img_path)
 
             # 1. Update per-camera isolated events JSON
@@ -131,15 +163,16 @@ def _auto_index_worker_loop() -> None:
                 except Exception:
                     existing_cam = []
 
+            clean_p = str(img_path).replace("\\", "/")
             # Check if this exact frame is already in per-camera json
-            if not any(r.get("image_path") == img_path for r in existing_cam):
+            if not any(str(r.get("image_path", "")).replace("\\", "/") == clean_p for r in existing_cam):
                 new_rec = {
                     "camera": cam_id,
                     "timestamp": ts_str,
                     "seconds": keyframe.get("seconds", 0.0),
                     "epoch_time": keyframe.get("epoch_time", round(time.time(), 3)),
                     "description": desc,
-                    "image_path": img_path,
+                    "image_path": clean_p,
                     "hash_hex": keyframe.get("hash_hex"),
                     "motion_pct": keyframe.get("motion_pct"),
                 }
@@ -183,19 +216,18 @@ def _auto_index_worker_loop() -> None:
                         "epoch_time": keyframe.get("epoch_time", round(time.time(), 3)),
                         "description": desc,
                         "text": doc_text,
-                        "image_path": img_path,
+                        "image_path": clean_p,
                         "chunk_id": f"{cam_id}_{ts_str.replace(':', '_')}",
                     }
                     PIPELINE["vector_store"].add(emb_2d, [meta])
                     idx_path = _PROJECT_ROOT / "index" / "cctv_index"
                     PIPELINE["vector_store"].save(str(idx_path))
-                    logger.info("[Auto-Indexer] Successfully auto-indexed keyframe for %s @ %s! Vector count now: %d", 
+                    logger.info("[Auto-Indexer] [%s] Successfully auto-indexed keyframe @ %s! Vector count: %d", 
                                 cam_id, ts_str, PIPELINE["vector_store"].size)
 
         except Exception as exc:
             logger.error("[Auto-Indexer] Error during keyframe auto-indexing: %s", exc, exc_info=True)
-        finally:
-            AUTO_INDEX_QUEUE.task_done()
+            time.sleep(1)
 
 
 # Start background auto-indexer worker thread
@@ -630,6 +662,7 @@ def get_streams_status():
 @app.post("/api/streams/pause")
 def pause_camera_stream(req: RemoveStreamRequest):
     """Pause stream extraction while keeping camera registered in system and searchable."""
+    _clear_camera_queue(req.camera_id)
     success = STREAM_MANAGER.pause_camera(req.camera_id)
     if not success:
         raise HTTPException(status_code=404, detail=f"Camera '{req.camera_id}' not found.")
@@ -648,6 +681,7 @@ def resume_camera_stream(req: RemoveStreamRequest):
 @app.post("/api/streams/remove")
 def remove_camera_stream(req: RemoveStreamRequest):
     """Stop and completely remove camera stream from registry."""
+    _clear_camera_queue(req.camera_id)
     success = STREAM_MANAGER.remove_camera(req.camera_id)
     return {"status": "removed", "camera_id": req.camera_id}
 
@@ -687,8 +721,8 @@ def index_stream_keyframes(req: RemoveStreamRequest):
         except Exception:
             existing_cam_records = []
 
-    cam_paths = {r.get("image_path") for r in existing_cam_records if "image_path" in r}
-    unique_cam_new = [r for r in new_records if r.get("image_path") not in cam_paths]
+    cam_paths = {str(r.get("image_path", "")).replace("\\", "/") for r in existing_cam_records if "image_path" in r}
+    unique_cam_new = [r for r in new_records if str(r.get("image_path", "")).replace("\\", "/") not in cam_paths]
     updated_cam_records = existing_cam_records + unique_cam_new
 
     with open(cam_json_file, "w", encoding="utf-8") as fh:

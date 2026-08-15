@@ -162,12 +162,10 @@ class VLMCaptioner:
 
             description = self.caption_frame(img_path)
 
-            records.append({
-                "camera": cam,
-                "timestamp": ts,
-                "description": description,
-                "image_path": img_path,
-            })
+            record = dict(item)
+            record["description"] = description
+            record["image_path"] = str(img_path).replace("\\", "/")
+            records.append(record)
 
             if show_progress and idx % 5 == 0:
                 logger.info("Captioned %d / %d frames...", idx, len(extracted_frames))
