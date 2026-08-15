@@ -216,6 +216,14 @@ class RTSPStreamCapture:
 
             self.total_frames_read += 1
 
+            # For video files, use actual video playback position; for live streams, use current epoch time
+            is_video_file = Path(self.stream_url).exists() and Path(self.stream_url).is_file()
+            if is_video_file:
+                pos_msec = cap.get(cv2.CAP_PROP_POS_MSEC)
+                frame_sec = (pos_msec / 1000.0) if pos_msec > 0 else (self.total_frames_read / 30.0)
+            else:
+                frame_sec = time.time()
+
             # Push frame into Ring Buffer (Size = 1)
             # If buffer is full, pop old frame first to avoid live streaming latency lag
             if self._ring_buffer.full():
@@ -226,7 +234,7 @@ class RTSPStreamCapture:
                     pass
 
             try:
-                self._ring_buffer.put_nowait((time.time(), self.total_frames_read, frame))
+                self._ring_buffer.put_nowait((frame_sec, self.total_frames_read, frame))
             except queue.Full:
                 pass
 
@@ -240,6 +248,7 @@ class RTSPStreamCapture:
         applies EdgeFrameFilter (dHash/pHash), and saves keyframes to disk without blocking server GIL.
         """
         last_sample_time = 0.0
+        is_video_file = Path(self.stream_url).exists() and Path(self.stream_url).is_file()
 
         while self._running:
             try:
@@ -255,10 +264,15 @@ class RTSPStreamCapture:
             last_sample_time = capture_time
 
             # Format timestamp string (HH:MM:SS)
-            hrs = int(capture_time // 3600) % 24
-            mins = int((capture_time % 3600) // 60)
-            secs = int(capture_time % 60)
-            ts_str = f"{hrs:02d}:{mins:02d}:{secs:02d}"
+            if is_video_file:
+                hrs = int(capture_time // 3600)
+                mins = int((capture_time % 3600) // 60)
+                secs = int(capture_time % 60)
+                ts_str = f"{hrs:02d}:{mins:02d}:{secs:02d}"
+                display_sec = round(capture_time, 2)
+            else:
+                ts_str = time.strftime("%H:%M:%S", time.localtime(capture_time))
+                display_sec = round(capture_time, 2)
 
             # Evaluate dHash / pHash
             audit_item = self.hash_filter.evaluate_frame(frame, frame_idx=frame_idx, timestamp=ts_str)
@@ -274,7 +288,7 @@ class RTSPStreamCapture:
                 keyframe_meta = {
                     "camera": self.camera_id,
                     "timestamp": ts_str,
-                    "seconds": round(capture_time, 2),
+                    "seconds": display_sec,
                     "frame_idx": frame_idx,
                     "image_path": str(out_path),
                     "hash_hex": audit_item["hash_hex"],

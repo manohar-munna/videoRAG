@@ -466,6 +466,18 @@
                     <!-- Populated dynamically with all active camera feeds -->
                 </div>
 
+                <!-- Feed View Mode Selector (Moment Evidence vs Live Feed) -->
+                <div class="monitor-mode-bar" id="monitor-mode-bar" style="display: none;">
+                    <button class="mode-btn active" id="btn-show-evidence">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        <span id="evidence-btn-text">📸 Moment Evidence</span>
+                    </button>
+                    <button class="mode-btn" id="btn-show-live">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                        <span id="live-btn-text">🔴 Live Video Stream</span>
+                    </button>
+                </div>
+
                 <div class="player-subbar" id="player-subbar">
                     <span class="info-tag" id="sub-source">Source: <code>sample_cctv.mp4</code></span>
                     <span class="info-tag" id="sub-fps">FPS: <code>30.0</code></span>

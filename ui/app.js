@@ -809,6 +809,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const ytPlayer = document.getElementById('yt-player');
     const cctvSnapshotView = document.getElementById('cctv-snapshot-view');
     const snapshotScreenImg = document.getElementById('snapshot-screen-img');
+    const monitorModeBar = document.getElementById('monitor-mode-bar');
+    const btnShowEvidence = document.getElementById('btn-show-evidence');
+    const btnShowLive = document.getElementById('btn-show-live');
+    const evidenceBtnText = document.getElementById('evidence-btn-text');
+    const liveBtnText = document.getElementById('live-btn-text');
     const hudCamId = document.getElementById('hud-cam-id');
     const hudTimestamp = document.getElementById('hud-timestamp');
     const hudStatus = document.getElementById('hud-status');
@@ -819,6 +824,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let activeFeedCamId = 'CAM_01';
     let availableFeeds = [];
+    let activeEvidenceState = null;
+
+    if (btnShowEvidence && btnShowLive) {
+        btnShowEvidence.addEventListener('click', () => {
+            btnShowEvidence.classList.add('active');
+            btnShowLive.classList.remove('active');
+            if (activeEvidenceState && activeEvidenceState.targetImage) {
+                if (ytPlayer) { ytPlayer.style.display = 'none'; }
+                if (cctvPlayer) { cctvPlayer.style.display = 'none'; cctvPlayer.pause(); }
+                if (cctvSnapshotView) {
+                    cctvSnapshotView.style.display = 'block';
+                    if (snapshotScreenImg) snapshotScreenImg.src = activeEvidenceState.targetImage;
+                }
+            }
+        });
+
+        btnShowLive.addEventListener('click', () => {
+            btnShowLive.classList.add('active');
+            btnShowEvidence.classList.remove('active');
+            if (cctvSnapshotView) { cctvSnapshotView.style.display = 'none'; }
+            const feed = availableFeeds.find(f => f.camera_id === activeFeedCamId);
+            if (feed && feed.type === 'youtube_stream') {
+                if (ytPlayer) {
+                    ytPlayer.style.display = 'block';
+                    const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
+                    let vidId = '1EiC9bvVGnk';
+                    const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
+                    if (match) vidId = match[1];
+                    ytPlayer.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0`;
+                }
+            } else if (feed && feed.type === 'video_file') {
+                if (cctvPlayer) {
+                    cctvPlayer.style.display = 'block';
+                    cctvPlayer.play().catch(() => {});
+                }
+            }
+        });
+    }
 
     async function fetchCameraFeeds() {
         if (!cameraFeedSwitcher) return;
@@ -887,6 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. If "ALL FEEDS" mode
         if (camId === 'ALL') {
             if (singleVideoWrapper) singleVideoWrapper.style.display = 'none';
+            if (monitorModeBar) monitorModeBar.style.display = 'none';
             if (allFeedsContainer) {
                 allFeedsContainer.style.display = 'flex';
                 renderAllFeedsGrid();
@@ -916,13 +960,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentFeedName) currentFeedName.textContent = `${feed.camera_id} (${feed.name || feed.camera_id})`;
         const displayTs = targetTimestamp || (targetSeconds !== null ? formatSecondsToTs(targetSeconds) : '00:00:00');
 
-        // Video File (e.g. CAM_01 / MP4 Footage) -> Directly play video from timestamp
+        // Case 1: Video File (e.g. CAM_01 / MP4 Footage) -> Seek directly within video timeline
         if (feed.type === 'video_file' || (feed.stream_url && feed.stream_url.endsWith('.mp4'))) {
             if (ytPlayer) {
                 ytPlayer.style.display = 'none';
                 ytPlayer.src = '';
             }
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
+            if (monitorModeBar) monitorModeBar.style.display = 'none';
 
             if (cctvPlayer) {
                 cctvPlayer.style.display = 'block';
@@ -930,7 +975,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     cctvPlayer.src = '/video/sample_cctv.mp4';
                 }
                 if (targetSeconds !== null && !isNaN(targetSeconds)) {
-                    cctvPlayer.currentTime = targetSeconds;
+                    let seekSec = targetSeconds;
+                    if (cctvPlayer.duration && !isNaN(cctvPlayer.duration) && cctvPlayer.duration > 0) {
+                        if (seekSec > cctvPlayer.duration) {
+                            seekSec = seekSec % cctvPlayer.duration;
+                        }
+                    }
+                    cctvPlayer.currentTime = seekSec;
                 }
                 cctvPlayer.play().catch(err => console.log('Playback started:', err));
             }
@@ -952,13 +1003,55 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // YouTube Live Stream (e.g. CAM_3000) -> Directly play YouTube stream at timestamp
+        // Case 2: Live Stream with Specific Keyframe / Evidence (e.g. CAM_3000 Seek Clicked)
+        if (targetImage) {
+            activeEvidenceState = { camId, targetSeconds, targetImage, targetTimestamp };
+            if (cctvPlayer) {
+                cctvPlayer.pause();
+                cctvPlayer.style.display = 'none';
+            }
+            if (ytPlayer) {
+                ytPlayer.style.display = 'none';
+            }
+
+            if (cctvSnapshotView && snapshotScreenImg) {
+                cctvSnapshotView.style.display = 'block';
+                snapshotScreenImg.src = targetImage;
+
+                if (hudCamId) hudCamId.textContent = camId;
+                if (hudTimestamp) hudTimestamp.textContent = displayTs;
+                if (hudStatus) hudStatus.textContent = 'REC ● 1080P';
+                if (videoTimer) videoTimer.textContent = displayTs;
+
+                if (subSource) subSource.innerHTML = `Source: <code>${targetImage.split('/').pop()}</code>`;
+                if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 30.0}</code>`;
+                if (subDuration) subDuration.innerHTML = `Moment: <code>${displayTs}</code>`;
+
+                if (monitorModeBar) {
+                    monitorModeBar.style.display = 'flex';
+                    if (btnShowEvidence) btnShowEvidence.classList.add('active');
+                    if (btnShowLive) btnShowLive.classList.remove('active');
+                    if (evidenceBtnText) evidenceBtnText.textContent = `📸 Evidence Snapshot (${displayTs})`;
+                    if (liveBtnText) liveBtnText.textContent = `🔴 Switch to Live Video`;
+                }
+
+                if (seekNotice) {
+                    seekNotice.textContent = `📸 Evidence Moment — ${camId} @ ${displayTs}`;
+                    seekNotice.style.opacity = '1';
+                    setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
+                }
+            }
+            return;
+        }
+
+        // Case 3: Live Video Stream Focus (e.g. CAM_3000 Live Streaming Mode)
         if (feed.type === 'youtube_stream' || (feed.stream_url && (feed.stream_url.includes('youtube.com') || feed.stream_url.includes('youtu.be')))) {
             if (cctvPlayer) {
                 cctvPlayer.pause();
                 cctvPlayer.style.display = 'none';
             }
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
+            if (monitorModeBar) monitorModeBar.style.display = 'none';
 
             if (ytPlayer) {
                 ytPlayer.style.display = 'block';
@@ -967,12 +1060,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
                 if (match) vidId = match[1];
 
-                let startParam = '';
-                if (targetSeconds !== null && targetSeconds > 0) {
-                    startParam = `&start=${Math.floor(targetSeconds)}`;
+                const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0`;
+                if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
+                    ytPlayer.src = embedUrl;
                 }
-                const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0&enablejsapi=1${startParam}`;
-                ytPlayer.src = embedUrl;
             }
 
             if (hudCamId) hudCamId.textContent = camId;
@@ -985,7 +1076,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">🔴 LIVE STREAM</strong>`;
 
             if (seekNotice) {
-                seekNotice.textContent = `▶️ Playing ${feed.camera_id} Live Feed at ${displayTs}`;
+                seekNotice.textContent = `🔴 Live Stream Active: ${feed.camera_id}`;
                 seekNotice.style.opacity = '1';
                 setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
             }
@@ -1001,6 +1092,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ytPlayer.style.display = 'none';
             ytPlayer.src = '';
         }
+        if (monitorModeBar) monitorModeBar.style.display = 'none';
 
         if (cctvSnapshotView && snapshotScreenImg) {
             cctvSnapshotView.style.display = 'block';
@@ -1306,8 +1398,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ts = btn.dataset.timestamp || '';
                 const cam = btn.dataset.camera || (results.length > 0 ? results[0].camera : 'CAM_01');
 
-                // Seek and immediately play video footage
-                seekToTime(sec, ts, cam);
+                // Lookup matching result item to get high-res moment image if present
+                const matchingItem = results.find(r => r.camera === cam && (r.timestamp === ts || Math.abs((r.seconds || 0) - sec) < 2));
+                const img = matchingItem ? (matchingItem.image_path || '') : '';
+
+                // Seek and display/play video footage or evidence snapshot
+                seekToTime(sec, ts, cam, img);
             });
         });
 

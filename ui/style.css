@@ -1474,6 +1474,45 @@ body {
     color: var(--text-heading);
 }
 
+/* Monitor Mode Bar (Evidence Snapshot vs Live Stream Switcher) */
+.monitor-mode-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #f8fafc;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+}
+.mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: #ffffff;
+    border: 1px solid var(--border-light);
+    color: var(--text-heading);
+    transition: all 0.15s ease;
+}
+.mode-btn:hover {
+    background: #f1f5f9;
+    border-color: var(--blue-border);
+}
+.mode-btn.active {
+    background: var(--blue-primary);
+    color: #ffffff;
+    border-color: var(--blue-hover);
+    box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
+}
+.mode-btn svg {
+    flex-shrink: 0;
+    stroke: currentColor;
+}
+
 /* Analysis Panel */
 .analysis-panel {
     display: flex;
