@@ -832,27 +832,36 @@ document.addEventListener('DOMContentLoaded', () => {
     let ytPlayerInstance = null;
 
     function initOrGetYtPlayer(vidId, onReadyCb) {
-        if (ytPlayerInstance && ytPlayerInstance.loadVideoById) {
+        if (ytPlayerInstance && typeof ytPlayerInstance.seekTo === 'function') {
             if (onReadyCb) onReadyCb(ytPlayerInstance);
             return ytPlayerInstance;
         }
 
         if (window.YT && window.YT.Player) {
-            ytPlayerInstance = new YT.Player('yt-player', {
-                videoId: vidId,
-                playerVars: {
-                    autoplay: 1,
-                    mute: 0,
-                    enablejsapi: 1,
-                    origin: window.location.origin
-                },
-                events: {
-                    onReady: (event) => {
-                        if (onReadyCb) onReadyCb(event.target);
+            try {
+                ytPlayerInstance = new YT.Player('yt-player', {
+                    events: {
+                        onReady: (event) => {
+                            if (onReadyCb) onReadyCb(event.target);
+                        },
+                        onStateChange: (event) => {
+                            // If player started playing and we have active DVR offset
+                            if (event.data === 1 && activeEvidenceState && activeEvidenceState.deltaSeconds > 0) {
+                                const cur = event.target.getCurrentTime();
+                                const dur = event.target.getDuration();
+                                const ref = (dur && dur > 0) ? dur : cur;
+                                if (ref > 0) {
+                                    const seekPos = Math.max(0, ref - activeEvidenceState.deltaSeconds);
+                                    event.target.seekTo(seekPos, true);
+                                }
+                            }
+                        }
                     }
-                }
-            });
-            return ytPlayerInstance;
+                });
+                return ytPlayerInstance;
+            } catch (err) {
+                console.warn('YT.Player init error:', err);
+            }
         }
         return null;
     }
@@ -860,26 +869,51 @@ document.addEventListener('DOMContentLoaded', () => {
     function seekYouTubeLiveDVR(vidId, deltaSeconds, displayTs, camera_id) {
         if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
         if (cctvSnapshotView) { cctvSnapshotView.style.display = 'none'; }
-        if (ytPlayer) { ytPlayer.style.display = 'block'; }
 
-        initOrGetYtPlayer(vidId, (player) => {
+        const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
+        if (ytPlayer) {
+            ytPlayer.style.display = 'block';
+            if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
+                ytPlayer.src = embedUrl;
+            }
+        }
+
+        const executeSeek = (player) => {
             try {
-                const duration = player.getDuration();
-                const currentHead = player.getCurrentTime();
-                const refHead = (duration && duration > 0) ? duration : currentHead;
-                const seekPos = Math.max(0, refHead - deltaSeconds);
-                player.seekTo(seekPos, true);
-                player.playVideo();
-                if (seekNotice) {
-                    const mins = Math.round(deltaSeconds / 60);
-                    seekNotice.textContent = `▶️ Rewound Live DVR: -${mins}m (${displayTs})`;
-                    seekNotice.style.opacity = '1';
-                    setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
+                const cur = player.getCurrentTime ? player.getCurrentTime() : 0;
+                const dur = player.getDuration ? player.getDuration() : 0;
+                const ref = (dur && dur > 0) ? dur : cur;
+                if (ref > 0 && deltaSeconds > 0) {
+                    const seekPos = Math.max(0, ref - deltaSeconds);
+                    player.seekTo(seekPos, true);
+                    player.playVideo();
                 }
             } catch (err) {
-                console.warn('YouTube DVR seek caught:', err);
+                console.warn('YouTube DVR seek execution caught:', err);
             }
-        });
+        };
+
+        initOrGetYtPlayer(vidId, executeSeek);
+
+        // Fallback postMessage seek trigger
+        if (ytPlayer && ytPlayer.contentWindow) {
+            setTimeout(() => {
+                try {
+                    ytPlayer.contentWindow.postMessage(JSON.stringify({
+                        event: 'command',
+                        func: 'playVideo',
+                        args: []
+                    }), '*');
+                } catch (e) {}
+            }, 300);
+        }
+
+        if (seekNotice) {
+            const mins = Math.round(deltaSeconds / 60);
+            seekNotice.textContent = `▶️ Playing ${camera_id} Live Stream (${displayTs})`;
+            seekNotice.style.opacity = '1';
+            setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
+        }
     }
 
     if (btnShowEvidence && btnShowLive) {
@@ -1095,7 +1129,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     if (ytPlayer) {
                         ytPlayer.style.display = 'block';
-                        ytPlayer.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0`;
+                        const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
+                        if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
+                            ytPlayer.src = embedUrl;
+                        }
                     }
                 }
 
@@ -1128,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (ytPlayer) {
                 ytPlayer.style.display = 'block';
-                const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0`;
+                const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
                 if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
                     ytPlayer.src = embedUrl;
                 }
