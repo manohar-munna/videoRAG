@@ -908,67 +908,91 @@ document.addEventListener('DOMContentLoaded', () => {
             type: camId === 'CAM_01' ? 'video_file' : (camId === 'CAM_3000' ? 'youtube_stream' : 'snapshot'),
             src: camId === 'CAM_01' ? '/video/sample_cctv.mp4' : '',
             embed_url: camId === 'CAM_3000' ? 'https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1' : '',
+            stream_url: camId === 'CAM_3000' ? 'https://www.youtube.com/watch?v=1EiC9bvVGnk' : '',
             fps: 30.0,
             duration: '24h CCTV',
         };
 
-        if (currentFeedName) currentFeedName.textContent = `${feed.camera_id} (${feed.name})`;
+        if (currentFeedName) currentFeedName.textContent = `${feed.camera_id} (${feed.name || feed.camera_id})`;
+        const displayTs = targetTimestamp || (targetSeconds !== null ? formatSecondsToTs(targetSeconds) : '00:00:00');
 
-        // Video File (e.g. CAM_01)
-        if (feed.type === 'video_file') {
-            if (cctvPlayer) {
-                cctvPlayer.style.display = 'block';
-                if (targetSeconds !== null && !isNaN(targetSeconds)) {
-                    cctvPlayer.currentTime = targetSeconds;
-                    cctvPlayer.play().catch(() => {});
-                }
-            }
+        // Video File (e.g. CAM_01 / MP4 Footage) -> Directly play video from timestamp
+        if (feed.type === 'video_file' || (feed.stream_url && feed.stream_url.endsWith('.mp4'))) {
             if (ytPlayer) {
                 ytPlayer.style.display = 'none';
                 ytPlayer.src = '';
             }
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
 
-            if (subSource) subSource.innerHTML = `Source: <code>sample_cctv.mp4</code>`;
+            if (cctvPlayer) {
+                cctvPlayer.style.display = 'block';
+                if (!cctvPlayer.src || !cctvPlayer.src.includes('sample_cctv.mp4')) {
+                    cctvPlayer.src = '/video/sample_cctv.mp4';
+                }
+                if (targetSeconds !== null && !isNaN(targetSeconds)) {
+                    cctvPlayer.currentTime = targetSeconds;
+                }
+                cctvPlayer.play().catch(err => console.log('Playback started:', err));
+            }
+
+            if (hudCamId) hudCamId.textContent = camId;
+            if (hudTimestamp) hudTimestamp.textContent = displayTs;
+            if (hudStatus) hudStatus.textContent = 'PLAYING ● 1080P';
+            if (videoTimer) videoTimer.textContent = displayTs;
+
+            if (subSource) subSource.innerHTML = `Source: <code>${feed.src || 'sample_cctv.mp4'}</code>`;
             if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 30.0}</code>`;
             if (subDuration) subDuration.innerHTML = `Duration: <code>${feed.duration || '13m 31s'}</code>`;
 
-            if (targetSeconds !== null && seekNotice) {
-                seekNotice.textContent = `Seeked ${feed.camera_id} to ${targetTimestamp || targetSeconds + 's'}`;
+            if (seekNotice) {
+                seekNotice.textContent = `▶️ Playing ${feed.camera_id} at ${displayTs}`;
                 seekNotice.style.opacity = '1';
                 setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
             }
             return;
         }
 
-        // YouTube Live Stream (e.g. CAM_3000)
-        if (feed.type === 'youtube_stream' && !targetImage) {
+        // YouTube Live Stream (e.g. CAM_3000) -> Directly play YouTube stream at timestamp
+        if (feed.type === 'youtube_stream' || (feed.stream_url && (feed.stream_url.includes('youtube.com') || feed.stream_url.includes('youtu.be')))) {
             if (cctvPlayer) {
                 cctvPlayer.pause();
                 cctvPlayer.style.display = 'none';
             }
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
+
             if (ytPlayer) {
                 ytPlayer.style.display = 'block';
-                const embedUrl = feed.embed_url || 'https://www.youtube-nocookie.com/embed/1EiC9bvVGnk?autoplay=1&mute=1';
-                if (!ytPlayer.src || !ytPlayer.src.includes('1EiC9bvVGnk')) {
-                    ytPlayer.src = embedUrl;
+                const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
+                let vidId = '1EiC9bvVGnk';
+                const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
+                if (match) vidId = match[1];
+
+                let startParam = '';
+                if (targetSeconds !== null && targetSeconds > 0) {
+                    startParam = `&start=${Math.floor(targetSeconds)}`;
                 }
+                const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0&enablejsapi=1${startParam}`;
+                ytPlayer.src = embedUrl;
             }
+
+            if (hudCamId) hudCamId.textContent = camId;
+            if (hudTimestamp) hudTimestamp.textContent = displayTs;
+            if (hudStatus) hudStatus.textContent = '🔴 LIVE STREAM';
+            if (videoTimer) videoTimer.textContent = displayTs;
 
             if (subSource) subSource.innerHTML = `Source: <code>YouTube Live Stream</code>`;
             if (subFps) subFps.innerHTML = `FPS: <code>30.0</code>`;
             if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">🔴 LIVE STREAM</strong>`;
 
             if (seekNotice) {
-                seekNotice.textContent = `Active Stream: ${feed.camera_id} (YouTube Live Feed)`;
+                seekNotice.textContent = `▶️ Playing ${feed.camera_id} Live Feed at ${displayTs}`;
                 seekNotice.style.opacity = '1';
                 setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
             }
             return;
         }
 
-        // Snapshot / Keyframe Image Display
+        // Fallback: If snapshot-only feed
         if (cctvPlayer) {
             cctvPlayer.pause();
             cctvPlayer.style.display = 'none';
@@ -983,18 +1007,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgPath = targetImage || feed.preview_image || `/data/cameras/${camId}/extracted_frames/${camId}_snapshot.jpg`;
             snapshotScreenImg.src = imgPath;
 
-            const ts = targetTimestamp || (targetSeconds !== null ? formatSecondsToTs(targetSeconds) : '00:00:00');
             if (hudCamId) hudCamId.textContent = camId;
-            if (hudTimestamp) hudTimestamp.textContent = ts;
+            if (hudTimestamp) hudTimestamp.textContent = displayTs;
             if (hudStatus) hudStatus.textContent = 'REC ● 1080P';
-            if (videoTimer) videoTimer.textContent = ts;
+            if (videoTimer) videoTimer.textContent = displayTs;
 
             if (subSource) subSource.innerHTML = `Source: <code>${imgPath.split('/').pop()}</code>`;
             if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 15.0}</code>`;
-            if (subDuration) subDuration.innerHTML = `Frame: <code>${ts}</code>`;
+            if (subDuration) subDuration.innerHTML = `Frame: <code>${displayTs}</code>`;
 
             if (seekNotice) {
-                seekNotice.textContent = `Surveillance View — ${camId} @ ${ts}`;
+                seekNotice.textContent = `Surveillance View — ${camId} @ ${displayTs}`;
                 seekNotice.style.opacity = '1';
                 setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
             }
@@ -1186,21 +1209,109 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ------------------------------------------------------------------
+    // Intelligent AI Security Analysis Markdown & Interactive Timestamp Formatter
+    // ------------------------------------------------------------------
+    function formatAiSecurityAnalysis(rawText, topResults = []) {
+        if (!rawText) return '<p class="ai-para">No analysis generated.</p>';
+
+        const defaultCam = topResults.length > 0 ? topResults[0].camera : 'CAM_01';
+        const buttonTokens = [];
+
+        function registerTsButton(cam, ts, customLabel = null) {
+            const parts = ts.split(':').map(Number);
+            let secs = 0;
+            if (parts.length === 3) secs = parts[0]*3600 + parts[1]*60 + parts[2];
+            else if (parts.length === 2) secs = parts[0]*60 + parts[1];
+
+            const labelText = customLabel || `${cam} | ${ts}`;
+            const idx = buttonTokens.length;
+            const btnHtml = `<button class="answer-ts-btn" data-camera="${escapeHtml(cam)}" data-timestamp="${escapeHtml(ts)}" data-seconds="${secs}" title="Jump video footage to ${escapeHtml(cam)} @ ${escapeHtml(ts)}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> <span>${escapeHtml(labelText)}</span></button>`;
+            buttonTokens.push(btnHtml);
+            return `@@@TS_BTN_${idx}@@@`;
+        }
+
+        // Parse line by line to maintain document structure and infer context per event line
+        const lines = rawText.split('\n');
+        const formattedLines = lines.map(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return '';
+
+            // Detect camera name in this line
+            const camMatch = line.match(/\b(CAM_[A-Za-z0-9_]+)\b/);
+            const lineCam = camMatch ? camMatch[1] : defaultCam;
+
+            let processed = line;
+
+            // 1. Match combined (Camera + Timestamp): e.g. "**CAM_02 | 08:10:05**" or "CAM_01 @ 00:01:30"
+            processed = processed.replace(/(?:\*\*)?(CAM_[A-Za-z0-9_]+)\s*(?:\||@|at|:)\s*(\d{1,2}:\d{2}(?::\d{2})?)(?:\*\*)?/gi, (match, cam, ts) => {
+                return registerTsButton(cam, ts, `${cam} | ${ts}`);
+            });
+
+            // 2. Match timestamp followed by camera in parentheses: e.g. "**08:10:05** (CAM_02)" or "08:10:05 (CAM_02)"
+            processed = processed.replace(/(?:\*\*)?(\d{1,2}:\d{2}(?::\d{2})?)(?:\*\*)?\s*\((CAM_[A-Za-z0-9_]+)\)/gi, (match, ts, cam) => {
+                return registerTsButton(cam, ts, `${ts} (${cam})`);
+            });
+
+            // 3. Match standalone timestamps: e.g. "**08:10:05**" or "00:01:30"
+            processed = processed.replace(/(?:\*\*)?(\b\d{1,2}:\d{2}:\d{2}\b|\b\d{1,2}:\d{2}\b)(?:\*\*)?/g, (match, ts) => {
+                return registerTsButton(lineCam, ts, ts);
+            });
+
+            // 4. Highlight remaining standalone camera mentions
+            processed = processed.replace(/\b(CAM_[A-Za-z0-9_]+)\b/g, `<strong class="text-blue">$1</strong>`);
+
+            // 5. Convert standard Markdown (**bold**, *italic*)
+            processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            processed = processed.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+            // 6. Substitute all registered button placeholders back in
+            processed = processed.replace(/@@@TS_BTN_(\d+)@@@/g, (m, idx) => {
+                return buttonTokens[parseInt(idx, 10)] || '';
+            });
+
+            // 7. Format bullet items vs normal paragraphs
+            if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                const content = processed.replace(/^\s*[-*]\s*/, '');
+                return `<div class="ai-bullet-item"><span class="ai-bullet-dot">▪</span><div>${content}</div></div>`;
+            }
+
+            return `<p class="ai-para">${processed}</p>`;
+        });
+
+        return formattedLines.filter(Boolean).join('');
+    }
+
+    // ------------------------------------------------------------------
     // Render Results in Classic Light UI
     // ------------------------------------------------------------------
     function renderResults(data) {
-        let formattedAnswer = data.answer || 'No answer generated.';
-        
-        formattedAnswer = formattedAnswer.replace(/(\b\d{2}:\d{2}:\d{2}\b)/g, (match) => {
-            const parts = match.split(':').map(Number);
-            const secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
-            return `<span class="ev-ts interactive-ts" data-seconds="${secs}" style="cursor:pointer;" title="Click to redirect monitor to ${match}">${match}</span>`;
+        const results = data.results || [];
+        evidenceCount.textContent = results.length;
+
+        // 1. Render AI Security Analysis with Interactive Timestamps
+        const formattedAnswer = formatAiSecurityAnalysis(data.answer, results);
+        aiAnswerBody.innerHTML = `<div class="animate-slide-in">${formattedAnswer}</div>`;
+
+        // 2. Attach Click Listeners to Interactive Timestamp Buttons in LLM Output
+        aiAnswerBody.querySelectorAll('.answer-ts-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Highlight active button
+                aiAnswerBody.querySelectorAll('.answer-ts-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const sec = parseFloat(btn.dataset.seconds) || 0;
+                const ts = btn.dataset.timestamp || '';
+                const cam = btn.dataset.camera || (results.length > 0 ? results[0].camera : 'CAM_01');
+
+                // Seek and immediately play video footage
+                seekToTime(sec, ts, cam);
+            });
         });
 
-        formattedAnswer = formattedAnswer.replace(/(\bCAM_\w+\b)/g, `<strong class="text-blue">$1</strong>`);
-
-        aiAnswerBody.innerHTML = `<div class="animate-slide-in" style="white-space: pre-wrap;">${formattedAnswer}</div>`;
-
+        // 3. Render Evaluation Metrics
         if (data.evaluation) {
             const ev = data.evaluation;
             const ret = ev.retrieval_metrics || {};
@@ -1212,18 +1323,7 @@ document.addEventListener('DOMContentLoaded', () => {
             metricsBar.style.display = 'grid';
         }
 
-        const results = data.results || [];
-        evidenceCount.textContent = results.length;
-
-        // Auto-detect camera from primary top result for interactive timestamp clicks in answer
-        const topCam = results.length > 0 ? results[0].camera : 'CAM_01';
-        aiAnswerBody.querySelectorAll('.interactive-ts').forEach(el => {
-            el.addEventListener('click', () => {
-                const sec = parseFloat(el.dataset.seconds);
-                seekToTime(sec, el.textContent, topCam);
-            });
-        });
-
+        // 4. Render Retrieved Video Moments
         if (results.length === 0) {
             evidenceList.innerHTML = `<div class="empty-state"><p>No relevant video moments found for this camera/query filter.</p></div>`;
             return;
@@ -1242,7 +1342,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="ev-scores">
                     <span class="score-badge rerank">Rerank: ${item.rerank_score}</span>
                     <span class="score-badge">FAISS: ${item.faiss_score}</span>
-                    <button class="btn-seek" title="Redirect monitor to this camera moment">
+                    <button class="btn-seek" title="Play video from this moment">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="5 3 19 12 5 21 5 3"></polygon>
                         </svg>
@@ -1252,21 +1352,31 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `).join('');
 
+        // 5. Attach Click Listeners to Evidence Cards and Seek Buttons
         evidenceList.querySelectorAll('.evidence-item').forEach(card => {
-            card.addEventListener('click', () => {
+            const handleItemSeek = (e) => {
+                if (e) e.stopPropagation();
                 evidenceList.querySelectorAll('.evidence-item').forEach(c => c.classList.remove('selected'));
                 card.classList.add('selected');
-                const secs = parseFloat(card.dataset.seconds);
-                const ts = card.dataset.timestamp;
-                const img = card.dataset.image;
-                const cam = card.dataset.camera;
+                const secs = parseFloat(card.dataset.seconds) || 0;
+                const ts = card.dataset.timestamp || '';
+                const img = card.dataset.image || '';
+                const cam = card.dataset.camera || 'CAM_01';
 
+                // Seek and play footage
                 seekToTime(secs, ts, cam, img);
-            });
+            };
+
+            card.addEventListener('click', handleItemSeek);
+            const seekBtn = card.querySelector('.btn-seek');
+            if (seekBtn) {
+                seekBtn.addEventListener('click', handleItemSeek);
+            }
         });
     }
 
     function escapeHtml(text) {
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;

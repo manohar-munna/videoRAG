@@ -81,5 +81,53 @@
     "timestamp": "18:55:12",
     "description": "Two individuals in dark jackets stand loitering on the sidewalk near the left storefront. A horse-drawn carriage and a large decorative arch are visible in the center of the intersection, with pedestrians gathered nearby. Multiple vehicles, including a black pickup, silver SUV, and white van, are in motion or parked along the wet street.",
     "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_18_55_12_2235.jpg"
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "11:28:43",
+    "description": "1. No pedestrians are visible; no loitering or suspicious activity.  \n2. A silver compact car is moving through the intersection, while a dark-colored vehicle is partially visible in the lower-left corner.  \n3. Traffic signals are red; no vehicles are in motion at the intersection, and no restricted areas are visibly breached.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_11_28_43_1.jpg",
+    "hash_hex": "0x3b5b72363f71f97e",
+    "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "11:29:11",
+    "description": "1. One dark-colored sedan is moving through the intersection, with brake lights illuminated; no pedestrians or loitering individuals are visible.  \n2. No vehicles are parked or stationary; traffic is flowing through the intersection under active traffic signals.  \n3. No security events or restricted area breaches are evident; the scene shows normal nighttime traffic activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_11_29_11_940.jpg",
+    "hash_hex": "0x3b5b53363965577e",
+    "motion_pct": 4.58
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "11:30:14",
+    "description": "1. No individuals are visible in the frame; no loitering or activity detected.  \n2. A dark-colored SUV is moving leftward across the intersection; no other vehicles are present or parked.  \n3. Traffic signals are red; no security events or restricted area breaches are evident.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_11_30_14_1442.jpg",
+    "hash_hex": "0x3b5b53363f213b1e",
+    "motion_pct": 3.44
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "11:30:41",
+    "description": "1. No identifiable individuals are present in the frame; no loitering or suspicious activity observed.  \n2. A white van with “SNAKE RIVER” branding is parked at the intersection, stationary and partially obstructing the view.  \n3. No security events or restricted area breaches detected; traffic signals are active, and the scene appears normal.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_11_30_41_2476.jpg",
+    "hash_hex": "0x3b5b53373f6ddc7c",
+    "motion_pct": 8.07
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "11:31:24",
+    "description": "No identifiable individuals are present in the frame; no loitering or suspicious activity is observed. A single light-colored sedan is parked on the right side of the road, stationary. No vehicles are in motion, and no security events or restricted area breaches are evident.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_11_31_24_3826.jpg",
+    "hash_hex": "0x3b5b53363f60fb3e",
+    "motion_pct": 3.73
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "11:32:39",
+    "description": "1. One individual in dark clothing is loitering near the pedestrian crosswalk on the far side of the intersection; no other people are visible in the frame.  \n2. A dark red sedan is parked or stopped in the intersection’s crosswalk, with its brake lights illuminated, indicating a stationary or halted position.  \n3. No security events or restricted area breaches are evident; the scene shows normal nighttime traffic conditions with no unusual activity.",
+    "image_path": "data\\cameras\\CAM_3000\\extracted_frames\\CAM_3000_11_32_39_5926.jpg",
+    "hash_hex": "0x3b5b53363f65076e",
+    "motion_pct": 2.68
   }
 ]
