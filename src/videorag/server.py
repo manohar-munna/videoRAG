@@ -329,26 +329,35 @@ def get_health():
 
 @app.get("/api/events")
 def get_events(camera: Optional[str] = None, detailed: bool = False):
-    """Return combined CCTV events dataset with optional camera filtering and metadata."""
+    """Return combined CCTV events dataset with dynamic camera discovery and optional filtering."""
     data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
     records = []
+    
+    # 1. Read from master real_cctv_events.json if available
     if data_path.exists():
         try:
             with open(data_path, "r", encoding="utf-8") as fh:
                 records = json.load(fh)
         except Exception as exc:
             logger.warning("Failed to read %s: %s", data_path, exc)
-    
-    if not records:
-        # Fallback: aggregate directly from camera directories
-        for cam_events in (_PROJECT_ROOT / "data" / "cameras").glob("*/events.json"):
+
+    # 2. Always aggregate and sync directly from per-camera isolated events JSON
+    seen_keys = set((r.get("camera"), r.get("timestamp"), r.get("image_path", "")) for r in records)
+    cam_base = _PROJECT_ROOT / "data" / "cameras"
+    if cam_base.exists():
+        for cam_events in cam_base.glob("*/events.json"):
             try:
                 with open(cam_events, "r", encoding="utf-8") as fh:
-                    records.extend(json.load(fh))
+                    cam_records = json.load(fh)
+                    for cr in cam_records:
+                        k = (cr.get("camera"), cr.get("timestamp"), cr.get("image_path", ""))
+                        if k not in seen_keys:
+                            seen_keys.add(k)
+                            records.append(cr)
             except Exception:
                 pass
 
-    # Normalize image_path for browser display
+    # Normalize image_path and calculate epoch_time for browser display
     for r in records:
         img_p = r.get("image_path", "")
         if img_p:
@@ -360,6 +369,21 @@ def get_events(camera: Optional[str] = None, detailed: bool = False):
         else:
             r["image_url"] = ""
 
+        if r.get("epoch_time") is None and img_p:
+            clean_p = img_p.lstrip("/")
+            local_img = _PROJECT_ROOT / clean_p
+            if not local_img.exists() and not clean_p.startswith("data/"):
+                local_img = _PROJECT_ROOT / "data" / clean_p
+            if local_img.exists():
+                r["epoch_time"] = round(local_img.stat().st_mtime, 3)
+
+    # Dynamic camera discovery across all system sources
+    registered_cams = set(CAMERA_REGISTRY.keys())
+    stream_cams = set(STREAM_MANAGER.streams.keys())
+    dir_cams = set(p.name for p in cam_base.iterdir() if p.is_dir()) if cam_base.exists() else set()
+    event_cams = set(r.get("camera") for r in records if r.get("camera"))
+    all_cams = sorted(list(registered_cams | stream_cams | dir_cams | event_cams))
+
     # Filter by camera if requested
     filtered = records
     if camera:
@@ -367,7 +391,6 @@ def get_events(camera: Optional[str] = None, detailed: bool = False):
 
     if detailed:
         file_size = data_path.stat().st_size if data_path.exists() else 0
-        all_cams = sorted(list(set(r.get("camera", "Unknown") for r in records if r.get("camera"))))
         return {
             "events": filtered,
             "total_count": len(records),

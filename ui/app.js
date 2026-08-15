@@ -314,6 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetchRtspStreamsStatus();
                     fetchCameraFeeds();
                     fetchCameraPills();
+                    fetchEventsJson();
                 } else {
                     const err = await resp.json();
                     alert('Failed to start stream: ' + (err.detail || 'Unknown error'));
@@ -435,6 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchRtspStreamsStatus();
                 fetchCameraFeeds();
                 fetchCameraPills();
+                fetchEventsJson();
             });
         });
 
@@ -671,9 +673,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render Cards View
         if (jsonCardsContainer) {
             if (filtered.length === 0) {
+                const camLabel = activeJsonCameraFilter ? ` for camera <strong>${escapeHtml(activeJsonCameraFilter)}</strong>` : '';
                 jsonCardsContainer.innerHTML = `
-                    <div class="empty-state" style="padding: 24px; text-align: center;">
-                        <p class="placeholder-text">No indexed event chunks match your filter.</p>
+                    <div class="empty-state" style="padding: 32px 16px; text-align: center;">
+                        <p class="placeholder-text" style="font-size: 0.92rem;">No indexed event chunks${camLabel} yet.</p>
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px;">
+                            Keyframes from active streams are automatically processed by Qwen3-VL and will appear here in real-time.
+                        </p>
                     </div>
                 `;
             } else {

@@ -17,6 +17,16 @@
     "sample_interval": 5.0,
     "hash_method": "dhash",
     "threshold": 10,
+    "status": "paused"
+  },
+  "CAM_4000": {
+    "camera_id": "CAM_4000",
+    "name": "Camera CAM_4000",
+    "stream_url": "https://www.youtube.com/live/EO_1LWqsCNE?si=zGu_teV2HCn5EeWi",
+    "type": "youtube_stream",
+    "sample_interval": 5.0,
+    "hash_method": "dhash",
+    "threshold": 10,
     "status": "running"
   }
 }

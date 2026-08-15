@@ -1,0 +1,162 @@
+[
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:50:23",
+    "seconds": 1786800023.75,
+    "epoch_time": 1786800023.752,
+    "description": "One person, wearing a dark brown coat and dark pants, is walking a small white dog on a leash along the sidewalk near the Venice V Hotel. No vehicles are visible in the frame. No security events or restricted areas are evident; the scene shows normal pedestrian activity near a beachfront.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_50_23_1.jpg",
+    "hash_hex": "0x43c58de4c28a0a92",
+    "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:50:29",
+    "seconds": 1786800029.89,
+    "epoch_time": 1786800029.887,
+    "description": "No key subjects observed; no people present on sidewalk or beach. No vehicles detected in frame. No security events, restricted areas, or notable activity recorded. Scene is vacant with no movement or anomalies.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_50_29_285.jpg",
+    "hash_hex": "0x4163467262840486",
+    "motion_pct": 75.06
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:50:34",
+    "seconds": 1786800034.89,
+    "epoch_time": 1786800034.892,
+    "description": "No individuals or vehicles observed. Scene shows an empty beachfront promenade with a parked bicycle, trash bins, and distant beachside structures; no loitering, movement, or security incidents detected.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_50_34_578.jpg",
+    "hash_hex": "0x62b8a13871c18286",
+    "motion_pct": 61.76
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:50:39",
+    "seconds": 1786800039.89,
+    "epoch_time": 1786800039.894,
+    "description": "1. One person in a red top and light-colored pants sits on a green bench; another individual in dark clothing is seated on the grass, appearing to be loitering or resting.  \n2. No vehicles are visible in the frame; the area is pedestrian-only with no active vehicle movement or parking.  \n3. No security events or restricted areas are detected; the scene shows normal public park activity with no suspicious or anomalous behavior.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_50_39_807.jpg",
+    "hash_hex": "0x6ac827d43db07cf3",
+    "motion_pct": 74.07
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:50:48",
+    "seconds": 1786800048.93,
+    "epoch_time": 1786800048.931,
+    "description": "One person in a red jacket and white pants is walking along the sidewalk near a bench. No vehicles are visible in the frame. No security events or restricted area breaches are evident; the scene shows normal pedestrian activity near a beachfront.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_50_48_1033.jpg",
+    "hash_hex": "0x6faacbb288c4e3e2",
+    "motion_pct": 73.84
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:51:08",
+    "seconds": 1786800068.48,
+    "epoch_time": 1786800068.479,
+    "description": "1. Two individuals in red and dark clothing are seated on a blanket on the grass near the sidewalk; a third person in light-colored attire walks away in the distance. No loitering is observed beyond normal park activity.\n2. No vehicles are visible in the frame; the area is pedestrian-only with no parked or moving vehicles.\n3. No security events or restricted area breaches are detected. The scene shows a typical public park setting with no unusual activity.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_51_08_1633.jpg",
+    "hash_hex": "0x51512da7b5a9d483",
+    "motion_pct": 78.55
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:51:49",
+    "seconds": 1786800109.16,
+    "epoch_time": 1786800109.164,
+    "description": "Two individuals, one in red and one in dark clothing, are seated on a blanket on the sidewalk, appearing to rest or eat. No vehicles are visible in the frame. No security events or restricted areas are evident; the scene depicts a calm, public beachside promenade with no unusual activity.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_51_49_2831.jpg",
+    "hash_hex": "0x684a6dbac9d05956",
+    "motion_pct": 69.99
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:51:56",
+    "seconds": 1786800116.81,
+    "epoch_time": 1786800116.809,
+    "description": "Two individuals are seated on the pavement near trash bins; one wears a bright pink jacket and red hat, the other a plaid shirt. No vehicles are visible in the frame. No security events or restricted area breaches are evident; subjects appear to be loitering or resting, not in motion.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_51_56_2981.jpg",
+    "hash_hex": "0x6a98cae6e1b4a993",
+    "motion_pct": 55.96
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:52:08",
+    "seconds": 1786800128.31,
+    "epoch_time": 1786800128.307,
+    "description": "1. One adult male in a blue cap and dark shirt walks leftward carrying a bag; two individuals in red and patterned clothing sit on the pavement, one gesturing outward, suggesting loitering or rest.  \n2. No vehicles are visible in the frame; the area is pedestrian-only with no active traffic or parked vehicles.  \n3. No security events or restricted area breaches are evident; activity is casual, non-threatening, and within public space norms.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_52_08_3431.jpg",
+    "hash_hex": "0x5a9acae7e9d049d3",
+    "motion_pct": 54.08
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:52:32",
+    "seconds": 1786800152.6,
+    "epoch_time": 1786800152.595,
+    "description": "1. One individual in dark clothing is walking away from the camera along the sidewalk; no other people are visible in the frame.  \n2. No vehicles are present in the frame; the area appears clear of traffic or parked cars.  \n3. No security events or restricted areas are evident; the scene shows normal pedestrian activity with no signs of intrusion or abnormal behavior.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_52_32_4031.jpg",
+    "hash_hex": "0x6fa6ebb2cd54e3c6",
+    "motion_pct": 43.05
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:52:41",
+    "seconds": 1786800161.27,
+    "epoch_time": 1786800161.265,
+    "description": "1. One individual in dark clothing is cycling along the sidewalk; another person in light-colored attire is loitering near the beachfront, standing still near palm trees.  \n2. No vehicles are visible in motion or parked; the scene is devoid of traffic or vehicle-related activity.  \n3. No security events or restricted areas are evident; activity is casual, with no signs of intrusion, conflict, or prohibited behavior.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_52_41_4329.jpg",
+    "hash_hex": "0x6e2acbb289c4e3e2",
+    "motion_pct": 8.82
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:52:55",
+    "seconds": 1786800175.31,
+    "epoch_time": 1786800175.307,
+    "description": "No key subjects or vehicles detected in frame. The scene shows an empty beachfront promenade with no pedestrians, vehicles, or notable activity. No security events, restricted areas, or unusual behavior are evident.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_52_55_4779.jpg",
+    "hash_hex": "0x416246726284048e",
+    "motion_pct": 22.05
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:53:10",
+    "seconds": 1786800190.51,
+    "epoch_time": 1786800190.508,
+    "description": "1. Two individuals are visible near green-topped pavilions; one stands near a bench, the other sits nearby. A lone pedestrian walks further down the promenade. No loitering is evident; all movement is casual and unhurried.\n\n2. No vehicles are present in the frame. The area appears clear of parked or moving cars.\n\n3. No security events or restricted area breaches are detected. The scene shows normal public promenade activity with no unusual or suspicious behavior.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_53_10_5229.jpg",
+    "hash_hex": "0x61a091667ab2c290",
+    "motion_pct": 62.13
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:53:24",
+    "seconds": 1786800204.37,
+    "epoch_time": 1786800204.37,
+    "description": "Multiple individuals are present: a person in a dark jacket and light pants walks near trash bins; another in a yellow top and dark shorts runs; a third in a yellow top walks away; and several others loiter or sit near bins. No vehicles are visible. No security events or restricted areas are evident; activity appears routine pedestrian movement along a public promenade.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_53_24_5674.jpg",
+    "hash_hex": "0xea96949cf4e45590",
+    "motion_pct": 61.67
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:53:29",
+    "seconds": 1786800209.37,
+    "epoch_time": 1786800209.374,
+    "description": "1. Multiple individuals are present: a group of 3–4 people loitering near trash bins on the left, one person walking away from the camera, and a runner in a bright yellow top and red shorts moving toward the right.  \n2. No vehicles are visible in the frame.  \n3. No security events or restricted areas are evident; activity appears routine, with no signs of trespassing, conflict, or unauthorized access.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_53_29_5907.jpg",
+    "hash_hex": "0x55764e1ac2620694",
+    "motion_pct": 51.41
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:54:14",
+    "seconds": 1786800254.07,
+    "epoch_time": 1786800254.07,
+    "description": "Multiple individuals are present: several people are seated or lying on the sidewalk near trash bins, while others walk or jog along the path. No vehicles are visible in the frame. No security incidents or restricted area breaches are evident; activity appears routine and non-threatening.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_54_14_6579.jpg",
+    "hash_hex": "0x55766c1cc46a06e0",
+    "motion_pct": 43.82
+  }
+]
