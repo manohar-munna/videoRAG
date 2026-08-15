@@ -136,6 +136,8 @@ def _auto_index_worker_loop() -> None:
                 new_rec = {
                     "camera": cam_id,
                     "timestamp": ts_str,
+                    "seconds": keyframe.get("seconds", 0.0),
+                    "epoch_time": keyframe.get("epoch_time", round(time.time(), 3)),
                     "description": desc,
                     "image_path": img_path,
                     "hash_hex": keyframe.get("hash_hex"),
@@ -177,6 +179,8 @@ def _auto_index_worker_loop() -> None:
                     meta = {
                         "camera": cam_id,
                         "timestamp": ts_str,
+                        "seconds": keyframe.get("seconds", 0.0),
+                        "epoch_time": keyframe.get("epoch_time", round(time.time(), 3)),
                         "description": desc,
                         "text": doc_text,
                         "image_path": img_path,
@@ -463,15 +467,21 @@ def search_cctv(req: SearchRequest):
             yt_match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", feed_url)
             vid_id = yt_match.group(1) if yt_match else "1EiC9bvVGnk"
             embed_url = f"https://www.youtube-nocookie.com/embed/{vid_id}?autoplay=1&mute=1"
-        elif cam in STREAM_MANAGER.streams:
-            feed_type = "rtsp_stream"
-            feed_url = STREAM_MANAGER.streams[cam].stream_url
+        epoch_time = meta.get("epoch_time")
+        if epoch_time is None and img_p:
+            clean_p = img_p.lstrip("/")
+            local_img = _PROJECT_ROOT / clean_p
+            if not local_img.exists() and not clean_p.startswith("data/"):
+                local_img = _PROJECT_ROOT / "data" / clean_p
+            if local_img.exists():
+                epoch_time = round(local_img.stat().st_mtime, 3)
 
         items.append({
             "rank": rank,
             "camera": cam,
             "timestamp": ts,
             "seconds": secs,
+            "epoch_time": epoch_time,
             "description": desc,
             "image_path": img_p,
             "feed_type": feed_type,

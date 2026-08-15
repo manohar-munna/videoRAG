@@ -289,6 +289,8 @@ class RTSPStreamCapture:
                     "camera": self.camera_id,
                     "timestamp": ts_str,
                     "seconds": display_sec,
+                    "epoch_time": round(capture_time, 3) if not is_video_file else None,
+                    "is_live": not is_video_file,
                     "frame_idx": frame_idx,
                     "image_path": str(out_path),
                     "hash_hex": audit_item["hash_hex"],

@@ -826,6 +826,62 @@ document.addEventListener('DOMContentLoaded', () => {
     let availableFeeds = [];
     let activeEvidenceState = null;
 
+    // ------------------------------------------------------------------
+    // YouTube IFrame Player API & Live Stream DVR Controller
+    // ------------------------------------------------------------------
+    let ytPlayerInstance = null;
+
+    function initOrGetYtPlayer(vidId, onReadyCb) {
+        if (ytPlayerInstance && ytPlayerInstance.loadVideoById) {
+            if (onReadyCb) onReadyCb(ytPlayerInstance);
+            return ytPlayerInstance;
+        }
+
+        if (window.YT && window.YT.Player) {
+            ytPlayerInstance = new YT.Player('yt-player', {
+                videoId: vidId,
+                playerVars: {
+                    autoplay: 1,
+                    mute: 0,
+                    enablejsapi: 1,
+                    origin: window.location.origin
+                },
+                events: {
+                    onReady: (event) => {
+                        if (onReadyCb) onReadyCb(event.target);
+                    }
+                }
+            });
+            return ytPlayerInstance;
+        }
+        return null;
+    }
+
+    function seekYouTubeLiveDVR(vidId, deltaSeconds, displayTs, camera_id) {
+        if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
+        if (cctvSnapshotView) { cctvSnapshotView.style.display = 'none'; }
+        if (ytPlayer) { ytPlayer.style.display = 'block'; }
+
+        initOrGetYtPlayer(vidId, (player) => {
+            try {
+                const duration = player.getDuration();
+                const currentHead = player.getCurrentTime();
+                const refHead = (duration && duration > 0) ? duration : currentHead;
+                const seekPos = Math.max(0, refHead - deltaSeconds);
+                player.seekTo(seekPos, true);
+                player.playVideo();
+                if (seekNotice) {
+                    const mins = Math.round(deltaSeconds / 60);
+                    seekNotice.textContent = `▶️ Rewound Live DVR: -${mins}m (${displayTs})`;
+                    seekNotice.style.opacity = '1';
+                    setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
+                }
+            } catch (err) {
+                console.warn('YouTube DVR seek caught:', err);
+            }
+        });
+    }
+
     if (btnShowEvidence && btnShowLive) {
         btnShowEvidence.addEventListener('click', () => {
             btnShowEvidence.classList.add('active');
@@ -846,13 +902,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cctvSnapshotView) { cctvSnapshotView.style.display = 'none'; }
             const feed = availableFeeds.find(f => f.camera_id === activeFeedCamId);
             if (feed && feed.type === 'youtube_stream') {
-                if (ytPlayer) {
-                    ytPlayer.style.display = 'block';
-                    const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
-                    let vidId = '1EiC9bvVGnk';
-                    const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
-                    if (match) vidId = match[1];
-                    ytPlayer.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0`;
+                const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
+                let vidId = '1EiC9bvVGnk';
+                const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
+                if (match) vidId = match[1];
+
+                if (activeEvidenceState && activeEvidenceState.deltaSeconds > 0) {
+                    seekYouTubeLiveDVR(vidId, activeEvidenceState.deltaSeconds, activeEvidenceState.targetTimestamp || '00:00:00', activeFeedCamId);
+                } else {
+                    if (ytPlayer) {
+                        ytPlayer.style.display = 'block';
+                        ytPlayer.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0`;
+                    }
                 }
             } else if (feed && feed.type === 'video_file') {
                 if (cctvPlayer) {
@@ -923,7 +984,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function switchSurveillanceFeed(camId, targetSeconds = null, targetImage = null, targetTimestamp = null) {
+    function switchSurveillanceFeed(camId, targetSeconds = null, targetImage = null, targetTimestamp = null, targetEpochTime = null) {
         activeFeedCamId = camId;
         renderCameraFeedSwitcher();
 
@@ -1004,48 +1065,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Case 2: Live Stream with Specific Keyframe / Evidence (e.g. CAM_3000 Seek Clicked)
-        if (targetImage) {
-            activeEvidenceState = { camId, targetSeconds, targetImage, targetTimestamp };
-            if (cctvPlayer) {
-                cctvPlayer.pause();
-                cctvPlayer.style.display = 'none';
-            }
-            if (ytPlayer) {
-                ytPlayer.style.display = 'none';
+        if (feed.type === 'youtube_stream' || (feed.stream_url && (feed.stream_url.includes('youtube.com') || feed.stream_url.includes('youtu.be')))) {
+            const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
+            let vidId = '1EiC9bvVGnk';
+            const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
+            if (match) vidId = match[1];
+
+            // Calculate DVR Delta Seconds: Current Wall Clock - Event Time
+            let deltaSeconds = 0;
+            if (targetEpochTime && targetEpochTime > 0) {
+                deltaSeconds = Math.max(0, (Date.now() / 1000) - targetEpochTime);
+            } else if (targetTimestamp) {
+                const now = new Date();
+                const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                const parts = targetTimestamp.split(':').map(Number);
+                const eventSec = parts.length === 3 ? parts[0]*3600 + parts[1]*60 + parts[2] : (parts.length === 2 ? parts[0]*60 + parts[1] : 0);
+                let diff = nowSec - eventSec;
+                if (diff < 0) diff += 86400; // handle rollover
+                deltaSeconds = diff;
             }
 
-            if (cctvSnapshotView && snapshotScreenImg) {
-                cctvSnapshotView.style.display = 'block';
-                snapshotScreenImg.src = targetImage;
+            activeEvidenceState = { camId, targetSeconds, targetImage, targetTimestamp, deltaSeconds };
+
+            // When seeking a specific moment evidence
+            if (targetImage || targetTimestamp) {
+                // If DVR rewind offset is within buffer (under 12 hours)
+                if (deltaSeconds > 0) {
+                    seekYouTubeLiveDVR(vidId, deltaSeconds, displayTs, camId);
+                } else {
+                    if (ytPlayer) {
+                        ytPlayer.style.display = 'block';
+                        ytPlayer.src = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0`;
+                    }
+                }
 
                 if (hudCamId) hudCamId.textContent = camId;
                 if (hudTimestamp) hudTimestamp.textContent = displayTs;
-                if (hudStatus) hudStatus.textContent = 'REC ● 1080P';
+                if (hudStatus) hudStatus.textContent = '🔴 LIVE (DVR)';
                 if (videoTimer) videoTimer.textContent = displayTs;
-
-                if (subSource) subSource.innerHTML = `Source: <code>${targetImage.split('/').pop()}</code>`;
-                if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 30.0}</code>`;
-                if (subDuration) subDuration.innerHTML = `Moment: <code>${displayTs}</code>`;
 
                 if (monitorModeBar) {
                     monitorModeBar.style.display = 'flex';
-                    if (btnShowEvidence) btnShowEvidence.classList.add('active');
-                    if (btnShowLive) btnShowLive.classList.remove('active');
+                    if (btnShowLive) btnShowLive.classList.add('active');
+                    if (btnShowEvidence) btnShowEvidence.classList.remove('active');
                     if (evidenceBtnText) evidenceBtnText.textContent = `📸 Evidence Snapshot (${displayTs})`;
-                    if (liveBtnText) liveBtnText.textContent = `🔴 Switch to Live Video`;
+                    if (liveBtnText) liveBtnText.textContent = `🔴 Live Video Stream`;
                 }
 
-                if (seekNotice) {
-                    seekNotice.textContent = `📸 Evidence Moment — ${camId} @ ${displayTs}`;
-                    seekNotice.style.opacity = '1';
-                    setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
-                }
+                if (subSource) subSource.innerHTML = `Source: <code>YouTube Live DVR</code>`;
+                if (subFps) subFps.innerHTML = `FPS: <code>30.0</code>`;
+                if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">🔴 LIVE STREAM</strong>`;
+                return;
             }
-            return;
-        }
 
-        // Case 3: Live Video Stream Focus (e.g. CAM_3000 Live Streaming Mode)
-        if (feed.type === 'youtube_stream' || (feed.stream_url && (feed.stream_url.includes('youtube.com') || feed.stream_url.includes('youtu.be')))) {
+            // General Live View
             if (cctvPlayer) {
                 cctvPlayer.pause();
                 cctvPlayer.style.display = 'none';
@@ -1055,11 +1128,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (ytPlayer) {
                 ytPlayer.style.display = 'block';
-                const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
-                let vidId = '1EiC9bvVGnk';
-                const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
-                if (match) vidId = match[1];
-
                 const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=0`;
                 if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
                     ytPlayer.src = embedUrl;
@@ -1191,8 +1259,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function seekToTime(seconds, label = '', camera = 'CAM_01', imagePath = '') {
-        switchSurveillanceFeed(camera, seconds, imagePath, label);
+    function seekToTime(seconds, label = '', camera = 'CAM_01', imagePath = '', epochTime = null) {
+        switchSurveillanceFeed(camera, seconds, imagePath, label, epochTime);
     }
 
     // ------------------------------------------------------------------
@@ -1398,12 +1466,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ts = btn.dataset.timestamp || '';
                 const cam = btn.dataset.camera || (results.length > 0 ? results[0].camera : 'CAM_01');
 
-                // Lookup matching result item to get high-res moment image if present
+                // Lookup matching result item to get high-res moment image and epoch timestamp
                 const matchingItem = results.find(r => r.camera === cam && (r.timestamp === ts || Math.abs((r.seconds || 0) - sec) < 2));
                 const img = matchingItem ? (matchingItem.image_path || '') : '';
+                const epoch = matchingItem && matchingItem.epoch_time ? parseFloat(matchingItem.epoch_time) : null;
 
-                // Seek and display/play video footage or evidence snapshot
-                seekToTime(sec, ts, cam, img);
+                // Seek and display/play video footage or evidence snapshot with live DVR rewind
+                seekToTime(sec, ts, cam, img, epoch);
             });
         });
 
@@ -1426,7 +1495,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         evidenceList.innerHTML = results.map((item) => `
-            <div class="evidence-item" data-seconds="${item.seconds}" data-timestamp="${item.timestamp}" data-image="${escapeHtml(item.image_path || '')}" data-camera="${escapeHtml(item.camera)}" data-feed-type="${escapeHtml(item.feed_type || '')}">
+            <div class="evidence-item" data-seconds="${item.seconds}" data-timestamp="${item.timestamp}" data-epoch="${item.epoch_time || ''}" data-image="${escapeHtml(item.image_path || '')}" data-camera="${escapeHtml(item.camera)}" data-feed-type="${escapeHtml(item.feed_type || '')}">
                 <div class="evidence-meta">
                     <div class="ev-header">
                         <span class="ev-rank">#${item.rank}</span>
@@ -1438,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="ev-scores">
                     <span class="score-badge rerank">Rerank: ${item.rerank_score}</span>
                     <span class="score-badge">FAISS: ${item.faiss_score}</span>
-                    <button class="btn-seek" title="Play video from this moment">
+                    <button class="btn-seek" title="Play video / seek DVR to this moment">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="5 3 19 12 5 21 5 3"></polygon>
                         </svg>
@@ -1458,9 +1527,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ts = card.dataset.timestamp || '';
                 const img = card.dataset.image || '';
                 const cam = card.dataset.camera || 'CAM_01';
+                const epoch = card.dataset.epoch ? parseFloat(card.dataset.epoch) : null;
 
-                // Seek and play footage
-                seekToTime(secs, ts, cam, img);
+                // Seek and play footage with DVR calculation
+                seekToTime(secs, ts, cam, img, epoch);
             };
 
             card.addEventListener('click', handleItemSeek);
