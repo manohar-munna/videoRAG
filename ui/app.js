@@ -372,15 +372,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="sm-item"><span class="sm-label">Compute Saved</span><span class="sm-val text-green">${s.llm_compute_saved_pct}%</span></div>
                     </div>
                     <div class="stream-card-actions">
-                        <button class="btn-primary index-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 3px 8px; font-size: 0.72rem;" ${s.keyframes_kept === 0 ? 'disabled' : ''}>
-                            ⚡ Index Keyframes (${s.keyframes_kept})
+                        <button class="index-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 3px 8px; font-size: 0.72rem;" ${s.keyframes_kept === 0 ? 'disabled' : ''} title="Manual trigger or sync VLM indexing">
+                            ⚡ Indexed (${s.keyframes_kept})
                         </button>
                         ${isPaused ? `
-                            <button class="btn-stream-action btn-resume-stream resume-stream-btn" data-cam="${escapeHtml(s.camera_id)}">
+                            <button class="btn-stream-action btn-resume-stream resume-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Resume stream extraction">
                                 ▶️ Resume Extraction
                             </button>
                         ` : `
-                            <button class="btn-stream-action btn-pause-stream pause-stream-btn" data-cam="${escapeHtml(s.camera_id)}">
+                            <button class="btn-stream-action btn-pause-stream pause-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Pause stream extraction">
                                 ⏸️ Pause Extraction
                             </button>
                         `}
@@ -469,6 +469,28 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    async function checkHealth() {
+        try {
+            const resp = await fetch('/api/health');
+            if (resp.ok) {
+                const data = await resp.json();
+                const healthDot = document.getElementById('health-indicator');
+                const healthText = document.getElementById('health-status-text');
+                if (healthDot && healthText) {
+                    healthDot.className = 'status-dot online';
+                    healthText.textContent = `Online (${data.vector_count || 0} vectors)`;
+                }
+                const vectorCountBadge = document.getElementById('vector-count-badge');
+                if (vectorCountBadge) {
+                    vectorCountBadge.textContent = `${data.vector_count || 0} VECTORS`;
+                }
+            }
+        } catch (err) {
+            console.warn('Health check failed:', err);
+        }
+    }
+    checkHealth();
+
     async function fetchCameraPills() {
         if (!cameraFilterContainer) return;
         try {
@@ -497,6 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeJsonCameraFilter = '';
     let jsonSearchTerm = '';
     let jsonViewMode = 'cards'; // 'cards' | 'raw'
+    let autoRefreshInterval = null;
 
     if (jsonViewCardsBtn && jsonViewRawBtn) {
         jsonViewCardsBtn.addEventListener('click', () => {
@@ -527,7 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (refreshJsonBtn) {
         refreshJsonBtn.addEventListener('click', () => {
-            fetchEventsJson();
+            fetchEventsJson(false);
         });
     }
 
@@ -565,9 +588,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function fetchEventsJson() {
+    async function fetchEventsJson(silent = false) {
         try {
-            if (refreshJsonBtn) {
+            if (!silent && refreshJsonBtn) {
                 refreshJsonBtn.disabled = true;
                 const span = refreshJsonBtn.querySelector('span');
                 if (span) span.textContent = 'Refreshing…';
@@ -575,7 +598,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const resp = await fetch('/api/events?detailed=true');
             if (resp.ok) {
                 const data = await resp.json();
-                loadedJsonEvents = data.events || [];
+                const newEvents = data.events || [];
+                const countChanged = newEvents.length !== loadedJsonEvents.length;
+                loadedJsonEvents = newEvents;
                 
                 // Update stats chips
                 if (jsonStatTotal) jsonStatTotal.textContent = `${data.total_count || loadedJsonEvents.length} Events`;
@@ -590,13 +615,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderJsonCameraFilters(data.cameras || []);
                 renderJsonExplorer();
             } else {
-                if (jsonCodeDisplay) jsonCodeDisplay.textContent = 'Failed to load CCTV events dataset.';
+                if (jsonCodeDisplay && !silent) jsonCodeDisplay.textContent = 'Failed to load CCTV events dataset.';
             }
         } catch (err) {
-            console.warn('Failed to fetch events JSON:', err);
-            if (jsonCodeDisplay) jsonCodeDisplay.textContent = 'Error loading JSON: ' + err.message;
+            if (!silent) {
+                console.warn('Failed to fetch events JSON:', err);
+                if (jsonCodeDisplay) jsonCodeDisplay.textContent = 'Error loading JSON: ' + err.message;
+            }
         } finally {
-            if (refreshJsonBtn) {
+            if (!silent && refreshJsonBtn) {
                 refreshJsonBtn.disabled = false;
                 const span = refreshJsonBtn.querySelector('span');
                 if (span) span.textContent = 'Refresh JSON Data';
@@ -751,8 +778,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isDevModeActive) {
                 fetchHashAuditLogs();
-                fetchEventsJson();
+                fetchEventsJson(false);
                 fetchRtspStreamsStatus();
+                checkHealth();
+                
+                // Live background synchronization for auto-indexed keyframes
+                if (!autoRefreshInterval) {
+                    autoRefreshInterval = setInterval(() => {
+                        if (isDevModeActive) {
+                            fetchEventsJson(true);
+                            checkHealth();
+                        }
+                    }, 3500);
+                }
+            } else {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
             }
         });
     }

@@ -33,5 +33,17 @@
     "seconds": 675.0,
     "description": "Entrance perimeter and access barrier. Clear roadway, no pedestrian or vehicle obstructions present.",
     "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_11_15_20250.jpg"
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "11:02:58",
+    "description": "Multiple individuals, including a person in a high-visibility vest, are gathered near yellow caution tape; some loiter near the Venice Hotel’s entrance, while others appear to be attending an event. A white “Motion Picture” production truck is parked on the left, with a bicycle and a person in a red shirt visible nearby. No vehicles are in motion; the scene indicates a controlled event area with restricted access.",
+    "image_path": "data\\cameras\\CAM_01\\extracted_frames\\CAM_01_11_02_58_1.jpg"
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "11:03:13",
+    "description": "Multiple individuals, including crew and attendees, are present; some wear high-visibility vests, others casual attire including blue and red shirts. A white pickup truck is parked on the left, and a large camera rig is positioned near yellow caution tape, indicating a controlled or restricted area. No security incidents are evident, though the presence of media equipment and personnel suggests a public event or filming activity.",
+    "image_path": "data\\cameras\\CAM_01\\extracted_frames\\CAM_01_11_03_13_19022.jpg"
   }
 ]

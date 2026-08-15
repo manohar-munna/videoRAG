@@ -58,12 +58,145 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import queue
+import threading
+import time
+
 from videorag.ingestion.camera_registry import CameraRegistry
 
 # Global pipeline & persistent stream manager instances
 PIPELINE: Dict[str, Any] = {}
 CAMERA_REGISTRY = CameraRegistry(_PROJECT_ROOT / "data" / "cameras_registry.json")
-STREAM_MANAGER = MultiCameraStreamManager(registry=CAMERA_REGISTRY)
+
+# Auto-Indexing Queue for Real-Time Keyframe Ingestion
+AUTO_INDEX_QUEUE: queue.Queue = queue.Queue()
+
+
+def _queue_auto_index_keyframe(keyframe_meta: Dict[str, Any]) -> None:
+    """Callback invoked by stream workers when a new keyframe is kept by dHash/pHash."""
+    logger.info("[Auto-Indexer] Queued new keyframe from %s @ %s for background VLM indexing.", 
+                keyframe_meta.get("camera"), keyframe_meta.get("timestamp"))
+    AUTO_INDEX_QUEUE.put(keyframe_meta)
+
+
+STREAM_MANAGER = MultiCameraStreamManager(
+    registry=CAMERA_REGISTRY, 
+    on_keyframe_callback=_queue_auto_index_keyframe
+)
+
+
+def _auto_index_worker_loop() -> None:
+    """
+    Background worker thread: consumes keyframes from AUTO_INDEX_QUEUE,
+    captions them with local Qwen3-VL VLM, updates per-camera & master JSON,
+    and dynamically inserts vectors into the in-memory FAISS vector store.
+    """
+    captioner = None
+    while True:
+        try:
+            keyframe = AUTO_INDEX_QUEUE.get()
+            if keyframe is None:
+                break
+
+            cam_id = keyframe.get("camera")
+            ts_str = keyframe.get("timestamp")
+            img_path = keyframe.get("image_path")
+
+            if not img_path or not Path(img_path).exists():
+                AUTO_INDEX_QUEUE.task_done()
+                continue
+
+            if captioner is None:
+                try:
+                    captioner = VLMCaptioner(backend="local")
+                except Exception as exc:
+                    logger.error("[Auto-Indexer] Failed to initialize VLM captioner: %s", exc)
+                    time.sleep(2)
+                    AUTO_INDEX_QUEUE.task_done()
+                    continue
+
+            logger.info("[Auto-Indexer] Running VLM captioning on %s @ %s (%s)...", cam_id, ts_str, Path(img_path).name)
+            desc = captioner.caption_frame(img_path)
+
+            # 1. Update per-camera isolated events JSON
+            cam_dir = _PROJECT_ROOT / "data" / "cameras" / cam_id
+            cam_dir.mkdir(parents=True, exist_ok=True)
+            cam_json_file = cam_dir / "events.json"
+
+            existing_cam = []
+            if cam_json_file.exists():
+                try:
+                    with open(cam_json_file, "r", encoding="utf-8") as fh:
+                        existing_cam = json.load(fh)
+                except Exception:
+                    existing_cam = []
+
+            # Check if this exact frame is already in per-camera json
+            if not any(r.get("image_path") == img_path for r in existing_cam):
+                new_rec = {
+                    "camera": cam_id,
+                    "timestamp": ts_str,
+                    "description": desc,
+                    "image_path": img_path,
+                    "hash_hex": keyframe.get("hash_hex"),
+                    "motion_pct": keyframe.get("motion_pct"),
+                }
+                existing_cam.append(new_rec)
+                with open(cam_json_file, "w", encoding="utf-8") as fh:
+                    json.dump(existing_cam, fh, indent=2, ensure_ascii=False)
+
+                # 2. Update master real_cctv_events.json
+                out_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+                all_events = []
+                for c_dir in (_PROJECT_ROOT / "data" / "cameras").glob("*"):
+                    e_f = c_dir / "events.json"
+                    if e_f.exists():
+                        try:
+                            with open(e_f, "r", encoding="utf-8") as fh:
+                                all_events.extend(json.load(fh))
+                        except Exception:
+                            pass
+
+                seen_k = set()
+                deduped = []
+                for r in all_events:
+                    k = (r.get("camera"), r.get("timestamp"), r.get("description", "")[:30])
+                    if k not in seen_k:
+                        seen_k.add(k)
+                        deduped.append(r)
+
+                with open(out_file, "w", encoding="utf-8") as fh:
+                    json.dump(deduped, fh, indent=2, ensure_ascii=False)
+
+                # 3. Dynamic in-memory FAISS vector indexing
+                if PIPELINE.get("vector_store") and PIPELINE.get("embedder"):
+                    import numpy as np
+                    doc_text = f"Camera: {cam_id} | Time: {ts_str} | Event: {desc}"
+                    emb = PIPELINE["embedder"].embed_query(doc_text)
+                    emb_2d = np.ascontiguousarray(emb.reshape(1, -1), dtype=np.float32)
+                    meta = {
+                        "camera": cam_id,
+                        "timestamp": ts_str,
+                        "description": desc,
+                        "text": doc_text,
+                        "image_path": img_path,
+                        "chunk_id": f"{cam_id}_{ts_str.replace(':', '_')}",
+                    }
+                    PIPELINE["vector_store"].add(emb_2d, [meta])
+                    idx_path = _PROJECT_ROOT / "index" / "cctv_index"
+                    PIPELINE["vector_store"].save(str(idx_path))
+                    logger.info("[Auto-Indexer] Successfully auto-indexed keyframe for %s @ %s! Vector count now: %d", 
+                                cam_id, ts_str, PIPELINE["vector_store"].size)
+
+        except Exception as exc:
+            logger.error("[Auto-Indexer] Error during keyframe auto-indexing: %s", exc, exc_info=True)
+        finally:
+            AUTO_INDEX_QUEUE.task_done()
+
+
+# Start background auto-indexer worker thread
+_auto_index_thread = threading.Thread(target=_auto_index_worker_loop, daemon=True, name="AutoIndexWorker")
+_auto_index_thread.start()
 
 
 class SearchRequest(BaseModel):
@@ -704,5 +837,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     init_pipeline(args.config)
-    print(f"\n🚀 VideoRAG UI running at: http://{args.host}:{args.port}/\n")
+    logger.info("VideoRAG UI running at: http://%s:%d/", args.host, args.port)
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")

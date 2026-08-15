@@ -42,6 +42,7 @@ class RTSPStreamCapture:
         sample_interval: float = 5.0,
         hash_filter: Optional[EdgeFrameFilter] = None,
         max_reconnect_attempts: int = 10,
+        on_keyframe_callback: Optional[Any] = None,
     ):
         """
         :param camera_id: Unique camera identifier (e.g. 'CAM_01', 'CAM_3000')
@@ -63,6 +64,7 @@ class RTSPStreamCapture:
         self.sample_interval = sample_interval
         self.hash_filter = hash_filter or EdgeFrameFilter(method="dhash", threshold=10)
         self.max_reconnect_attempts = max_reconnect_attempts
+        self.on_keyframe_callback = on_keyframe_callback
 
         # Threading state
         self._running = False
@@ -282,6 +284,12 @@ class RTSPStreamCapture:
                 with self._lock:
                     self.extracted_keyframes.append(keyframe_meta)
 
+                if self.on_keyframe_callback:
+                    try:
+                        self.on_keyframe_callback(keyframe_meta)
+                    except Exception as exc:
+                        logger.error("[%s] Error in on_keyframe_callback: %s", self.camera_id, exc)
+
     def get_status(self) -> Dict[str, Any]:
         """Return real-time stream capture health status and metrics."""
         filter_summary = self.hash_filter.get_summary()
@@ -314,8 +322,9 @@ class MultiCameraStreamManager:
     Manages concurrent multi-camera RTSP/RTMP stream captures and syncs with persistent CameraRegistry.
     """
 
-    def __init__(self, registry: Optional[CameraRegistry] = None):
+    def __init__(self, registry: Optional[CameraRegistry] = None, on_keyframe_callback: Optional[Any] = None):
         self.registry = registry or CameraRegistry()
+        self.on_keyframe_callback = on_keyframe_callback
         self.streams: Dict[str, RTSPStreamCapture] = {}
         self._lock = threading.Lock()
 
@@ -335,6 +344,7 @@ class MultiCameraStreamManager:
                 stream_url=stream_url,
                 sample_interval=interval,
                 hash_filter=EdgeFrameFilter(method=method, threshold=thresh),
+                on_keyframe_callback=self.on_keyframe_callback,
             )
             self.streams[cam_id] = stream
 
@@ -378,6 +388,7 @@ class MultiCameraStreamManager:
                 stream_url=stream_url,
                 sample_interval=sample_interval,
                 hash_filter=EdgeFrameFilter(method=hash_method, threshold=threshold),
+                on_keyframe_callback=self.on_keyframe_callback,
             )
             self.streams[camera_id] = stream
             if start_immediately:

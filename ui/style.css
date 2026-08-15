@@ -23,6 +23,8 @@
     --blue-hover: #0369a1;
     --blue-bg-subtle: #f0f9ff;
     --blue-border: #bae6fd;
+    --primary-accent: #0284c7;
+    --primary-hover: #0369a1;
     
     --green-accent: #16a34a;
     --green-bg: #f0fdf4;
@@ -646,33 +648,44 @@ body {
 .json-header-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     flex-wrap: wrap;
 }
 .view-toggle-group {
-    display: flex;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-light);
+    display: inline-flex;
+    align-items: center;
+    background: #f1f5f9;
+    border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
-    padding: 2px;
+    padding: 3px;
+    gap: 3px;
 }
 .toggle-view-btn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 4px 10px;
-    font-size: 0.75rem;
+    gap: 6px;
+    padding: 5px 12px;
+    font-size: 0.78rem;
     font-weight: 600;
     border: none;
     background: transparent;
-    color: var(--text-muted);
-    border-radius: 3px;
+    color: var(--text-body);
+    border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s ease;
 }
+.toggle-view-btn:hover {
+    color: var(--text-heading);
+    background: rgba(0, 0, 0, 0.04);
+}
 .toggle-view-btn.active {
-    background: var(--primary-accent);
-    color: #ffffff;
+    background: var(--blue-primary);
+    color: #ffffff !important;
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3);
+}
+.toggle-view-btn.active svg {
+    stroke: #ffffff;
 }
 .json-filter-toolbar {
     display: flex;
@@ -689,36 +702,42 @@ body {
 .json-cam-pills {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
 }
 .json-cam-pill {
-    padding: 3px 9px;
-    border-radius: 12px;
-    font-size: 0.72rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: 14px;
+    font-size: 0.75rem;
     font-weight: 600;
-    border: 1px solid var(--border-light);
+    border: 1px solid var(--border-strong);
     background: var(--bg-surface);
     color: var(--text-body);
     cursor: pointer;
     transition: all 0.15s ease;
 }
 .json-cam-pill:hover {
-    border-color: var(--primary-accent);
-    color: var(--primary-accent);
+    border-color: var(--blue-primary);
+    color: var(--blue-primary);
+    background: var(--blue-bg-subtle);
 }
 .json-cam-pill.active {
-    background: var(--primary-accent);
-    color: #ffffff;
-    border-color: var(--primary-accent);
+    background: var(--blue-primary) !important;
+    color: #ffffff !important;
+    border-color: var(--blue-hover) !important;
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
 }
 .json-search-wrap {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     background: var(--bg-surface);
-    border: 1px solid var(--border-light);
-    padding: 2px 8px;
+    border: 1px solid var(--border-strong);
+    padding: 4px 10px;
     border-radius: var(--radius-sm);
     flex: 1;
     min-width: 220px;
@@ -731,14 +750,15 @@ body {
 .json-search-wrap input {
     border: none;
     background: transparent;
-    padding: 4px 2px;
-    font-size: 0.76rem;
+    padding: 2px 0;
+    font-size: 0.78rem;
     width: 100%;
     outline: none;
     color: var(--text-heading);
 }
 .json-match-count {
-    font-size: 0.68rem;
+    font-size: 0.7rem;
+    font-weight: 600;
     color: var(--text-muted);
     font-family: var(--font-mono);
     white-space: nowrap;
@@ -753,6 +773,17 @@ body {
     overflow-y: auto;
     padding-right: 4px;
 }
+
+@keyframes smoothCardEntrance {
+    0% {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 .json-event-card {
     display: flex;
     align-items: flex-start;
@@ -761,7 +792,8 @@ body {
     border: 1px solid var(--border-light);
     border-radius: var(--radius-sm);
     padding: 10px;
-    transition: all 0.15s ease;
+    transition: all 0.2s ease;
+    animation: smoothCardEntrance 0.35s ease-out forwards;
 }
 .json-event-card:hover {
     border-color: #93c5fd;
@@ -990,19 +1022,40 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 4px;
+    margin-top: 6px;
     flex-wrap: wrap;
 }
-.btn-stream-action {
-    display: flex;
+.index-stream-btn {
+    display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 4px 8px;
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: 4px;
+    background: var(--blue-primary);
+    color: #ffffff;
+    border: 1px solid var(--blue-hover);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.index-stream-btn:hover {
+    background: var(--blue-hover);
+}
+.index-stream-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.btn-stream-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
     border-radius: 4px;
     font-size: 0.72rem;
     font-weight: 600;
     cursor: pointer;
-    border: 1px solid var(--border-light);
+    border: 1px solid var(--border-strong);
     background: var(--bg-surface);
     color: var(--text-heading);
     transition: all 0.2s ease;
@@ -1132,10 +1185,9 @@ body {
     color: var(--blue-primary);
 }
 .btn-primary {
-    position: absolute;
-    right: 6px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     padding: 8px 16px;
     background: var(--blue-primary);
@@ -1150,6 +1202,30 @@ body {
 .btn-primary:hover {
     background: var(--blue-hover);
     box-shadow: 0 2px 4px rgba(2, 132, 199, 0.3);
+}
+.search-box .btn-primary {
+    position: absolute;
+    right: 6px;
+}
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--text-heading);
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-secondary:hover {
+    background: var(--bg-subtle);
+    border-color: var(--blue-primary);
+    color: var(--blue-primary);
 }
 .btn-sm {
     padding: 5px 12px;
