@@ -853,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cameraFeedSwitcher = document.getElementById('camera-feed-switcher');
     const singleVideoWrapper = document.getElementById('single-video-wrapper');
     const allFeedsContainer = document.getElementById('all-feeds-container');
-    const ytPlayer = document.getElementById('yt-player');
+    function getYtPlayerEl() { return document.getElementById('yt-player'); }
     const cctvSnapshotView = document.getElementById('cctv-snapshot-view');
     const snapshotScreenImg = document.getElementById('snapshot-screen-img');
     const monitorModeBar = document.getElementById('monitor-mode-bar');
@@ -899,7 +899,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadOrSeekYouTubeStream(vidId, deltaSeconds = null) {
         if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
         if (cctvSnapshotView) { cctvSnapshotView.style.display = 'none'; }
-        if (ytPlayer) { ytPlayer.style.display = 'block'; }
+        const ytEl = getYtPlayerEl();
+        if (ytEl) { ytEl.style.display = 'block'; }
 
         // If API player already exists and is ready
         if (ytPlayerInstance && isYtPlayerReady && typeof ytPlayerInstance.loadVideoById === 'function') {
@@ -935,6 +936,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         events: {
                             onReady: (event) => {
                                 isYtPlayerReady = true;
+                                const activeYtEl = getYtPlayerEl();
+                                if (activeYtEl) activeYtEl.style.display = 'block';
                                 if (pendingDvrSeekOffset !== null && pendingDvrSeekOffset > 0) {
                                     executeOneShotSeek(event.target, pendingDvrSeekOffset);
                                     pendingDvrSeekOffset = null;
@@ -958,8 +961,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Fallback iframe src load if YT API script hasn't loaded yet
             const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
-            if (ytPlayer && (!ytPlayer.src || !ytPlayer.src.includes(vidId))) {
-                ytPlayer.src = embedUrl;
+            const fallbackYtEl = getYtPlayerEl();
+            if (fallbackYtEl && (!fallbackYtEl.src || !fallbackYtEl.src.includes(vidId))) {
+                fallbackYtEl.src = embedUrl;
             }
         }
     }
@@ -979,7 +983,8 @@ document.addEventListener('DOMContentLoaded', () => {
         btnShowEvidence.addEventListener('click', () => {
             btnShowEvidence.classList.add('active');
             btnShowLive.classList.remove('active');
-            if (ytPlayer) { ytPlayer.style.display = 'none'; }
+            const ytEl = getYtPlayerEl();
+            if (ytEl) { ytEl.style.display = 'none'; }
             if (cctvPlayer) { cctvPlayer.style.display = 'none'; cctvPlayer.pause(); }
             if (cctvSnapshotView) {
                 cctvSnapshotView.style.display = 'block';
@@ -1127,7 +1132,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // If outside duration bounds and snapshot image is available, display snapshot evidence
             if (isOutOfBounds && targetImage) {
                 if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
-                if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
+                const ytEl = getYtPlayerEl();
+                if (ytEl) { ytEl.style.display = 'none'; ytEl.src = ''; }
                 if (monitorModeBar) monitorModeBar.style.display = 'none';
 
                 if (cctvSnapshotView && snapshotScreenImg) {
@@ -1148,7 +1154,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Normal in-bounds video playback
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
-            if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
+            const ytEl = getYtPlayerEl();
+            if (ytEl) { ytEl.style.display = 'none'; ytEl.src = ''; }
             if (monitorModeBar) monitorModeBar.style.display = 'none';
 
             if (cctvPlayer) {
@@ -1193,7 +1200,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isOutOfBounds && targetImage) {
                 if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
-                if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
+                const ytEl = getYtPlayerEl();
+                if (ytEl) { ytEl.style.display = 'none'; ytEl.src = ''; }
                 if (monitorModeBar) monitorModeBar.style.display = 'none';
 
                 if (cctvSnapshotView && snapshotScreenImg) {
@@ -1210,11 +1218,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
             if (monitorModeBar) monitorModeBar.style.display = 'none';
 
-            if (ytPlayer && vidId) {
-                ytPlayer.style.display = 'block';
+            const ytEl = getYtPlayerEl();
+            if (ytEl && vidId) {
+                ytEl.style.display = 'block';
                 const startSec = Math.floor(targetSeconds || 0);
                 const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&start=${startSec}&origin=${encodeURIComponent(window.location.origin)}`;
-                ytPlayer.src = embedUrl;
+                ytEl.src = embedUrl;
             }
 
             if (hudCamId) hudCamId.textContent = camId;
@@ -1275,7 +1284,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     // Out-of-bounds (>12h old) -> Fallback to snapshot image
                     if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
-                    if (ytPlayer) { ytPlayer.style.display = 'none'; }
+                    const ytEl = getYtPlayerEl();
+                    if (ytEl) { ytEl.style.display = 'none'; }
 
                     if (cctvSnapshotView && snapshotScreenImg) {
                         cctvSnapshotView.style.display = 'block';
@@ -1328,9 +1338,10 @@ document.addEventListener('DOMContentLoaded', () => {
             cctvPlayer.pause();
             cctvPlayer.style.display = 'none';
         }
-        if (ytPlayer) {
-            ytPlayer.style.display = 'none';
-            ytPlayer.src = '';
+        const ytEl = getYtPlayerEl();
+        if (ytEl) {
+            ytEl.style.display = 'none';
+            ytEl.src = '';
         }
         if (monitorModeBar) monitorModeBar.style.display = 'none';
 
