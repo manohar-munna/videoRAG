@@ -768,11 +768,24 @@ def get_camera_feeds():
 
         is_connected = False
         fps_val = 30.0
+        progress_pct = None
+        total_duration_sec = None
+        current_pos_sec = None
+        keyframes_count = 0
+        frames_read = 0
+
         stream = STREAM_MANAGER.streams.get(cam_id)
         if stream:
             st = stream.get_status()
             is_connected = st.get("is_connected", False)
             fps_val = st.get("fps", 30.0)
+            progress_pct = st.get("progress_pct")
+            total_duration_sec = st.get("total_duration_sec")
+            current_pos_sec = st.get("current_position_sec")
+            keyframes_count = st.get("keyframes_kept", 0)
+            frames_read = st.get("total_frames_read", 0)
+            cam_type = st.get("camera_type", cam_type)
+
             if st.get("is_running"):
                 status = "LIVE (TCP)" if is_connected else "RECONNECTING"
             elif st.get("is_paused"):
@@ -781,24 +794,33 @@ def get_camera_feeds():
                 status = "STOPPED"
         elif cam_type == "video_file":
             status = "RECORDED MP4"
+            total_duration_sec = 811.0 # 13m 31s
+        elif cam_type == "youtube_video":
+            status = "RECORDED YT"
 
         embed_url = ""
         if "youtube.com" in stream_url.lower() or "youtu.be" in stream_url.lower():
             # Extract video ID for clean embed
             import re
-            yt_match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", stream_url)
+            yt_match = re.search(r"(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{11})", stream_url)
             vid_id = yt_match.group(1) if yt_match else "1EiC9bvVGnk"
-            embed_url = f"https://www.youtube-nocookie.com/embed/{vid_id}?autoplay=1&mute=1"
+            embed_url = f"https://www.youtube-nocookie.com/embed/{vid_id}?autoplay=1&mute=1&enablejsapi=1"
 
         feed_item = {
             "camera_id": cam_id,
             "name": cfg.get("name", f"Camera {cam_id}"),
             "type": cam_type,
+            "is_live": (cam_type in ["youtube_stream", "rtsp_stream"]),
             "src": stream_url if cam_type != "video_file" else "/video/sample_cctv.mp4",
             "embed_url": embed_url,
             "status": status,
             "fps": fps_val,
-            "duration": "13m 31s" if cam_type == "video_file" else "LIVE STREAM",
+            "duration": f"{int(total_duration_sec // 60)}m {int(total_duration_sec % 60)}s" if total_duration_sec else "24/7 LIVE",
+            "total_duration_sec": total_duration_sec,
+            "current_position_sec": current_pos_sec,
+            "progress_pct": progress_pct,
+            "keyframes_count": keyframes_count,
+            "frames_read": frames_read,
             "preview_image": preview_img,
         }
         feeds.append(feed_item)

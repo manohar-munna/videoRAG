@@ -351,8 +351,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const isRunning = s.is_running;
             const isPaused = s.is_paused;
             const isConnected = s.is_connected;
+            const isLive = s.is_live ?? (s.camera_type !== 'video_file');
+            const camType = s.camera_type || (isLive ? 'youtube_stream' : 'video_file');
+            
             let statusBadge = isRunning ? (isConnected ? 'LIVE (TCP)' : 'RECONNECTING') : (isPaused ? 'PAUSED' : 'STOPPED');
             let statusColor = isRunning && isConnected ? 'text-green' : (isPaused ? 'text-blue' : 'text-dim');
+
+            let typeBadgeClass = 'badge-live';
+            let typeBadgeLabel = '🔴 24/7 LIVE';
+            if (camType === 'video_file') {
+                typeBadgeClass = 'badge-recorded';
+                typeBadgeLabel = '📹 RECORDED MP4';
+            } else if (camType === 'youtube_video') {
+                typeBadgeClass = 'badge-yt';
+                typeBadgeLabel = '▶️ YT VIDEO';
+            }
+
+            const progressPct = s.progress_pct != null ? s.progress_pct : (camType === 'video_file' ? 100 : null);
 
             return `
                 <div class="stream-card ${isRunning ? 'active' : ''}">
@@ -361,13 +376,39 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="status-indicator ${isConnected ? 'online' : (isPaused ? 'warning' : 'offline')}"></span>
                             ${escapeHtml(s.camera_id)} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${escapeHtml(s.name || s.camera_id)})</span>
                         </div>
-                        <span class="feed-badge ${isRunning ? 'live' : ''}">${statusBadge}</span>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span class="cctv-yt-badge ${typeBadgeClass}">${typeBadgeLabel}</span>
+                            <span class="feed-badge ${isRunning ? 'live' : ''}">${statusBadge}</span>
+                        </div>
                     </div>
                     <div class="stream-url-tag">URL: ${escapeHtml(s.stream_url)}</div>
+
+                    <!-- YouTube-Style Play & Extraction Progress Bar -->
+                    <div class="cctv-yt-progress-container ${isLive ? 'live-stream-track' : ''}">
+                        <div class="cctv-yt-progress-header">
+                            <span style="font-size:0.72rem; font-weight:600; color:var(--text-muted);">
+                                ${camType === 'video_file' ? 'Indexing & Playback Timeline' : 'Live Ingestion & Frame Extraction'}
+                            </span>
+                            ${isLive ? `
+                                <span class="cctv-yt-live-pulse">● Live Edge Capture</span>
+                            ` : `
+                                <span class="cctv-yt-progress-val">${progressPct != null ? progressPct + '%' : '100%'} Processed</span>
+                            `}
+                        </div>
+                        <div class="cctv-yt-progress-track ${isLive ? 'live-track' : ''}">
+                            <div class="cctv-yt-progress-fill ${isLive ? 'live-fill' : ''}" style="width: ${progressPct != null ? progressPct : 100}%;"></div>
+                            ${!isLive ? `<div class="cctv-yt-progress-scrubber" style="left: ${progressPct != null ? progressPct : 100}%;"></div>` : ''}
+                        </div>
+                        <div class="cctv-yt-progress-sub">
+                            <span>${(s.total_frames_read || 0).toLocaleString()} frames read</span>
+                            <span>${s.keyframes_kept || 0} keyframes extracted & indexed</span>
+                        </div>
+                    </div>
+
                     <div class="stream-metrics-grid">
                         <div class="sm-item"><span class="sm-label">Status</span><span class="sm-val ${statusColor}">${statusBadge}</span></div>
                         <div class="sm-item"><span class="sm-label">FPS</span><span class="sm-val">${s.fps}</span></div>
-                        <div class="sm-item"><span class="sm-label">Frames Read</span><span class="sm-val">${s.total_frames_read}</span></div>
+                        <div class="sm-item"><span class="sm-label">Duration</span><span class="sm-val">${s.total_duration_sec ? Math.round(s.total_duration_sec) + 's' : '24/7 LIVE'}</span></div>
                         <div class="sm-item"><span class="sm-label">Ring Dropped</span><span class="sm-val text-dim">${s.total_frames_dropped}</span></div>
                         <div class="sm-item"><span class="sm-label">Keyframes Kept</span><span class="sm-val text-blue">${s.keyframes_kept}</span></div>
                         <div class="sm-item"><span class="sm-label">Compute Saved</span><span class="sm-val text-green">${s.llm_compute_saved_pct}%</span></div>
@@ -935,43 +976,46 @@ document.addEventListener('DOMContentLoaded', () => {
         btnShowEvidence.addEventListener('click', () => {
             btnShowEvidence.classList.add('active');
             btnShowLive.classList.remove('active');
-            if (activeEvidenceState && activeEvidenceState.targetImage) {
-                if (ytPlayer) { ytPlayer.style.display = 'none'; }
-                if (cctvPlayer) { cctvPlayer.style.display = 'none'; cctvPlayer.pause(); }
-                if (cctvSnapshotView) {
-                    cctvSnapshotView.style.display = 'block';
-                    if (snapshotScreenImg) snapshotScreenImg.src = activeEvidenceState.targetImage;
+            if (ytPlayer) { ytPlayer.style.display = 'none'; }
+            if (cctvPlayer) { cctvPlayer.style.display = 'none'; cctvPlayer.pause(); }
+            if (cctvSnapshotView) {
+                cctvSnapshotView.style.display = 'block';
+                if (snapshotScreenImg && activeEvidenceState?.targetImage) {
+                    snapshotScreenImg.src = activeEvidenceState.targetImage;
                 }
             }
+            if (hudStatus) hudStatus.textContent = '📸 MOMENT EVIDENCE';
         });
 
         btnShowLive.addEventListener('click', () => {
             btnShowLive.classList.add('active');
             btnShowEvidence.classList.remove('active');
             if (cctvSnapshotView) { cctvSnapshotView.style.display = 'none'; }
-            const feed = availableFeeds.find(f => f.camera_id === activeFeedCamId);
-            if (feed && feed.type === 'youtube_stream') {
+            if (cctvPlayer) { cctvPlayer.style.display = 'none'; cctvPlayer.pause(); }
+
+            const feed = availableFeeds.find(f => f.camera_id === activeFeedCamId) || {};
+            const isLiveStream = (feed.type === 'youtube_stream' || feed.type === 'rtsp_stream' || feed.stream_url?.includes('youtube.com') || feed.stream_url?.includes('youtu.be'));
+
+            if (isLiveStream) {
                 const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
                 let vidId = '1EiC9bvVGnk';
-                const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
+                const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{11})/);
                 if (match) vidId = match[1];
 
-                if (activeEvidenceState && activeEvidenceState.deltaSeconds > 0) {
-                    seekYouTubeLiveDVR(vidId, activeEvidenceState.deltaSeconds, activeEvidenceState.targetTimestamp || '00:00:00', activeFeedCamId);
-                } else {
-                    if (ytPlayer) {
-                        ytPlayer.style.display = 'block';
-                        const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
-                        if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
-                            ytPlayer.src = embedUrl;
-                        }
+                if (ytPlayer) {
+                    ytPlayer.style.display = 'block';
+                    const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
+                    if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
+                        ytPlayer.src = embedUrl;
                     }
                 }
-            } else if (feed && feed.type === 'video_file') {
+                if (hudStatus) hudStatus.textContent = '🔴 LIVE STREAM';
+            } else if (feed.type === 'video_file') {
                 if (cctvPlayer) {
                     cctvPlayer.style.display = 'block';
                     cctvPlayer.play().catch(() => {});
                 }
+                if (hudStatus) hudStatus.textContent = 'PLAYING ● 1080P';
             }
         });
     }
@@ -1014,6 +1058,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (f.type === 'video_file') {
                 badgeClass += ' mp4';
                 badgeText = '📹 MP4';
+            } else if (f.type === 'youtube_video') {
+                badgeClass += ' mp4';
+                badgeText = '▶️ YT';
             } else if (f.status === 'PAUSED') {
                 badgeText = '⏸️ PAUSED';
             }
@@ -1073,12 +1120,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentFeedName) currentFeedName.textContent = `${feed.camera_id} (${feed.name || feed.camera_id})`;
         const displayTs = targetTimestamp || (targetSeconds !== null ? formatSecondsToTs(targetSeconds) : '00:00:00');
 
-        // Case 1: Video File (e.g. CAM_01 / MP4 Footage) -> Seek directly within video timeline
+        // -------------------------------------------------------------
+        // Case 1: Video File (e.g. CAM_01 / Local MP4)
+        // -------------------------------------------------------------
         if (feed.type === 'video_file' || (feed.stream_url && feed.stream_url.endsWith('.mp4'))) {
-            if (ytPlayer) {
-                ytPlayer.style.display = 'none';
-                ytPlayer.src = '';
+            const maxDuration = feed.total_duration_sec || (cctvPlayer?.duration) || 811.0;
+            const isOutOfBounds = (targetSeconds !== null && !isNaN(targetSeconds) && targetSeconds > maxDuration);
+
+            // If outside duration bounds and snapshot image is available, display snapshot evidence
+            if (isOutOfBounds && targetImage) {
+                if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
+                if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
+                if (monitorModeBar) monitorModeBar.style.display = 'none';
+
+                if (cctvSnapshotView && snapshotScreenImg) {
+                    cctvSnapshotView.style.display = 'block';
+                    snapshotScreenImg.src = targetImage;
+                }
+                if (hudCamId) hudCamId.textContent = camId;
+                if (hudTimestamp) hudTimestamp.textContent = displayTs;
+                if (hudStatus) hudStatus.textContent = '📸 SNAPSHOT (OUT OF BOUNDS)';
+                if (videoTimer) videoTimer.textContent = displayTs;
+                if (seekNotice) {
+                    seekNotice.textContent = `📸 Displaying archived snapshot for ${feed.camera_id} @ ${displayTs}`;
+                    seekNotice.style.opacity = '1';
+                    setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
+                }
+                return;
             }
+
+            // Normal in-bounds video playback
+            if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
             if (monitorModeBar) monitorModeBar.style.display = 'none';
 
@@ -1088,13 +1160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     cctvPlayer.src = '/video/sample_cctv.mp4';
                 }
                 if (targetSeconds !== null && !isNaN(targetSeconds)) {
-                    let seekSec = targetSeconds;
-                    if (cctvPlayer.duration && !isNaN(cctvPlayer.duration) && cctvPlayer.duration > 0) {
-                        if (seekSec > cctvPlayer.duration) {
-                            seekSec = seekSec % cctvPlayer.duration;
-                        }
-                    }
-                    cctvPlayer.currentTime = seekSec;
+                    cctvPlayer.currentTime = Math.min(targetSeconds, maxDuration);
                 }
                 cctvPlayer.play().catch(err => console.log('Playback started:', err));
             }
@@ -1116,68 +1182,99 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Case 2: Live Stream with Specific Keyframe / Evidence (e.g. CAM_3000 Seek Clicked)
-        if (feed.type === 'youtube_stream' || (feed.stream_url && (feed.stream_url.includes('youtube.com') || feed.stream_url.includes('youtu.be')))) {
-            const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
-            let vidId = '1EiC9bvVGnk';
+        // -------------------------------------------------------------
+        // Case 2: Static / Recorded YouTube Video (Non-live with fixed duration)
+        // -------------------------------------------------------------
+        if (feed.type === 'youtube_video') {
+            const vidUrl = feed.stream_url || feed.embed_url || '';
+            let vidId = '';
             const match = vidUrl.match(/(?:v=|\/|embed\/)([0-9A-Za-z_-]{11})/);
             if (match) vidId = match[1];
 
-            // Calculate DVR Delta Seconds: Current Wall Clock - Event Time
-            let deltaSeconds = 0;
-            if (targetEpochTime && targetEpochTime > 0) {
-                deltaSeconds = Math.max(0, (Date.now() / 1000) - targetEpochTime);
-            } else if (targetTimestamp) {
-                const now = new Date();
-                const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-                const parts = targetTimestamp.split(':').map(Number);
-                const eventSec = parts.length === 3 ? parts[0]*3600 + parts[1]*60 + parts[2] : (parts.length === 2 ? parts[0]*60 + parts[1] : 0);
-                let diff = nowSec - eventSec;
-                if (diff < 0) diff += 86400; // handle rollover
-                deltaSeconds = diff;
+            const maxDuration = feed.total_duration_sec || 3600;
+            const isOutOfBounds = (targetSeconds !== null && !isNaN(targetSeconds) && targetSeconds > maxDuration);
+
+            if (isOutOfBounds && targetImage) {
+                if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
+                if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
+                if (monitorModeBar) monitorModeBar.style.display = 'none';
+
+                if (cctvSnapshotView && snapshotScreenImg) {
+                    cctvSnapshotView.style.display = 'block';
+                    snapshotScreenImg.src = targetImage;
+                }
+                if (hudCamId) hudCamId.textContent = camId;
+                if (hudTimestamp) hudTimestamp.textContent = displayTs;
+                if (hudStatus) hudStatus.textContent = '📸 SNAPSHOT (OUT OF BOUNDS)';
+                return;
             }
 
-            activeEvidenceState = { camId, targetSeconds, targetImage, targetTimestamp, deltaSeconds };
+            if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
+            if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
+            if (monitorModeBar) monitorModeBar.style.display = 'none';
 
-            // When seeking a specific moment evidence
+            if (ytPlayer && vidId) {
+                ytPlayer.style.display = 'block';
+                const startSec = Math.floor(targetSeconds || 0);
+                const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&start=${startSec}&origin=${encodeURIComponent(window.location.origin)}`;
+                ytPlayer.src = embedUrl;
+            }
+
+            if (hudCamId) hudCamId.textContent = camId;
+            if (hudTimestamp) hudTimestamp.textContent = displayTs;
+            if (hudStatus) hudStatus.textContent = '▶️ YT VIDEO';
+            return;
+        }
+
+        // -------------------------------------------------------------
+        // Case 3: 24/7 Live Stream (YouTube Live / RTSP Camera)
+        // -------------------------------------------------------------
+        if (feed.type === 'youtube_stream' || feed.type === 'rtsp_stream' || (feed.stream_url && (feed.stream_url.includes('youtube.com') || feed.stream_url.includes('youtu.be')))) {
+            const vidUrl = feed.stream_url || feed.embed_url || '1EiC9bvVGnk';
+            let vidId = '1EiC9bvVGnk';
+            const match = vidUrl.match(/(?:v=|\/|embed\/|live\/)([0-9A-Za-z_-]{11})/);
+            if (match) vidId = match[1];
+
+            activeEvidenceState = { camId, targetSeconds, targetImage, targetTimestamp, vidId };
+
+            // When seeking a specific moment evidence: Display high-definition snapshot evidence with Live toggle
             if (targetImage || targetTimestamp) {
-                // If DVR rewind offset is within buffer (under 12 hours)
-                if (deltaSeconds > 0) {
-                    seekYouTubeLiveDVR(vidId, deltaSeconds, displayTs, camId);
-                } else {
-                    if (ytPlayer) {
-                        ytPlayer.style.display = 'block';
-                        const embedUrl = `https://www.youtube-nocookie.com/embed/${vidId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`;
-                        if (!ytPlayer.src || !ytPlayer.src.includes(vidId)) {
-                            ytPlayer.src = embedUrl;
-                        }
-                    }
+                if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
+                if (ytPlayer) { ytPlayer.style.display = 'none'; }
+
+                if (cctvSnapshotView && snapshotScreenImg) {
+                    cctvSnapshotView.style.display = 'block';
+                    const imgPath = targetImage || `/data/cameras/${camId}/extracted_frames/${camId}_snapshot.jpg`;
+                    snapshotScreenImg.src = imgPath;
                 }
 
                 if (hudCamId) hudCamId.textContent = camId;
                 if (hudTimestamp) hudTimestamp.textContent = displayTs;
-                if (hudStatus) hudStatus.textContent = '🔴 LIVE (DVR)';
+                if (hudStatus) hudStatus.textContent = '📸 MOMENT EVIDENCE';
                 if (videoTimer) videoTimer.textContent = displayTs;
 
                 if (monitorModeBar) {
                     monitorModeBar.style.display = 'flex';
-                    if (btnShowLive) btnShowLive.classList.add('active');
-                    if (btnShowEvidence) btnShowEvidence.classList.remove('active');
-                    if (evidenceBtnText) evidenceBtnText.textContent = `📸 Evidence Snapshot (${displayTs})`;
-                    if (liveBtnText) liveBtnText.textContent = `🔴 Live Video Stream`;
+                    if (btnShowEvidence) btnShowEvidence.classList.add('active');
+                    if (btnShowLive) btnShowLive.classList.remove('active');
+                    if (evidenceBtnText) evidenceBtnText.textContent = `📸 Moment Evidence (${displayTs})`;
+                    if (liveBtnText) liveBtnText.textContent = `🔴 Switch to Live Video`;
                 }
 
-                if (subSource) subSource.innerHTML = `Source: <code>YouTube Live DVR</code>`;
-                if (subFps) subFps.innerHTML = `FPS: <code>30.0</code>`;
-                if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">🔴 LIVE STREAM</strong>`;
+                if (subSource) subSource.innerHTML = `Source: <code>${targetImage ? targetImage.split('/').pop() : 'Evidence Snapshot'}</code>`;
+                if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 30.0}</code>`;
+                if (subDuration) subDuration.innerHTML = `Moment: <code>${displayTs}</code>`;
+
+                if (seekNotice) {
+                    seekNotice.textContent = `📸 Displaying Moment Evidence — ${camId} @ ${displayTs}`;
+                    seekNotice.style.opacity = '1';
+                    setTimeout(() => { seekNotice.style.opacity = '0'; }, 3500);
+                }
                 return;
             }
 
-            // General Live View
-            if (cctvPlayer) {
-                cctvPlayer.pause();
-                cctvPlayer.style.display = 'none';
-            }
+            // Normal Live Stream View (Camera selected without specific moment)
+            if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
             if (cctvSnapshotView) cctvSnapshotView.style.display = 'none';
             if (monitorModeBar) monitorModeBar.style.display = 'none';
 
@@ -1195,7 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (videoTimer) videoTimer.textContent = displayTs;
 
             if (subSource) subSource.innerHTML = `Source: <code>YouTube Live Stream</code>`;
-            if (subFps) subFps.innerHTML = `FPS: <code>30.0</code>`;
+            if (subFps) subFps.innerHTML = `FPS: <code>${feed.fps || 30.0}</code>`;
             if (subDuration) subDuration.innerHTML = `Status: <strong class="text-green">🔴 LIVE STREAM</strong>`;
 
             if (seekNotice) {

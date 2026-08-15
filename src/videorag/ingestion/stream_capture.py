@@ -82,6 +82,28 @@ class RTSPStreamCapture:
         self.total_frames_read = 0
         self.total_frames_dropped = 0
         self.reconnect_count = 0
+        self.start_time = time.time()
+        self.current_position_sec = 0.0
+        self.total_duration_sec: Optional[float] = None
+        self.total_frames_count: Optional[int] = None
+        self.progress_pct: Optional[float] = None
+        
+        # Camera source type detection
+        url_lower = self.stream_url.lower()
+        is_local = Path(self.stream_url).is_file() or any(url_lower.endswith(ext) for ext in [".mp4", ".avi", ".mkv", ".mov", ".webm"])
+        if is_local:
+            self.camera_type = "video_file"
+            self.is_live = False
+        elif "youtube.com" in url_lower or "youtu.be" in url_lower:
+            if "/live" in url_lower or "live=1" in url_lower or "1eic9bv" in url_lower or "eo_1lwqs" in url_lower:
+                self.camera_type = "youtube_stream"
+                self.is_live = True
+            else:
+                self.camera_type = "youtube_video"
+                self.is_live = False
+        else:
+            self.camera_type = "rtsp_stream"
+            self.is_live = True
         
         self.extracted_keyframes: List[Dict[str, Any]] = []
         self.audit_trail: List[Dict[str, Any]] = []
@@ -97,6 +119,7 @@ class RTSPStreamCapture:
 
             self._running = True
             self._paused = False
+            self.start_time = time.time()
             self._producer_thread = threading.Thread(
                 target=self._producer_loop, name=f"RTSP-Producer-{self.camera_id}", daemon=True
             )
@@ -106,7 +129,7 @@ class RTSPStreamCapture:
 
             self._producer_thread.start()
             self._consumer_thread.start()
-            logger.info("[%s] Started multi-threaded RTSP capture pipeline.", self.camera_id)
+            logger.info("[%s] Started multi-threaded capture pipeline (%s).", self.camera_id, self.camera_type)
 
     def pause(self) -> None:
         """Pause extraction without destroying the stream object or removing the camera."""
@@ -146,7 +169,7 @@ class RTSPStreamCapture:
 
     def _connect_capture(self) -> Optional[cv2.VideoCapture]:
         """Attempt to open VideoCapture with RTSP/RTMP/YouTube parameters."""
-        logger.info("[%s] Opening video source: %s", self.camera_id, self.stream_url)
+        logger.info("[%s] Opening video source (%s): %s", self.camera_id, self.camera_type, self.stream_url)
         
         url_to_open = self.stream_url
         if "youtube.com" in url_to_open.lower() or "youtu.be" in url_to_open.lower():
@@ -155,7 +178,7 @@ class RTSPStreamCapture:
                 res = subprocess.run(["yt-dlp", "-g", url_to_open], capture_output=True, text=True, timeout=15)
                 if res.returncode == 0 and res.stdout.strip():
                     url_to_open = res.stdout.strip().split("\n")[0]
-                    logger.info("[%s] Resolved YouTube live stream link via yt-dlp.", self.camera_id)
+                    logger.info("[%s] Resolved YouTube stream link via yt-dlp.", self.camera_id)
             except Exception as e:
                 logger.warning("[%s] Could not resolve YouTube link (%s). Using original URL.", self.camera_id, e)
 
@@ -166,8 +189,19 @@ class RTSPStreamCapture:
         cap = cv2.VideoCapture(url_to_open, cv2.CAP_FFMPEG)
         if cap.isOpened():
             self.fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+            
+            # Query duration for static video files if available
+            frame_cnt = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            if frame_cnt > 0:
+                self.total_frames_count = frame_cnt
+                self.total_duration_sec = round(frame_cnt / self.fps, 2)
+            else:
+                self.total_frames_count = None
+                self.total_duration_sec = None
+
             self.is_connected = True
-            logger.info("[%s] Connected successfully. FPS: %.2f", self.camera_id, self.fps)
+            logger.info("[%s] Connected successfully. FPS: %.2f | Duration: %s", 
+                        self.camera_id, self.fps, f"{self.total_duration_sec}s" if self.total_duration_sec else "LIVE")
             return cap
         else:
             self.is_connected = False
@@ -221,8 +255,13 @@ class RTSPStreamCapture:
             if is_video_file:
                 pos_msec = cap.get(cv2.CAP_PROP_POS_MSEC)
                 frame_sec = (pos_msec / 1000.0) if pos_msec > 0 else (self.total_frames_read / 30.0)
+                self.current_position_sec = frame_sec
+                if self.total_duration_sec and self.total_duration_sec > 0:
+                    self.progress_pct = min(100.0, round((self.current_position_sec / self.total_duration_sec) * 100.0, 1))
             else:
                 frame_sec = time.time()
+                self.current_position_sec = time.time() - self.start_time
+                self.progress_pct = None
 
             # Push frame into Ring Buffer (Size = 1)
             # If buffer is full, pop old frame first to avoid live streaming latency lag
@@ -317,6 +356,8 @@ class RTSPStreamCapture:
         return {
             "camera_id": self.camera_id,
             "stream_url": self.stream_url,
+            "camera_type": self.camera_type,
+            "is_live": self.is_live,
             "is_connected": self.is_connected,
             "is_running": self._running,
             "is_paused": self._paused,
@@ -324,6 +365,10 @@ class RTSPStreamCapture:
             "fps": round(self.fps, 2),
             "total_frames_read": self.total_frames_read,
             "total_frames_dropped": self.total_frames_dropped,
+            "total_frames_count": self.total_frames_count,
+            "total_duration_sec": self.total_duration_sec,
+            "current_position_sec": round(self.current_position_sec, 2),
+            "progress_pct": self.progress_pct,
             "reconnect_count": self.reconnect_count,
             "keyframes_kept": keyframe_count,
             "frames_skipped": filter_summary.get("frames_skipped", 0),

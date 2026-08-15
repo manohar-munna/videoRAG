@@ -1829,3 +1829,99 @@ body {
     border: 1px solid var(--border-light);
     border-radius: var(--radius-md);
 }
+
+/* YouTube-style Play & Extraction Progress Bar */
+.cctv-yt-progress-container {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    margin: 8px 0;
+}
+.cctv-yt-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.cctv-yt-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.cctv-yt-badge.badge-recorded {
+    background: rgba(2, 132, 199, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+.cctv-yt-badge.badge-live {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.cctv-yt-badge.badge-yt {
+    background: rgba(220, 38, 38, 0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(220, 38, 38, 0.3);
+}
+.cctv-yt-progress-val {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-main);
+    font-weight: 600;
+}
+.cctv-yt-live-pulse {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: #ef4444;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    animation: livePulseAnim 1.5s infinite;
+}
+@keyframes livePulseAnim {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.cctv-yt-progress-track {
+    position: relative;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: visible;
+    margin: 4px 0 6px 0;
+}
+.cctv-yt-progress-fill {
+    height: 100%;
+    background: #ff0000; /* YouTube Red */
+    border-radius: 3px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 6px rgba(255, 0, 0, 0.6);
+}
+.cctv-yt-progress-fill.live-fill {
+    background: linear-gradient(90deg, #dc2626, #ef4444);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+}
+.cctv-yt-progress-scrubber {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    background: #ff0000;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    transition: left 0.3s ease;
+}
+.cctv-yt-progress-sub {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}

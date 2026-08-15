@@ -1673,5 +1673,215 @@
     "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_54_14_6579.jpg",
     "hash_hex": "0x55766c1cc46a06e0",
     "motion_pct": 43.82
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:54:23",
+    "seconds": 1786800263.3,
+    "epoch_time": 1786800263.301,
+    "description": "No key subjects or vehicles detected. The frame shows an empty paved area with no people, vehicles, or notable activity. No security events or restricted area presence observed.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_54_23_6729.jpg",
+    "hash_hex": "0x50890692a664c4c0",
+    "motion_pct": 34.23
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:54:28",
+    "seconds": 1786800268.3,
+    "epoch_time": 1786800268.304,
+    "description": "No key subjects or individuals are visible in the frame. No vehicles are present. No security events, restricted areas, or notable activity are detected. The scene shows an empty beachfront promenade with no loitering or movement.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_54_28_6981.jpg",
+    "hash_hex": "0x4163467262840481",
+    "motion_pct": 18.65
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "18:54:54",
+    "seconds": 1786800294.39,
+    "epoch_time": 1786800294.39,
+    "description": "One person in a dark jacket and light-colored pants stands near a pile of discarded items and bicycles on the sidewalk; they appear to be loitering or sorting through belongings. No vehicles are visible in motion or parked. No security events or restricted areas are evident; the scene shows a beachfront promenade with no apparent suspicious activity.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_18_54_54_7479.jpg",
+    "hash_hex": "0x74564467ae7040a2",
+    "motion_pct": 49.6
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:31:11",
+    "seconds": 1786802471.59,
+    "epoch_time": 1786802471.59,
+    "description": "Two individuals are seated on a bench near the right edge of the frame; one wears a red top and the other a dark jacket. No vehicles are visible in motion or parked within the frame. No security events, restricted areas, or unusual activity are detected; the scene depicts a calm, public waterfront promenade.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_31_11_7617.jpg",
+    "hash_hex": "0x6faacbb2a9c5e3e2",
+    "motion_pct": 68.14
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:31:18",
+    "seconds": 1786802478.7,
+    "epoch_time": 1786802478.702,
+    "description": "1. Two individuals are walking along the beach path: one in a red top and dark pants, the other in dark attire; a third person is distant on the path. No loitering observed; all appear to be moving along designated paths.\n2. No vehicles are present in the frame; the road is clear and unoccupied.\n3. No security events or restricted area violations detected. Activity is consistent with normal beachside pedestrian traffic.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_31_18_7751.jpg",
+    "hash_hex": "0x61626672628404c4",
+    "motion_pct": 79.38
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:31:44",
+    "seconds": 1786802504.4,
+    "epoch_time": 1786802504.397,
+    "description": "1. A few pedestrians are visible on the sidewalk near the Venice V Hotel, including one person in a dark jacket walking toward the camera and another in a red top further down the path; no loitering is evident.  \n2. No vehicles are present in the frame; the street and adjacent parking areas are clear.  \n3. No security events or restricted area breaches are detected; the scene shows normal beachside pedestrian activity with no unusual behavior.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_31_44_8170.jpg",
+    "hash_hex": "0xe9a8e67a72c4048c",
+    "motion_pct": 80.16
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:31:49",
+    "seconds": 1786802509.4,
+    "epoch_time": 1786802509.397,
+    "description": "1. Multiple pedestrians are visible: a lone child in a light-colored top and dark pants running along the path, and several adults walking or loitering near shops and benches. No group is observed engaging in suspicious or restricted activity.\n2. No vehicles are present in the frame; the area is pedestrian-only with no parked or moving cars.\n3. No security events or restricted area breaches are detected. The scene depicts normal public activity along a beachside promenade.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_31_49_8235.jpg",
+    "hash_hex": "0x5422412519b5c18a",
+    "motion_pct": 84.47
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:31:55",
+    "seconds": 1786802515.75,
+    "epoch_time": 1786802515.747,
+    "description": "1. Multiple pedestrians are visible: a person in a light blue top and dark shorts walks away from camera; others loiter or walk along the path; one person sits on a bench.  \n2. No vehicles are present; the scene shows a wide, empty sidewalk adjacent to a beach and palm trees.  \n3. No security events or restricted areas are detected; activity is casual, with no signs of intrusion or abnormal behavior.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_31_55_8352.jpg",
+    "hash_hex": "0x612101663ab2ca90",
+    "motion_pct": 77.12
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:32:12",
+    "seconds": 1786802532.69,
+    "epoch_time": 1786802532.688,
+    "description": "Multiple pedestrians are walking along a wide, tree-lined promenade; some are loitering near bins or seated on the ground. A man in a black t-shirt and blue jeans walks away from the camera, while others in casual attire move in various directions. No vehicles are visible in motion or parked; the scene shows no security incidents or restricted area breaches.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_32_12_8801.jpg",
+    "hash_hex": "0x7a56b45a5a525191",
+    "motion_pct": 75.97
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:32:17",
+    "seconds": 1786802537.7,
+    "epoch_time": 1786802537.698,
+    "description": "Multiple pedestrians are walking along a wide, tree-lined promenade; some are loitering near bins or seated on the ground, while others are moving toward or away from a “MARKET” stall. No vehicles are visible in motion or parked; the scene is pedestrian-only with no apparent security incidents or restricted area breaches.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_32_17_8978.jpg",
+    "hash_hex": "0x75725a99ddd911d0",
+    "motion_pct": 75.48
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:32:23",
+    "seconds": 1786802543.88,
+    "epoch_time": 1786802543.878,
+    "description": "Multiple pedestrians are present, including a man in a dark hoodie walking, a person in a grey t-shirt and teal shorts jogging, and others loitering or walking casually; one individual is seated on the ground near bins. No vehicles are visible in the frame. No security events or restricted areas are evident; activity appears routine and non-threatening.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_32_23_9099.jpg",
+    "hash_hex": "0x54365d99ddd9a9c8",
+    "motion_pct": 73.19
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:32:28",
+    "seconds": 1786802548.9,
+    "epoch_time": 1786802548.896,
+    "description": "Multiple pedestrians are present, including a man in a grey shirt and green shorts jogging, a woman in a black top and plaid pants walking, and others loitering or walking casually; one person sits on a box near bins. No vehicles are visible in the frame. No security incidents or restricted areas are evident; activity appears routine and unremarkable.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_32_28_9325.jpg",
+    "hash_hex": "0x74725499b5f535c4",
+    "motion_pct": 72.91
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:32:34",
+    "seconds": 1786802554.06,
+    "epoch_time": 1786802554.057,
+    "description": "Multiple pedestrians are visible, including a man in a dark jacket and bright green shorts running, and others walking or loitering near bins and seating. A person in a dark hoodie sits on a bench with belongings nearby. No vehicles are present in the frame. No security events or restricted areas are evident; activity appears routine and unremarkable.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_32_34_9400.jpg",
+    "hash_hex": "0x55765d9db5b1b1b0",
+    "motion_pct": 72.06
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:32:39",
+    "seconds": 1786802559.5,
+    "epoch_time": 1786802559.496,
+    "description": "Multiple pedestrians are visible, including a person in a grey shirt and bright green shorts running, and others walking or loitering near bins and tents; one individual is seated with belongings. A bicycle is parked near the left edge, and a scooter is visible further down the path. No vehicles are in motion or parked; the scene shows a public promenade with no apparent security incidents or restricted area breaches.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_32_39_9550.jpg",
+    "hash_hex": "0x55364cb5e56128a0",
+    "motion_pct": 70.42
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:32:46",
+    "seconds": 1786802566.73,
+    "epoch_time": 1786802566.733,
+    "description": "Multiple pedestrians are present, including a man in a dark hoodie and blue pants walking with a child, a woman in a black top and plaid pants, and a runner in a white shirt and green shorts. A bicycle is parked near a market stall, and a person is seen pushing a stroller. No vehicles are visible in motion or parked; the scene shows normal pedestrian traffic with no security incidents or restricted area breaches.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_32_46_9699.jpg",
+    "hash_hex": "0x74714cbdf561c9d0",
+    "motion_pct": 70.19
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:32:54",
+    "seconds": 1786802574.68,
+    "epoch_time": 1786802574.684,
+    "description": "No subjects or vehicles detected. The frame shows an empty sidewalk with no movement or activity. No security events, restricted areas, or notable activity are present.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_32_54_9849.jpg",
+    "hash_hex": "0xe03945b262c6c4ce",
+    "motion_pct": 65.23
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:33:00",
+    "seconds": 1786802580.1,
+    "epoch_time": 1786802580.102,
+    "description": "One person in dark clothing walks alone along the beachside path, away from the camera. No vehicles are visible in the frame. No security events or restricted areas are detected; activity is minimal and non-concerning.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_33_00_10000.jpg",
+    "hash_hex": "0x69e38524c4840892",
+    "motion_pct": 72.33
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:33:08",
+    "seconds": 1786802588.95,
+    "epoch_time": 1786802588.945,
+    "description": "1. Three individuals are visible: one in a bright blue top running on the beach, another in dark clothing jogging further down the beach, and a third person in a red top and black cap walking on the sidewalk in the foreground. No loitering is observed; all subjects are in motion.\n2. No vehicles are present in the frame; the street is clear of traffic or parked cars.\n3. No security events or restricted areas are detected. The scene depicts normal beachside pedestrian and recreational activity with no anomalous behavior.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_33_08_10149.jpg",
+    "hash_hex": "0x6162667262840445",
+    "motion_pct": 71.6
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:33:34",
+    "seconds": 1786802614.51,
+    "epoch_time": 1786802614.513,
+    "description": "Two individuals are present on the sidewalk near a grassy area; one wears a red top and blue pants, the other is in a blue top and dark pants, both interacting with a bicycle and a small cart. A blue bicycle lies on its side near a trash can, and no vehicles are visible or in motion. No security events or restricted area breaches are evident; activity appears incidental and non-threatening.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_33_34_10599.jpg",
+    "hash_hex": "0x745654676e70c8a0",
+    "motion_pct": 76.82
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:33:40",
+    "seconds": 1786802620.94,
+    "epoch_time": 1786802620.943,
+    "description": "1. Two individuals in red tops are walking across the beach; a third person in dark clothing walks toward the beach entrance. A man in a grey top sits on a bench near a trash can; a woman in blue pants and a red top stands beside a small cart with a child nearby.  \n2. No vehicles are visible in motion or parked; a single dark-colored vehicle is distant on the beach road.  \n3. No security events or restricted area breaches are evident; activity is casual, with no signs of suspicious behavior or unauthorized access.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_33_40_10749.jpg",
+    "hash_hex": "0x7ab0ee28ca64fcc7",
+    "motion_pct": 72.19
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "19:33:47",
+    "seconds": 1786802627.84,
+    "epoch_time": 1786802627.838,
+    "description": "1. Two individuals are seated on a bench near the sidewalk; one wears a dark jacket and cap, the other a red top. A third person in dark clothing runs across the grassy area in the background. No loitering is observed beyond normal pedestrian activity.\n\n2. A dark-colored sedan is parked on the street near the hotel entrance. No other vehicles are visible or in motion.\n\n3. No security events or restricted area breaches are evident. The scene shows normal public beachside activity with no unusual or suspicious behavior.",
+    "image_path": "data\\cameras\\CAM_4000\\extracted_frames\\CAM_4000_19_33_47_10899.jpg",
+    "hash_hex": "0x6faacbb2a9e4e3e2",
+    "motion_pct": 62.72
   }
 ]
