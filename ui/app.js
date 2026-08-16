@@ -512,11 +512,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let serverTimeOffsetMs = 0; // Tracks clock drift between client and server
+
     async function checkHealth() {
         try {
+            const t0 = Date.now();
             const resp = await fetch('/api/health');
+            const t1 = Date.now();
+
             if (resp.ok) {
                 const data = await resp.json();
+
+                if (data && data.server_time) {
+                    const latency = (t1 - t0) / 2;
+                    const serverMs = data.server_time * 1000;
+                    serverTimeOffsetMs = serverMs - (t1 - latency);
+                    console.log(`System clocks synchronized. Offset: ${serverTimeOffsetMs}ms`);
+                }
+
                 const healthDot = document.getElementById('health-indicator');
                 const healthText = document.getElementById('health-status-text');
                 if (healthDot && healthText) {
@@ -1237,15 +1250,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Compute delta in seconds: Current Wall Clock - Event Time
             let deltaSeconds = 0;
-            if (targetEpochTime && targetEpochTime > 0) {
-                deltaSeconds = Math.max(0, (Date.now() / 1000) - targetEpochTime);
+            const targetEpoch = targetEpochTime || activeEvidenceState?.targetEpochTime;
+
+            if (targetEpoch && targetEpoch > 0) {
+                // Use the synchronized clock offset to bypass client timezone and clock drift
+                const adjustedNowSec = (Date.now() + serverTimeOffsetMs) / 1000;
+                deltaSeconds = Math.max(0, adjustedNowSec - targetEpoch);
             } else if (targetTimestamp) {
+                // Safe UTC-based fallback if epoch_time is not available
                 const now = new Date();
-                const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                const nowSec = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
                 const parts = targetTimestamp.split(':').map(Number);
                 const eventSec = parts.length === 3 ? parts[0]*3600 + parts[1]*60 + parts[2] : (parts.length === 2 ? parts[0]*60 + parts[1] : 0);
+
                 let diff = nowSec - eventSec;
-                if (diff < 0) diff += 86400; // handle midnight rollover
+                if (diff < 0) diff += 86400; // midnight rollover
                 deltaSeconds = diff;
             }
 

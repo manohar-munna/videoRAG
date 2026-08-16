@@ -91,6 +91,8 @@ class CCTVDataLoader:
                 "camera": camera,
                 "timestamp": timestamp,
                 "image_path": record.get("image_path", ""),
+                "epoch_time": record.get("epoch_time"),
+                "seconds": record.get("seconds"),
             }
 
             doc = {

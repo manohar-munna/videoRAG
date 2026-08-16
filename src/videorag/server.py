@@ -348,10 +348,12 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
 @app.get("/api/health")
 def get_health():
     """Return backend health and system info."""
+    import time
     store = PIPELINE.get("vector_store")
     llm = PIPELINE.get("llm_client")
     return {
         "status": "online",
+        "server_time": round(time.time(), 3),
         "vector_count": store.size if store else 0,
         "llm_backend": llm.backend if llm else "unknown",
         "llm_model": llm.model if llm else "unknown",
