@@ -1490,6 +1490,806 @@
     "motion_pct": 21.2
   },
   {
+    "camera": "CAM_3000",
+    "timestamp": "16:13:58",
+    "seconds": 1786877038.91,
+    "epoch_time": 1786877038.912,
+    "description": "No identifiable individuals or vehicles present. The intersection is empty of pedestrians or moving traffic, with all traffic signals red and no active vehicle movement. No security events or restricted area breaches observed; scene appears inactive and unoccupied.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_13_58_1.jpg",
+    "hash_hex": "0x3b5b53363979595a",
+    "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:21:26",
+    "seconds": 1786877486.61,
+    "epoch_time": 1786877486.612,
+    "description": "No key subjects or vehicles are clearly identifiable. The frame shows an empty, wet intersection at night with traffic lights red and no moving vehicles or pedestrians. No security events, restricted areas, or notable activity are evident.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_21_26_1.jpg",
+    "hash_hex": "0x3b5b53363979595a",
+    "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:28:09",
+    "seconds": 1786877889.2,
+    "epoch_time": 1786877889.197,
+    "description": "1. One person in dark clothing is loitering near the center of the intersection, standing still near a traffic signal. Another individual is visible in the background near a building entrance, but no distinct action is discernible.  \n2. A white pickup truck is parked on the left side of the street, stationary. A dark-colored pickup truck is positioned in the foreground, stopped at the crosswalk.  \n3. No security events or restricted area breaches are evident. Traffic signals are red, and no vehicles are actively moving through the intersection.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_28_09_24885.jpg",
+    "hash_hex": "0x3b5b533331655573",
+    "motion_pct": 8.09
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:28:25",
+    "seconds": 1786877905.88,
+    "epoch_time": 1786877905.881,
+    "description": "No key subjects observed; no individuals visible in the frame. No vehicles detected in motion or parked; traffic lights are red, indicating stop. No security events, restricted area breaches, or notable activity recorded.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_28_25_25485.jpg",
+    "hash_hex": "0x3b5b533739795b5b",
+    "motion_pct": 0.21
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:29:58",
+    "seconds": 1786877998.28,
+    "epoch_time": 1786877998.281,
+    "description": "1. No identifiable individuals are present in the frame; no loitering or suspicious activity observed.  \n2. A silver sedan is crossing the intersection, and a dark pickup truck is parked on the left side of the street; both are stationary or moving slowly.  \n3. No security events or restricted area breaches are evident; traffic signals are red, and the scene shows normal nighttime street activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_29_58_28185.jpg",
+    "hash_hex": "0x7b5b533321696962",
+    "motion_pct": 15.33
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:30:03",
+    "seconds": 1786878003.76,
+    "epoch_time": 1786878003.762,
+    "description": "No identifiable individuals or vehicles present. The intersection is empty, with all traffic signals red and no visible movement. No security events, restricted areas, or notable activity detected.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_30_03_28335.jpg",
+    "hash_hex": "0x3b5b53373969595b",
+    "motion_pct": 0.47
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:43:53",
+    "seconds": 1786878833.8,
+    "epoch_time": 1786878833.795,
+    "description": "1. No individuals are visible in the frame; no loitering or active movement detected.  \n2. A dark red pickup truck is stationary at the intersection, positioned near a boat on a trailer; no other vehicles are in motion or parked.  \n3. No security events or restricted area breaches are evident; the scene shows a standard nighttime street intersection with traffic signals active.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_43_53_53235.jpg",
+    "hash_hex": "0x3b5b53363d451567",
+    "motion_pct": 12.89
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:44:00",
+    "seconds": 1786878840.17,
+    "epoch_time": 1786878840.173,
+    "description": "1. Two individuals are visible near a white trailer in the intersection; one appears to be standing while the other is seated or crouched, both engaged in activity near the trailer. No loitering is evident as they are actively positioned with the vehicle.  \n2. A white pickup truck is parked in the foreground, stationary. A dark sedan is stopped at the intersection with its brake lights on, and other distant vehicles are moving or stopped at traffic signals.  \n3. No security events or restricted area breaches are evident. The scene shows normal traffic and pedestrian activity at a commercial intersection under red traffic signals.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_44_00_53385.jpg",
+    "hash_hex": "0x3b5b53372579796a",
+    "motion_pct": 8.27
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:44:25",
+    "seconds": 1786878865.95,
+    "epoch_time": 1786878865.952,
+    "description": "1. No identifiable individuals are present in the frame; no loitering or suspicious activity observed.\n2. A dark-colored SUV is moving through the intersection, with brake lights illuminated; no other vehicles are visible or parked.\n3. Traffic signals are red; no security events or restricted area breaches are evident.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_44_25_54135.jpg",
+    "hash_hex": "0x3b5b533239695d1b",
+    "motion_pct": 7.6
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:46:16",
+    "seconds": 1786878976.81,
+    "epoch_time": 1786878976.808,
+    "description": "1. No individuals are visible in the frame; no loitering or suspicious activity detected.  \n2. A red SUV is stopped at the intersection, waiting at a red traffic light; no other vehicles are in motion or parked.  \n3. The scene shows a standard urban intersection at night with wet pavement and active traffic signals; no restricted area breaches or unusual events are evident.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_46_16_57585.jpg",
+    "hash_hex": "0x3b5b533639755777",
+    "motion_pct": 3.81
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:46:23",
+    "seconds": 1786878983.31,
+    "epoch_time": 1786878983.314,
+    "description": "1. No identifiable people are present in the frame; no loitering or suspicious activity observed.  \n2. A red vehicle is parked on the left side of the street, stationary; no other vehicles are in motion or actively parked.  \n3. No security events or restricted area breaches are evident; traffic lights are red, and the scene is a standard nighttime urban intersection.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_46_23_57735.jpg",
+    "hash_hex": "0x3b5b53373969595b",
+    "motion_pct": 1.12
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:47:23",
+    "seconds": 1786879043.25,
+    "epoch_time": 1786879043.246,
+    "description": "1. One person in dark clothing is loitering near the center of the intersection, standing still near a decorative archway. Another individual is visible further down the street, walking away from the camera.  \n2. A white sedan is parked on the left side of the street near a building, stationary with brake lights on. A dark-colored vehicle is approaching from the right, moving across the intersection under red traffic signals.  \n3. No security events or restricted area breaches are evident. The scene shows normal nighttime traffic flow with no unusual activity or alarms triggered.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_47_23_59535.jpg",
+    "hash_hex": "0x3b5b533e2d5d597c",
+    "motion_pct": 8.74
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:47:34",
+    "seconds": 1786879054.85,
+    "epoch_time": 1786879054.849,
+    "description": "No identifiable individuals or vehicles present in the frame. The intersection is empty of pedestrians and traffic, with all visible traffic signals showing red. No security events, restricted areas, or notable activity are detected.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_47_34_59835.jpg",
+    "hash_hex": "0x3b5b53373969197a",
+    "motion_pct": 1.7
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:48:45",
+    "seconds": 1786879125.3,
+    "epoch_time": 1786879125.297,
+    "description": "1. One person in dark clothing is loitering near the center of the intersection, standing still near a decorative archway; no other individuals are visible.  \n2. A dark red SUV is stationary in the crosswalk, positioned as if waiting to proceed despite the red light; no other vehicles are in motion or parked.  \n3. No security events or restricted area breaches are evident; the scene shows normal nighttime traffic conditions with no unusual activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_48_45_61935.jpg",
+    "hash_hex": "0x3b5b53363d755773",
+    "motion_pct": 4.67
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:48:56",
+    "seconds": 1786879136.79,
+    "epoch_time": 1786879136.787,
+    "description": "No identifiable individuals are present in the frame; no loitering or suspicious activity is observed. No vehicles are visible on the road or in the frame. The intersection is active with red traffic signals, and the wet pavement suggests recent rain.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_48_56_62385.jpg",
+    "hash_hex": "0x3b5b53373969597a",
+    "motion_pct": 0.71
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:52:17",
+    "seconds": 1786879337.76,
+    "epoch_time": 1786879337.756,
+    "description": "1. No pedestrians are visible; no loitering or suspicious activity.  \n2. A dark-colored SUV is stopped at the red light, facing the camera, with brake lights illuminated.  \n3. No security events or restricted area breaches are evident; the scene is a standard nighttime intersection with active traffic signals.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_52_17_68385.jpg",
+    "hash_hex": "0x3b5b733631717573",
+    "motion_pct": 7.11
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:52:28",
+    "seconds": 1786879348.99,
+    "epoch_time": 1786879348.993,
+    "description": "1. No identifiable people are present in the frame; no loitering or suspicious activity observed.\n2. A dark gray SUV is parked or moving slowly in the intersection, with no other vehicles actively moving or parked nearby.\n3. No security events or restricted area breaches are evident; traffic signals are red, and the scene appears normal with no unusual activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_52_28_68685.jpg",
+    "hash_hex": "0x3b5b73373d696d5f",
+    "motion_pct": 5.5
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:52:52",
+    "seconds": 1786879372.16,
+    "epoch_time": 1786879372.164,
+    "description": "1. One person in dark clothing is loitering near the center of the intersection, standing still near a decorative archway. Another individual is visible in the driver’s seat of a white SUV, which is stationary at the crosswalk.  \n2. A white Jeep is parked or stopped at the intersection, facing the camera, with its brake lights illuminated. A silver SUV is partially visible in the foreground, also stationary.  \n3. No security events or restricted area breaches are evident. Traffic signals are red, and no vehicles are actively moving through the intersection.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_52_52_69444.jpg",
+    "hash_hex": "0x3b5b733331617962",
+    "motion_pct": 12.94
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:53:45",
+    "seconds": 1786879425.98,
+    "epoch_time": 1786879425.982,
+    "description": "1. One individual in dark clothing is loitering near the crosswalk on the far side of the street; no other people are visible.  \n2. A silver pickup truck is parked at the intersection, angled across the crosswalk, with brake lights illuminated; no other vehicles are in motion or parked.  \n3. No security events or restricted area breaches are evident; the scene shows normal nighttime traffic conditions with no unusual activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_53_45_70935.jpg",
+    "hash_hex": "0x3b5b53373d49756b",
+    "motion_pct": 6.41
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:54:09",
+    "seconds": 1786879449.19,
+    "epoch_time": 1786879449.191,
+    "description": "1. No individuals are visible in the frame; no loitering or activity detected.  \n2. A white van is moving straight through the intersection, its brake lights illuminated; no other vehicles are present or parked.  \n3. No security events or restricted areas are evident; traffic signals are red, and the scene shows normal nighttime street activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_54_09_71685.jpg",
+    "hash_hex": "0x3b5b533739755777",
+    "motion_pct": 4.19
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:55:19",
+    "seconds": 1786879519.16,
+    "epoch_time": 1786879519.156,
+    "description": "1. One person in dark clothing is loitering near the center of the intersection, standing still near a parked trailer. No other individuals are clearly visible or actively moving.\n2. A white SUV is stopped at the crosswalk with brake lights on, and a dark-colored pickup truck with a white trailer is parked across the street. No other vehicles are in motion or parked.\n3. No security events or restricted area breaches are evident. The scene shows normal nighttime traffic and pedestrian activity with no signs of intrusion or unusual behavior.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_55_19_73785.jpg",
+    "hash_hex": "0x3b5b53333569796b",
+    "motion_pct": 9.26
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:56:58",
+    "seconds": 1786879618.53,
+    "epoch_time": 1786879618.526,
+    "description": "Two vehicles are stopped at the intersection: a dark gray SUV with a spare tire mounted on the rear and a silver SUV behind it. A dark-colored sedan is visible in the distance, approaching the intersection from the left. No individuals are clearly identifiable or actively loitering; the scene shows standard traffic at a red light with no apparent security incidents or restricted area breaches.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_56_58_76785.jpg",
+    "hash_hex": "0x3b5b733739696664",
+    "motion_pct": 9.85
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:57:04",
+    "seconds": 1786879624.85,
+    "epoch_time": 1786879624.851,
+    "description": "1. One person is visible near the center of the intersection, standing still and loitering near a decorative archway; no other individuals are clearly identifiable.  \n2. A white Jeep is parked or stopped at the intersection, with a red SUV moving through the crosswalk; a red car is visible in the background on the left.  \n3. No security events or restricted area breaches are evident; traffic signals are active, and the scene shows normal nighttime street activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_57_04_76935.jpg",
+    "hash_hex": "0x3b5b53373769596b",
+    "motion_pct": 9.11
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:57:11",
+    "seconds": 1786879631.25,
+    "epoch_time": 1786879631.254,
+    "description": "1. One person in dark clothing is loitering near the crosswalk on the far side of the intersection; no other individuals are visible.  \n2. A dark SUV is stationary in the foreground, and a silver pickup truck is crossing the intersection; both vehicles are moving or parked in a manner consistent with normal traffic flow.  \n3. No security events or restricted area violations are evident; the scene shows standard nighttime urban traffic with no unusual activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_57_11_77085.jpg",
+    "hash_hex": "0x7b5b73333161191a",
+    "motion_pct": 10.77
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "16:57:16",
+    "seconds": 1786879636.43,
+    "epoch_time": 1786879636.426,
+    "description": "1. One person is visible near the left sidewalk, standing still and loitering near a storefront; no other individuals are clearly identifiable.  \n2. A red sedan is moving through the intersection, while a dark-colored vehicle is parked on the left side of the street; no other vehicles are in motion or actively parked.  \n3. No security events or restricted area breaches are evident; traffic signals are active, and the scene shows normal nighttime street activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_16_57_16_77385.jpg",
+    "hash_hex": "0x3b5b73373969756b",
+    "motion_pct": 6.01
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:00:23",
+    "seconds": 1786879823.59,
+    "epoch_time": 1786879823.589,
+    "description": "No identifiable individuals are present in the frame. No vehicles are visible in motion or parked. No security events, restricted areas, or notable activity are evident.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_00_23_82935.jpg",
+    "hash_hex": "0x7b5b733e3d61597a",
+    "motion_pct": 3.18
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:01:42",
+    "seconds": 1786879902.9,
+    "epoch_time": 1786879902.899,
+    "description": "1. No identifiable individuals are present in the frame; no loitering or suspicious activity observed.\n2. A silver SUV is crossing the intersection, and a dark sedan is stopped at the crosswalk; no other vehicles are in motion or parked.\n3. No security events or restricted area breaches are evident; traffic is proceeding as normal under red light conditions.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_01_42_85335.jpg",
+    "hash_hex": "0x7b5b73373d6d755f",
+    "motion_pct": 12.29
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:02:41",
+    "seconds": 1786879961.6,
+    "epoch_time": 1786879961.6,
+    "description": "No key subjects observed; no pedestrians or vehicles in motion. One vehicle is parked on the far side of the intersection, stationary and partially obscured. No security events, restricted areas, or notable activity detected.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_02_41_87158.jpg",
+    "hash_hex": "0x7b5b73363961597a",
+    "motion_pct": 8.32
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:03:09",
+    "seconds": 1786879989.75,
+    "epoch_time": 1786879989.752,
+    "description": "1. A single dark-colored SUV is moving through the intersection, while a red vehicle is stopped at the traffic light ahead. No pedestrians are visible in the frame; no loitering is observed.\n2. No vehicles are parked; the red vehicle is stationary at the intersection, and the dark SUV is in motion across the crosswalk.\n3. No security events or restricted area violations are evident. The scene shows normal traffic flow at an urban intersection at night.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_03_09_87885.jpg",
+    "hash_hex": "0x7b5b73373f696d5f",
+    "motion_pct": 6.83
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:03:50",
+    "seconds": 1786880030.21,
+    "epoch_time": 1786880030.209,
+    "description": "1. No individuals are visible in the frame; no loitering or suspicious activity observed.\n2. A dark-colored sedan is approaching the intersection, moving straight through the crosswalk; no other vehicles are present or parked.\n3. No security events or restricted area violations are evident; traffic signal is red, and the scene is a standard urban intersection at night.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_03_50_89085.jpg",
+    "hash_hex": "0x7b5b73333965557b",
+    "motion_pct": 5.76
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:04:01",
+    "seconds": 1786880041.91,
+    "epoch_time": 1786880041.91,
+    "description": "No identifiable individuals are present in the frame. No vehicles are visible or in motion; the intersection appears empty with no active traffic or parked cars. No security events, restricted areas, or notable activity are detected.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_04_01_89535.jpg",
+    "hash_hex": "0x7b5b73363e69797b",
+    "motion_pct": 5.75
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:07:07",
+    "seconds": 1786880227.67,
+    "epoch_time": 1786880227.671,
+    "description": "Two dark-colored SUVs are moving through the intersection, with brake lights illuminated, indicating deceleration or stop. No pedestrians are visible in the frame; no loitering or unusual activity is observed. The traffic signal is red, and the scene is a standard urban intersection at night with no signs of security incidents or restricted area breaches.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_07_07_95085.jpg",
+    "hash_hex": "0x7b5b73373d495b1e",
+    "motion_pct": 12.14
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:07:13",
+    "seconds": 1786880233.86,
+    "epoch_time": 1786880233.862,
+    "description": "1. Three vehicles are visible: a dark sedan approaching from the left, a silver SUV turning right, and a dark SUV stopped at the red light. No pedestrians are observed; no loitering or suspicious behavior noted.\n2. No vehicles are parked; all are in motion or stopped at traffic control. The wet pavement suggests recent rain.\n3. No security events or restricted area violations are evident. Traffic is flowing normally under red light control.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_07_13_95235.jpg",
+    "hash_hex": "0x7b5b73323169416a",
+    "motion_pct": 20.34
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:07:24",
+    "seconds": 1786880244.98,
+    "epoch_time": 1786880244.981,
+    "description": "1. One individual is visible loitering near the crosswalk on the far side of the street, standing still under the traffic light. No other people are clearly identifiable in the frame.\n2. A red SUV is moving through the intersection, its brake lights illuminated, indicating deceleration or stop. No other vehicles are in motion or parked.\n3. No security events or restricted area breaches are evident. The scene shows normal traffic flow at a red light, with no unusual activity or trespassing.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_07_24_95535.jpg",
+    "hash_hex": "0x7b5b73373d69755f",
+    "motion_pct": 8.96
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:07:31",
+    "seconds": 1786880251.82,
+    "epoch_time": 1786880251.823,
+    "description": "1. No individuals are visible in the frame; no loitering or suspicious activity observed.\n2. A red SUV is crossing the intersection, moving from left to right; no other vehicles are present or parked.\n3. No security events or restricted area breaches detected; traffic signal is red, and the scene is a standard urban intersection at night.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_07_31_95685.jpg",
+    "hash_hex": "0x7b5b73323165517b",
+    "motion_pct": 7.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:08:39",
+    "seconds": 1786880319.57,
+    "epoch_time": 1786880319.569,
+    "description": "1. A dark-colored SUV is crossing the intersection in the foreground, while a dark van is turning left at the intersection. No pedestrians are visible, and no loitering is observed.\n2. A dark van is parked or turning at the intersection, and a dark-colored SUV is in motion across the intersection. No other vehicles are clearly identifiable or in motion.\n3. No security events or restricted area breaches are evident. The scene shows normal traffic flow at a controlled intersection with active traffic signals.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_08_39_97785.jpg",
+    "hash_hex": "0x7b5b73363d796d7a",
+    "motion_pct": 11.39
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:09:55",
+    "seconds": 1786880395.31,
+    "epoch_time": 1786880395.312,
+    "description": "1. No pedestrians observed; no loitering.  \n2. One dark-colored sedan and one red SUV are present, with the SUV crossing the intersection and the sedan stopped at the intersection.  \n3. No security events or restricted area violations detected; traffic signals are red, and the scene shows normal urban traffic flow at night.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_09_55_99735.jpg",
+    "hash_hex": "0xfb5b73333161594b",
+    "motion_pct": 11.15
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:10:15",
+    "seconds": 1786880415.44,
+    "epoch_time": 1786880415.439,
+    "description": "1. One dark-colored pickup truck is moving through the intersection, while a white van is stopped at the crosswalk. No pedestrians are visible.  \n2. A white van is parked or stopped at the crosswalk, and other vehicles are distant or obscured; no active vehicle movement is noted beyond the pickup truck.  \n3. No security events or restricted area breaches are evident; the scene shows normal traffic flow at a commercial intersection during low-light conditions.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_10_15_100599.jpg",
+    "hash_hex": "0xbb5b73373f694d1e",
+    "motion_pct": 16.97
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:10:34",
+    "seconds": 1786880434.85,
+    "epoch_time": 1786880434.848,
+    "description": "1. No pedestrians observed; no loitering.  \n2. A white SUV is stopped at the intersection, a white pickup truck is parked on the left, and a dark sedan is approaching from the left.  \n3. No security events or restricted area breaches detected; traffic is flowing under red signals.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_10_34_101177.jpg",
+    "hash_hex": "0xbb5b73322979716b",
+    "motion_pct": 25.17
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:11:19",
+    "seconds": 1786880479.29,
+    "epoch_time": 1786880479.286,
+    "description": "1. One dark-colored sedan is crossing the intersection, while a silver SUV is stopped at the red light in the foreground. No pedestrians are visible; no loitering detected.\n2. No vehicles are parked; the sedan is in motion, and the SUV is stationary at the intersection.\n3. No security events or restricted area breaches are evident. Normal traffic flow at an urban intersection during evening hours.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_11_19_102585.jpg",
+    "hash_hex": "0xbb5b733735695d6f",
+    "motion_pct": 13.63
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:11:37",
+    "seconds": 1786880497.67,
+    "epoch_time": 1786880497.673,
+    "description": "1. No individuals are visible in the frame; no loitering or suspicious activity detected.\n2. A silver sedan is parked or stopped at the intersection, stationary and not moving.\n3. No security events or restricted area breaches are evident; traffic signals are red, and the scene is a standard urban intersection at night.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_11_37_103185.jpg",
+    "hash_hex": "0xbb5b73363d65717a",
+    "motion_pct": 9.55
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:11:49",
+    "seconds": 1786880509.86,
+    "epoch_time": 1786880509.86,
+    "description": "1. One dark-colored sedan is moving through the intersection, while a light-colored vehicle is parked near a decorative archway. No pedestrians are visible, and no loitering is observed.\n2. A dark-colored SUV is in motion across the intersection, and a light-colored vehicle is stationary near the archway. No other vehicles are in motion or parked.\n3. No security events or restricted area breaches are evident. The scene shows normal traffic flow at a red light, with no unusual activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_11_49_103485.jpg",
+    "hash_hex": "0xfb5b73373d614d5f",
+    "motion_pct": 14.36
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:12:00",
+    "seconds": 1786880520.92,
+    "epoch_time": 1786880520.922,
+    "description": "No identifiable individuals are present in the frame. A single dark-colored vehicle is approaching the intersection from the right, with its headlights on and moving across the crosswalk. No security events, restricted areas, or unusual activity are observed.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_12_00_103903.jpg",
+    "hash_hex": "0xf95b73323969597a",
+    "motion_pct": 11.64
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:13:02",
+    "seconds": 1786880582.47,
+    "epoch_time": 1786880582.474,
+    "description": "1. One adult male in dark clothing is loitering near the stone archway on the far side of the intersection, stationary and facing the crosswalk.  \n2. A red pickup truck is moving through the intersection, its brake lights illuminated, indicating a stop or slow maneuver at the red light.  \n3. No security events or restricted area breaches are evident; the scene shows normal traffic and pedestrian activity under active red light control.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_13_02_105735.jpg",
+    "hash_hex": "0xf95b73373d494d4f",
+    "motion_pct": 13.07
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:13:08",
+    "seconds": 1786880588.31,
+    "epoch_time": 1786880588.314,
+    "description": "1. No identifiable individuals are present in the frame; no loitering or suspicious activity observed.  \n2. A red pickup truck is stationary at the intersection, positioned at the crosswalk, with traffic lights red ahead.  \n3. No security events or restricted area breaches detected; scene appears normal with no unusual activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_13_08_105885.jpg",
+    "hash_hex": "0xfb5b73373565557b",
+    "motion_pct": 8.52
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:14:27",
+    "seconds": 1786880667.04,
+    "epoch_time": 1786880667.037,
+    "description": "1. One person is visible loitering near the stone archway on the sidewalk, wearing dark clothing; no other individuals are clearly identifiable.  \n2. A dark SUV is stopped at the intersection with brake lights on, and a light-colored SUV is turning right; no other vehicles are in motion or parked.  \n3. No security events or restricted area breaches are evident; traffic signals are red, and the scene shows normal urban street activity at night.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_14_27_108285.jpg",
+    "hash_hex": "0xff5b733636694d5a",
+    "motion_pct": 13.11
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:14:39",
+    "seconds": 1786880679.13,
+    "epoch_time": 1786880679.125,
+    "description": "1. Two individuals are visible near the crosswalk: one in dark clothing standing still, and another in light-colored clothing walking across the street. A third person is partially visible near the traffic light, but no clear loitering or suspicious behavior is evident.\n2. Three vehicles are present: a white SUV turning left, a silver sedan moving straight through the intersection, and a white pickup truck parked on the left side of the road. All vehicles are in motion or stationary as captured.\n3. No security events or restricted area breaches are observed. Traffic is flowing normally under red light conditions, with no signs of trespassing, vandalism, or emergency activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_14_39_108585.jpg",
+    "hash_hex": "0xbf5b73363565b9a3",
+    "motion_pct": 17.26
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:14:50",
+    "seconds": 1786880690.7,
+    "epoch_time": 1786880690.696,
+    "description": "1. No individuals are visible in the frame; no loitering or suspicious activity detected.  \n2. A white pickup truck is in motion across the intersection, a silver SUV is parked in the foreground, and a white sedan is parked on the left side of the street.  \n3. No security events or restricted area breaches are evident; traffic signals are red, indicating stoppage.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_14_50_108885.jpg",
+    "hash_hex": "0xbf5b73333161756b",
+    "motion_pct": 12.6
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:15:08",
+    "seconds": 1786880708.79,
+    "epoch_time": 1786880708.787,
+    "description": "1. One person is visible in a light-colored (likely white or silver) vehicle, driving through the intersection; no other pedestrians are observed.  \n2. A blue SUV is parked or stopped in the foreground, and a silver SUV is moving through the intersection; a white pickup truck is parked on the left side of the frame.  \n3. No security events or restricted area violations are evident; traffic is flowing normally under red signal lights.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_15_08_109485.jpg",
+    "hash_hex": "0xff5b73373d69791b",
+    "motion_pct": 12.58
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:16:46",
+    "seconds": 1786880806.6,
+    "epoch_time": 1786880806.601,
+    "description": "1. No pedestrians observed; no loitering.  \n2. Two vehicles: a dark sedan approaching from left, and a dark SUV turning right at intersection; both obeying red light.  \n3. No security events or restricted area breaches detected; traffic flow normal under red signal.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_16_46_112485.jpg",
+    "hash_hex": "0xdf5b73336145c160",
+    "motion_pct": 24.39
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:16:52",
+    "seconds": 1786880812.06,
+    "epoch_time": 1786880812.062,
+    "description": "1. One adult male in dark clothing is loitering near the center of the intersection, standing still near a stone archway. No other individuals are visible in the frame.  \n2. A dark-colored SUV is stopped at the red light in the intersection, with brake lights illuminated. No other vehicles are moving or parked.  \n3. No security events or restricted area breaches are evident. The scene shows normal traffic and pedestrian activity at a controlled intersection during evening hours.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_16_52_112635.jpg",
+    "hash_hex": "0xdf5b73373d65656f",
+    "motion_pct": 9.38
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:16:57",
+    "seconds": 1786880817.52,
+    "epoch_time": 1786880817.516,
+    "description": "1. One individual in dark clothing is loitering near the center of the intersection, standing still near a traffic signal. Another person is visible in the background near a building entrance, but no clear action is discernible.  \n2. A silver SUV is stopped at the intersection, facing the camera, with its brake lights illuminated. A dark-colored vehicle is approaching from the left, also stopped at the red light.  \n3. No security events are evident; no restricted area breaches or unusual activity is observed. The scene is a standard urban intersection at night with active traffic control.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_16_57_112785.jpg",
+    "hash_hex": "0xdf5b733321715973",
+    "motion_pct": 11.48
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:17:03",
+    "seconds": 1786880823.06,
+    "epoch_time": 1786880823.061,
+    "description": "1. One person is visible near the center of the frame, standing still near a decorative archway; no other individuals are clearly identifiable.  \n2. A red Jeep is moving through the intersection, while a white SUV is parked on the left side of the road.  \n3. No security events or restricted area breaches are evident; traffic lights are red, and the scene shows normal urban street activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_17_03_112935.jpg",
+    "hash_hex": "0xdf5b733725496d5f",
+    "motion_pct": 11.6
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:17:19",
+    "seconds": 1786880839.91,
+    "epoch_time": 1786880839.912,
+    "description": "1. No pedestrians are visible; no loitering or unusual human activity.  \n2. A red SUV is stationary in the foreground, while a dark sedan crosses the intersection; both are moving or parked, with no apparent violation.  \n3. No security events or restricted areas are evident; traffic signals are red, and the scene shows normal urban crosswalk activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_17_19_113385.jpg",
+    "hash_hex": "0xff5b73333169591a",
+    "motion_pct": 11.33
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:17:37",
+    "seconds": 1786880857.53,
+    "epoch_time": 1786880857.527,
+    "description": "No identifiable individuals are present in the frame. No vehicles are actively moving or parked in a manner that warrants note; a single silver sedan is visible in motion on the left, approaching the intersection. No security events, restricted areas, or unusual activity are evident.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_17_37_113985.jpg",
+    "hash_hex": "0xef5f73373d41d97a",
+    "motion_pct": 7.6
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:17:43",
+    "seconds": 1786880863.37,
+    "epoch_time": 1786880863.372,
+    "description": "1. No pedestrians observed; no loitering.  \n2. One dark SUV is stopped at the red light, and a dark vehicle is approaching from the left; no other vehicles are moving or parked.  \n3. No security events or restricted area breaches detected; traffic is normal at the intersection.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_17_43_114135.jpg",
+    "hash_hex": "0xef5f73332169494f",
+    "motion_pct": 17.69
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:18:17",
+    "seconds": 1786880897.68,
+    "epoch_time": 1786880897.68,
+    "description": "1. No individuals are visible in the frame; no loitering or suspicious activity detected.\n2. A dark-colored SUV is stopped at the red light in the intersection; a dark sedan is partially visible in the bottom-left corner; no other vehicles are moving or parked.\n3. No security events or restricted area violations are evident; traffic is flowing normally under red signal control.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_18_17_115185.jpg",
+    "hash_hex": "0xef5f73373965717b",
+    "motion_pct": 9.96
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:18:23",
+    "seconds": 1786880903.79,
+    "epoch_time": 1786880903.789,
+    "description": "1. No pedestrians are visible; no loitering or suspicious activity.  \n2. A dark sedan is in motion at the intersection, and a silver SUV is crossing the street; both are moving, not parked.  \n3. No security events or restricted area breaches are evident; traffic signals are red, and the scene is a standard urban intersection at night.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_18_23_115335.jpg",
+    "hash_hex": "0xeb5f733735694d69",
+    "motion_pct": 10.81
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:18:29",
+    "seconds": 1786880909.02,
+    "epoch_time": 1786880909.016,
+    "description": "1. One person is visible near the center of the frame, standing still near a traffic signal archway; no distinct clothing color or action discernible.  \n2. A silver SUV is in motion, crossing the intersection; a dark sedan is parked on the left side of the street.  \n3. No security events or restricted area violations are evident; traffic lights are red, and the scene shows normal nighttime urban activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_18_29_115485.jpg",
+    "hash_hex": "0xeb5b73363e6199ea",
+    "motion_pct": 14.41
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:18:40",
+    "seconds": 1786880920.3,
+    "epoch_time": 1786880920.298,
+    "description": "1. One person in dark clothing is loitering near the center of the intersection, standing still near a traffic signal. Another individual is visible in the background near a white van, but their action is unclear.  \n2. A silver SUV is parked on the left side of the frame, stationary. A red sedan is stopped at the intersection, and a white van is positioned at the crosswalk, waiting to proceed.  \n3. No security events are evident; no restricted area breaches or unusual activity. Traffic signals are red, and the scene shows normal urban evening traffic conditions.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_18_40_115785.jpg",
+    "hash_hex": "0xeb5b733339657169",
+    "motion_pct": 10.46
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:18:52",
+    "seconds": 1786880932.38,
+    "epoch_time": 1786880932.381,
+    "description": "1. No pedestrians are visible; no loitering or suspicious activity.  \n2. A dark-colored SUV is moving through the intersection, while a second vehicle is stationary at the crosswalk.  \n3. Traffic signals are red; no unauthorized access or restricted area breach is evident.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_18_52_116235.jpg",
+    "hash_hex": "0xeb5b73373f694d1f",
+    "motion_pct": 10.71
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:18:58",
+    "seconds": 1786880938.65,
+    "epoch_time": 1786880938.648,
+    "description": "1. No individuals are visible in the frame; no loitering or suspicious activity detected.  \n2. A silver SUV is crossing the intersection, and a dark-colored sedan is stopped at the red light; no other vehicles are in motion or parked.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally under standard signal control.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_18_58_116385.jpg",
+    "hash_hex": "0xeb5b73373165797b",
+    "motion_pct": 8.54
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:20:42",
+    "seconds": 1786881042.77,
+    "epoch_time": 1786881042.772,
+    "description": "No identifiable individuals are present in the frame. No vehicles are visible in motion or parked. The scene shows a wet intersection at night with red traffic signals active, no loitering, and no apparent security incidents or restricted area breaches.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_20_42_119535.jpg",
+    "hash_hex": "0xeb5b73363e627b7e",
+    "motion_pct": 8.65
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:20:54",
+    "seconds": 1786881054.34,
+    "epoch_time": 1786881054.337,
+    "description": "1. One adult male in dark clothing is loitering near the crosswalk on the right side of the frame; no other individuals are visible.  \n2. A red SUV is moving through the intersection, headlights on, and appears to be turning left; no other vehicles are in motion or parked.  \n3. No security events or restricted area breaches are evident; traffic signals are red, and the scene shows normal nighttime street activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_20_54_119835.jpg",
+    "hash_hex": "0xeb5b73373149696b",
+    "motion_pct": 8.5
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:21:25",
+    "seconds": 1786881085.36,
+    "epoch_time": 1786881085.364,
+    "description": "1. One person is visible near the center of the frame, standing still near a traffic light, appearing to loiter. No other individuals are clearly identifiable.  \n2. A silver SUV is stopped at the intersection, facing away from the camera, with brake lights illuminated. A dark-colored vehicle is parked or moving slowly near a decorative archway in the background.  \n3. No security events or restricted area breaches are evident. Traffic signals are red, and the scene shows normal urban street activity at night.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_21_25_120735.jpg",
+    "hash_hex": "0xfb5b53373d61715f",
+    "motion_pct": 10.09
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:23:52",
+    "seconds": 1786881232.52,
+    "epoch_time": 1786881232.523,
+    "description": "1. Two individuals are visible near the crosswalk: one in a dark jacket standing still, and another in a light-colored jacket walking across the street. A third person is partially visible near the traffic light pole.  \n2. A white SUV is parked on the left, a silver pickup truck is stopped at the intersection, and a dark SUV is positioned behind it. Traffic lights are red, and no vehicles are moving through the intersection.  \n3. No security events or restricted area violations are evident. The scene shows normal nighttime street activity with no unusual behavior or alarms triggered.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_23_52_125235.jpg",
+    "hash_hex": "0xab5f53363e691446",
+    "motion_pct": 17.03
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:23:58",
+    "seconds": 1786881238.09,
+    "epoch_time": 1786881238.091,
+    "description": "1. One person is visible loitering near the center of the intersection, standing still under the traffic light arch; no other individuals are clearly identifiable.  \n2. A silver pickup truck and a dark sedan are stopped at the red light in the foreground; a white sedan and other vehicles are moving through the intersection in the background.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally under red signal conditions.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_23_58_125385.jpg",
+    "hash_hex": "0xab5b73363c6c7276",
+    "motion_pct": 20.37
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:24:10",
+    "seconds": 1786881250.26,
+    "epoch_time": 1786881250.255,
+    "description": "1. One person is visible loitering near the center of the intersection, standing still under the traffic signal arch; no other individuals are clearly identifiable.  \n2. A dark sedan is moving through the intersection, while a white sedan and a dark SUV are stopped at the red light; a silver pickup truck is parked on the left side of the street.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally with standard red-light compliance.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_24_10_125685.jpg",
+    "hash_hex": "0xab5b733659696d6d",
+    "motion_pct": 8.85
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:24:23",
+    "seconds": 1786881263.48,
+    "epoch_time": 1786881263.484,
+    "description": "1. No pedestrians are visible; no loitering or suspicious activity.  \n2. A dark-colored SUV is moving through the intersection, proceeding straight under red traffic signals.  \n3. No vehicles are parked or stationary; no restricted areas are visibly breached or occupied.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_24_23_126135.jpg",
+    "hash_hex": "0xab5f53373d65557f",
+    "motion_pct": 6.73
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:24:28",
+    "seconds": 1786881268.97,
+    "epoch_time": 1786881268.974,
+    "description": "1. One individual in dark clothing is loitering near the crosswalk on the right side of the frame; another person is visible standing near a building on the left.  \n2. A white van is stopped at the intersection, facing the camera, with its headlights on; no other vehicles are clearly visible or moving.  \n3. No security events or restricted area breaches are evident; traffic lights are red, indicating a stop condition for all vehicles.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_24_28_126285.jpg",
+    "hash_hex": "0xaf5b53371941594b",
+    "motion_pct": 8.52
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:24:42",
+    "seconds": 1786881282.18,
+    "epoch_time": 1786881282.183,
+    "description": "1. One person in dark clothing is loitering near the center of the intersection under the archway; no other individuals are visible.  \n2. A dark-colored SUV is moving leftward across the intersection, headlights on; no other vehicles are in motion or parked.  \n3. Traffic lights are red; no security events or restricted area breaches are evident.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_24_42_126585.jpg",
+    "hash_hex": "0xab5f53373d21b95b",
+    "motion_pct": 13.75
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:24:47",
+    "seconds": 1786881287.19,
+    "epoch_time": 1786881287.194,
+    "description": "1. One white pickup truck is moving straight through the intersection, its brake lights illuminated. No pedestrians are visible; no loitering detected.  \n2. A dark sedan is parked on the left side of the street near a storefront. No other vehicles are in motion or parked.  \n3. No security events or restricted area violations are evident. The scene shows normal traffic flow at an urban intersection under nighttime lighting.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_24_47_126881.jpg",
+    "hash_hex": "0xaf5b73323961557e",
+    "motion_pct": 12.01
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:25:01",
+    "seconds": 1786881301.95,
+    "epoch_time": 1786881301.949,
+    "description": "1. No pedestrians are visible; no loitering or suspicious activity.  \n2. A dark-colored SUV is parked on the right side of the road, stationary.  \n3. Traffic lights are red; no vehicles are actively moving through the intersection.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_25_01_127185.jpg",
+    "hash_hex": "0xbf5f53373d60797a",
+    "motion_pct": 6.77
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:25:06",
+    "seconds": 1786881306.95,
+    "epoch_time": 1786881306.95,
+    "description": "1. No individuals are visible in the frame; no loitering or suspicious activity observed.\n2. A dark-colored pickup truck is moving through the intersection, with no other vehicles in motion or parked nearby.\n3. No security events or restricted area breaches are evident; the scene shows normal traffic flow at a crosswalk under traffic signals.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_25_06_127473.jpg",
+    "hash_hex": "0x9f5f72363265797e",
+    "motion_pct": 12.88
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:25:19",
+    "seconds": 1786881319.99,
+    "epoch_time": 1786881319.991,
+    "description": "1. One dark-colored sedan is crossing the intersection at the intersection, moving from left to right; no pedestrians are visible, and no loitering is observed.  \n2. A white van is parked on the right side of the road, stationary; no other vehicles are in motion or parked.  \n3. No security events or restricted area breaches are evident; traffic signals are red, and the scene shows normal nighttime traffic flow.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_25_19_127785.jpg",
+    "hash_hex": "0x8f5f53373d61797b",
+    "motion_pct": 4.81
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:26:01",
+    "seconds": 1786881361.03,
+    "epoch_time": 1786881361.03,
+    "description": "1. No individuals are clearly visible or identifiable in the frame; no loitering or suspicious activity is observed.  \n2. A dark red SUV is moving through the intersection, and a silver minivan is parked on the right side of the road.  \n3. No security events or restricted areas are evident; traffic is flowing normally under standard lighting conditions.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_26_01_129095.jpg",
+    "hash_hex": "0x8f5f73363d684d5e",
+    "motion_pct": 16.43
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:26:06",
+    "seconds": 1786881366.04,
+    "epoch_time": 1786881366.035,
+    "description": "1. No pedestrians are visible; no loitering or suspicious activity.  \n2. A dark SUV is crossing the intersection, and a dark sedan is turning right; a white van is stationary in the foreground.  \n3. No security events or restricted area breaches are evident; traffic signals are red, indicating controlled movement.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_26_06_129270.jpg",
+    "hash_hex": "0x8f5f723231697878",
+    "motion_pct": 17.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:26:11",
+    "seconds": 1786881371.04,
+    "epoch_time": 1786881371.039,
+    "description": "1. Two vehicles are present: a silver SUV in the foreground left and a white van in the foreground right, both stationary or moving slowly across the intersection. No pedestrians are visible; no loitering is observed.\n2. No vehicles are parked; all visible vehicles are in motion or positioned at the intersection. Traffic lights are red, indicating stop.\n3. No security events or restricted area breaches are evident. The scene shows normal traffic flow at an intersection under red signal, with no unusual activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_26_11_129409.jpg",
+    "hash_hex": "0x8f5f53373f625b6a",
+    "motion_pct": 12.65
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:26:16",
+    "seconds": 1786881376.05,
+    "epoch_time": 1786881376.048,
+    "description": "1. One person is visible loitering near the center of the intersection, standing still near a decorative archway; no other individuals are clearly identifiable.  \n2. A silver SUV is moving through the intersection, and a white van is stopped at the red light ahead; no other vehicles are actively moving or parked.  \n3. No security events or restricted area breaches are evident; traffic signals are active and red, indicating normal traffic control.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_26_16_129526.jpg",
+    "hash_hex": "0x8f5f73373b65517f",
+    "motion_pct": 8.25
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "17:26:49",
+    "seconds": 1786881409.25,
+    "epoch_time": 1786881409.252,
+    "description": "1. Two individuals are visible near the center of the intersection, one in dark clothing standing near a parked vehicle, the other in lighter attire loitering near the traffic light arch; both appear stationary and not actively crossing or moving.  \n2. A silver sedan is in motion across the intersection, while a dark-colored sedan is parked on the right side of the road, stationary and facing the intersection.  \n3. No security events or restricted area breaches are evident; traffic signals are red, and no unusual activity or trespassing is observed.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_17_26_49_130485.jpg",
+    "hash_hex": "0x8f5f53372d69696a",
+    "motion_pct": 16.54
+  },
+  {
     "camera": "CAM_4000",
     "timestamp": "23:44:58",
     "seconds": 1786817698.76,
@@ -1528,5 +2328,325 @@
     "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_23_45_16_883.jpg",
     "hash_hex": "0x5cb10813a27292c9",
     "motion_pct": 59.8
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:24:52",
+    "seconds": 1786877692.83,
+    "epoch_time": 1786877692.833,
+    "description": "No identifiable subjects or vehicles present. Frame shows no people, vehicles, or active security events; only static environmental elements including a grassy area, a pole, and scattered objects. No loitering or restricted area intrusion detected.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_24_52_1.jpg",
+    "hash_hex": "0x1a88888908c88082",
+    "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:24:57",
+    "seconds": 1786877697.9,
+    "epoch_time": 1786877697.899,
+    "description": "No individuals or vehicles are visible in the frame. The scene shows an empty pedestrian walkway adjacent to a beach, with no loitering, movement, or security events detected. The area appears inactive and unoccupied at the time of capture.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_24_57_195.jpg",
+    "hash_hex": "0x35b5fcfaf29536e6",
+    "motion_pct": 88.05
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:25:07",
+    "seconds": 1786877708.0,
+    "epoch_time": 1786877708.0,
+    "description": "1. No identifiable individuals are present; the walkway is sparsely populated with distant, indistinct figures, none exhibiting suspicious or loitering behavior.  \n2. No vehicles are visible in the frame; the area is devoid of moving or parked cars.  \n3. No security events or restricted area breaches are evident; the scene shows a quiet, uneventful nighttime beachside promenade.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_25_07_696.jpg",
+    "hash_hex": "0x67a9ab9f9c4837c1",
+    "motion_pct": 93.56
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:26:33",
+    "seconds": 1786877793.3,
+    "epoch_time": 1786877793.303,
+    "description": "1. A single individual, wearing dark clothing, is standing still near the center-right of the frame, appearing to loiter near a grassy area with trees. No other people are visible in the immediate vicinity.\n2. No vehicles are present in the frame; the area appears clear of moving or parked cars.\n3. No security events or restricted areas are evident. The scene shows a quiet, illuminated public pathway with no signs of suspicious activity or intrusion.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_26_33_797.jpg",
+    "hash_hex": "0x5909889088a8c302",
+    "motion_pct": 83.56
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:26:39",
+    "seconds": 1786877799.69,
+    "epoch_time": 1786877799.694,
+    "description": "Multiple pedestrians are present, including a person in a dark top and light pants walking with a stroller, and another individual with a dog near a trash bin; some appear to be loitering or waiting. No vehicles are visible in the frame. No security events or restricted areas are evident; activity appears routine and non-threatening.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_26_39_1231.jpg",
+    "hash_hex": "0x56ba984362385ed9",
+    "motion_pct": 78.84
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:26:57",
+    "seconds": 1786877817.78,
+    "epoch_time": 1786877817.784,
+    "description": "1. Three individuals are visible: one in dark clothing walking a black dog, another on a scooter, and a third in dark attire near a trash bin; all appear to be loitering or moving slowly along the sidewalk.  \n2. No vehicles are present; the scene shows only pedestrians and a scooter.  \n3. No security events or restricted area breaches are evident; activity is routine pedestrian movement with no signs of intrusion or anomaly.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_26_57_1829.jpg",
+    "hash_hex": "0x56ba98c321294e53",
+    "motion_pct": 6.83
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:27:12",
+    "seconds": 1786877832.57,
+    "epoch_time": 1786877832.566,
+    "description": "No individuals or vehicles observed. The scene shows an empty pedestrian walkway adjacent to a grassy area with trees and a bench, with no movement or activity detected. No security events, restricted areas, or notable activity are present.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_27_12_2129.jpg",
+    "hash_hex": "0x5909c890c8a88300",
+    "motion_pct": 73.65
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:27:47",
+    "seconds": 1786877867.15,
+    "epoch_time": 1786877867.15,
+    "description": "One person in dark clothing is walking alone along a well-lit promenade at night, exhibiting no loitering or suspicious behavior. No vehicles are visible in the frame. No security events, restricted areas, or unusual activity are detected.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_27_47_2145.jpg",
+    "hash_hex": "0xe7a9abae98ca37c3",
+    "motion_pct": 33.91
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:27:59",
+    "seconds": 1786877879.35,
+    "epoch_time": 1786877879.347,
+    "description": "One person in a dark jacket and dark pants walks away from the camera along a wide, illuminated pedestrian pathway. Two bicycles are parked near the center of the path, stationary. No vehicles are visible in motion or parked; only the lower portion of a dark-colored vehicle is partially visible in the bottom right corner.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_27_59_2729.jpg",
+    "hash_hex": "0x74dee4b9b0bf8204",
+    "motion_pct": 67.24
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:28:28",
+    "seconds": 1786877908.08,
+    "epoch_time": 1786877908.077,
+    "description": "No subjects or vehicles detected. The frame shows an empty paved area with no movement or activity. No security events, restricted areas, or notable activity are present.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_28_28_3629.jpg",
+    "hash_hex": "0xc084088901a3cae6",
+    "motion_pct": 63.74
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:28:33",
+    "seconds": 1786877913.82,
+    "epoch_time": 1786877913.821,
+    "description": "Three individuals are visible: two walking together near the beach grass area, and one walking alone along the sidewalk. No vehicles are present in the frame. No security events or restricted areas are detected; activity is routine pedestrian movement along a public promenade.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_28_33_3927.jpg",
+    "hash_hex": "0xb5b5b4faf29536e6",
+    "motion_pct": 13.81
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:28:45",
+    "seconds": 1786877925.06,
+    "epoch_time": 1786877925.059,
+    "description": "No identifiable subjects or vehicles present. Frame shows motion blur from a passing vehicle, with no stationary personnel, objects, or vehicles in clear view. No security events, restricted area breaches, or notable activity detected.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_28_45_4227.jpg",
+    "hash_hex": "0x929082008c809cc2",
+    "motion_pct": 77.36
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:28:50",
+    "seconds": 1786877930.81,
+    "epoch_time": 1786877930.813,
+    "description": "Two individuals in dark clothing are standing near a bench, appearing to loiter or converse; one is leaning on a trash can. No vehicles are visible in the frame. No security events or restricted areas are evident; the scene is a public walkway adjacent to a grassy area and a beachfront, with no signs of trespassing or unusual activity.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_28_50_4377.jpg",
+    "hash_hex": "0x5909889088a8c300",
+    "motion_pct": 63.71
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:29:08",
+    "seconds": 1786877948.17,
+    "epoch_time": 1786877948.165,
+    "description": "Two individuals in dark clothing stand near a skateboard on the sidewalk, appearing to loiter; a third person in a plaid shirt walks away in the distance. No vehicles are visible in the frame. No security events or restricted areas are evident; activity is casual pedestrian movement along a public walkway.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_29_08_4975.jpg",
+    "hash_hex": "0x56ba984332385e57",
+    "motion_pct": 32.46
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:29:43",
+    "seconds": 1786877983.52,
+    "epoch_time": 1786877983.517,
+    "description": "1. One adult in dark clothing is walking away from the camera along a grassy path; another person in light-colored clothing is visible further down the path, appearing to loiter.  \n2. No vehicles are present in the frame; the area is pedestrian-only with no active vehicle movement or parking.  \n3. No security events or restricted areas are detected; the scene shows normal nighttime pedestrian activity near a commercial establishment.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_29_43_6025.jpg",
+    "hash_hex": "0x5909c890c8a88302",
+    "motion_pct": 61.59
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:30:00",
+    "seconds": 1786878000.87,
+    "epoch_time": 1786878000.869,
+    "description": "No key subjects or vehicles observed. The scene shows an empty pedestrian walkway adjacent to a beach and hotel property, with no individuals or vehicles present. No security events, restricted areas, or notable activity detected.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_30_00_6475.jpg",
+    "hash_hex": "0xb5bdfcfaf29536ae",
+    "motion_pct": 12.51
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:30:18",
+    "seconds": 1786878018.03,
+    "epoch_time": 1786878018.027,
+    "description": "No identifiable individuals or vehicles present. The scene shows an empty pedestrian walkway at night, lined with palm trees, streetlights, and picnic shelters, with no active movement or security incidents detected. No vehicles are visible in the frame.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_30_18_6923.jpg",
+    "hash_hex": "0x7a393437367990c2",
+    "motion_pct": 58.6
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:30:23",
+    "seconds": 1786878023.03,
+    "epoch_time": 1786878023.027,
+    "description": "1. Two individuals are visible: one seated under a green canopy on the left, wearing dark clothing; another walking away in the distance, dressed in dark attire. A third person is partially visible near a trash bin, but their activity is indistinct.  \n2. No vehicles are present in the frame; the area is pedestrian-only with no parked or moving vehicles.  \n3. No security events or restricted area breaches are evident. The scene shows normal nocturnal pedestrian activity along a beachfront promenade.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_30_23_7201.jpg",
+    "hash_hex": "0x67abab9f9c4837c3",
+    "motion_pct": 5.79
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:30:36",
+    "seconds": 1786878036.22,
+    "epoch_time": 1786878036.215,
+    "description": "One adult in dark clothing walks a black dog along a paved promenade; both are moving away from the camera. No vehicles are visible in motion or parked; a bicycle is stationary in the distance. No security events or restricted areas are evident; activity is routine pedestrian movement.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_30_36_7523.jpg",
+    "hash_hex": "0x74deecb9b0df8200",
+    "motion_pct": 50.35
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:31:06",
+    "seconds": 1786878066.03,
+    "epoch_time": 1786878066.027,
+    "description": "No discernible subjects or vehicles present in the frame. The image is motion-blurred and lacks sufficient detail to identify individuals, clothing, or vehicles. No security events, restricted areas, or notable activity are visible.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_31_06_8423.jpg",
+    "hash_hex": "0xe0c2cdff8f8282c0",
+    "motion_pct": 66.95
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:31:12",
+    "seconds": 1786878072.4,
+    "epoch_time": 1786878072.4,
+    "description": "No individuals or vehicles observed. The scene shows an empty pedestrian walkway adjacent to a beach and the Venice V Hotel, with no loitering, movement, or security events detected. All visible objects—trash bins, lampposts, and palm trees—are stationary.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_31_12_8573.jpg",
+    "hash_hex": "0xb5b5fcfaf29536f6",
+    "motion_pct": 11.76
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:31:26",
+    "seconds": 1786878086.04,
+    "epoch_time": 1786878086.043,
+    "description": "No identifiable subjects or vehicles present. Frame shows an empty grassy area adjacent to a paved surface, with no people, vehicles, or active security events visible. No restricted areas or notable activity detected.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_31_26_9023.jpg",
+    "hash_hex": "0x22b0b296919ec080",
+    "motion_pct": 57.83
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:31:32",
+    "seconds": 1786878092.42,
+    "epoch_time": 1786878092.417,
+    "description": "No key subjects or vehicles observed. No notable security events, restricted areas, or activity detected. Scene is an empty nighttime sidewalk and adjacent park area with no people or moving vehicles.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_31_32_9171.jpg",
+    "hash_hex": "0x5909889088a8c302",
+    "motion_pct": 59.06
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:31:43",
+    "seconds": 1786878103.7,
+    "epoch_time": 1786878103.697,
+    "description": "No key subjects or vehicles observed. The frame shows an empty, well-lit pedestrian pathway at night with no individuals or moving vehicles present. No security events, restricted areas, or notable activity detected.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_31_43_9574.jpg",
+    "hash_hex": "0x2b8b899380b4c040",
+    "motion_pct": 61.56
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:31:51",
+    "seconds": 1786878111.94,
+    "epoch_time": 1786878111.944,
+    "description": "Two individuals in dark clothing are engaged in a physical altercation near a trash bin on the sidewalk; a third person in light-colored clothing stands nearby observing. No vehicles are visible in the frame. No restricted areas or security events are evident; the scene shows casual loitering and minor public disturbance.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_31_51_9771.jpg",
+    "hash_hex": "0x56ba98c372385ec7",
+    "motion_pct": 26.78
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:32:25",
+    "seconds": 1786878145.3,
+    "epoch_time": 1786878145.301,
+    "description": "No identifiable individuals or vehicles present in the frame. The scene shows an empty sidewalk adjacent to a grassy area with trees, benches, and trash receptacles, with no movement or activity detected. No security events, restricted areas, or notable activity are observed.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_32_25_10669.jpg",
+    "hash_hex": "0x4888081288184881",
+    "motion_pct": 62.05
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:32:31",
+    "seconds": 1786878151.7,
+    "epoch_time": 1786878151.697,
+    "description": "1. One individual in dark clothing is walking away from the camera along the sidewalk; no loitering observed.  \n2. No vehicles are visible in the frame; parking or movement status unobserved.  \n3. No security events or restricted area breaches detected; ambient activity is normal pedestrian movement.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_32_31_10969.jpg",
+    "hash_hex": "0x5909c890c8a8c300",
+    "motion_pct": 58.07
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:32:43",
+    "seconds": 1786878163.65,
+    "epoch_time": 1786878163.653,
+    "description": "No identifiable individuals or vehicles present. The scene shows an empty pedestrian walkway adjacent to a beach, with no loitering, movement, or security events detected. No vehicles are visible or parked.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_32_43_11269.jpg",
+    "hash_hex": "0xb5bdfcfaf295368e",
+    "motion_pct": 11.18
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:32:55",
+    "seconds": 1786878175.54,
+    "epoch_time": 1786878175.54,
+    "description": "No identifiable individuals or vehicles present. The scene shows a dimly lit beachside promenade at night with palm trees, streetlights, and empty outdoor seating; no loitering, movement, or security events detected. No vehicles are visible or in motion.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_32_55_11719.jpg",
+    "hash_hex": "0x5fd9dbdafdd8e2e6",
+    "motion_pct": 54.72
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:33:01",
+    "seconds": 1786878181.49,
+    "epoch_time": 1786878181.486,
+    "description": "1. Two individuals are visible: one adult walking a small dog away from the camera, and another person seated on a bench near a gazebo. Both appear to be loitering or casually strolling along the promenade.\n2. No vehicles are present in the frame; the area is pedestrian-only with no parked or moving vehicles.\n3. No security events or restricted area violations are evident. The scene is a typical nighttime beachfront walkway with no unusual activity.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_33_01_11869.jpg",
+    "hash_hex": "0x67a9ab9f9c4837c3",
+    "motion_pct": 8.51
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:33:19",
+    "seconds": 1786878199.41,
+    "epoch_time": 1786878199.413,
+    "description": "One person in a dark long-sleeved top and dark shorts is walking centrally along the paved pathway. No vehicles are visible or in motion; the area appears deserted except for two parked bicycles and scattered trash bins. No security events or restricted areas are evident; the scene shows no unusual activity or trespassing.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_33_19_12469.jpg",
+    "hash_hex": "0x74deecb9b0cf8c01",
+    "motion_pct": 48.92
+  },
+  {
+    "camera": "CAM_4000",
+    "timestamp": "16:33:55",
+    "seconds": 1786878235.48,
+    "epoch_time": 1786878235.475,
+    "description": "No discernible subjects or vehicles are present in the frame. The image is motion-blurred and lacks sufficient detail to identify individuals, clothing, or vehicles. No security events, restricted areas, or notable activity are visible.",
+    "image_path": "data/cameras/CAM_4000/extracted_frames/CAM_4000_16_33_55_13217.jpg",
+    "hash_hex": "0x6831e0808ef6fef2",
+    "motion_pct": 70.1
   }
 ]
