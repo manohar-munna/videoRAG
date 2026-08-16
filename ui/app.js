@@ -746,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     })(item.timestamp);
 
                     return `
-                        <div class="json-event-card" data-camera="${escapeHtml(item.camera || '')}" data-seconds="${secs}" data-timestamp="${escapeHtml(item.timestamp || '')}" data-image="${escapeHtml(imgUrl)}">
+                        <div class="json-event-card" data-camera="${escapeHtml(item.camera || '')}" data-seconds="${secs}" data-timestamp="${escapeHtml(item.timestamp || '')}" data-epoch="${item.epoch_time || ''}" data-image="${escapeHtml(imgUrl)}">
                             <div class="json-card-thumb-wrap" title="Click to preview in Surveillance Monitor">
                                 ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" class="json-card-thumb" alt="Frame preview" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}
                                 <div class="json-card-thumb-placeholder" style="${imgUrl ? 'display:none;' : ''}">
@@ -781,13 +781,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const cam = card.dataset.camera;
                     const sec = parseFloat(card.dataset.seconds) || 0;
                     const ts = card.dataset.timestamp;
+                    const epoch = card.dataset.epoch ? parseFloat(card.dataset.epoch) : null;
                     const img = card.dataset.image;
 
                     // Thumb click & Seek click
                     const thumbWrap = card.querySelector('.json-card-thumb-wrap');
                     const seekBtn = card.querySelector('.btn-card-seek');
                     const handleSeek = () => {
-                        seekToTime(sec, ts, cam, img);
+                        seekToTime(sec, ts, cam, img, epoch);
                     };
                     if (thumbWrap) thumbWrap.addEventListener('click', handleSeek);
                     if (seekBtn) seekBtn.addEventListener('click', handleSeek);
