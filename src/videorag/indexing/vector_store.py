@@ -7,6 +7,7 @@ and chunk metadata retrieval.
 
 import json
 import logging
+import threading
 from pathlib import Path
 from typing import List, Optional
 
@@ -34,7 +35,8 @@ class FAISSVectorStore:
     """In-memory FAISS index with JSON-serialisable metadata sidecar.
 
     Uses ``faiss.IndexFlatIP`` (inner product) on L2-normalised vectors
-    so that the inner product equals cosine similarity.
+    so that the inner product equals cosine similarity. Fully thread-safe
+    via a re-entrant lock (`threading.RLock`).
 
     Args:
         dim: Embedding dimensionality.
@@ -45,8 +47,10 @@ class FAISSVectorStore:
     def __init__(self, dim: int, index_type: str = "flat") -> None:
         self.dim = dim
         self.index_type = index_type
-        self._index: faiss.IndexFlatIP = faiss.IndexFlatIP(dim)
-        self._metadata: List[dict] = []
+        self._lock = threading.RLock()
+        with self._lock:
+            self._index: faiss.IndexFlatIP = faiss.IndexFlatIP(dim)
+            self._metadata: List[dict] = []
         logger.info(
             "Initialised FAISSVectorStore (dim=%d, type='%s')", dim, index_type
         )
@@ -56,7 +60,7 @@ class FAISSVectorStore:
     # ------------------------------------------------------------------
 
     def add(self, embeddings: np.ndarray, metadata: List[dict]) -> None:
-        """Add vectors and their associated metadata to the store.
+        """Add vectors and their associated metadata to the store atomically.
 
         Vectors are L2-normalised before insertion so that inner-product
         search yields cosine similarities in [−1, 1].
@@ -76,18 +80,21 @@ class FAISSVectorStore:
             )
 
         normed = _l2_normalize(embeddings)
-        self._index.add(normed)
-        self._metadata.extend(metadata)
+        with self._lock:
+            self._index.add(normed)
+            self._metadata.extend(metadata)
+            total = self._index.ntotal
+
         logger.info(
             "Added %d vectors; store now contains %d vectors",
             len(embeddings),
-            self._index.ntotal,
+            total,
         )
 
     def search(
         self, query_embedding: np.ndarray, top_k: int = 10
     ) -> List[dict]:
-        """Search for the *top_k* most similar vectors.
+        """Search for the *top_k* most similar vectors atomically.
 
         Args:
             query_embedding: 1-D float32 array of shape ``(dim,)`` **or**
@@ -97,28 +104,30 @@ class FAISSVectorStore:
         Returns:
             A list of dicts, each with keys:
             ``score`` (float cosine similarity) and
-            ``metadata`` (the dict stored alongside the vector).
+            ``metadata`` (defensive dict copy stored alongside the vector).
         """
-        if self._index.ntotal == 0:
-            logger.warning("Search called on empty index — returning []")
-            return []
+        with self._lock:
+            if self._index.ntotal == 0:
+                logger.warning("Search called on empty index — returning []")
+                return []
 
-        q = query_embedding.reshape(1, -1).astype(np.float32)
-        q = _l2_normalize(q)
+            q = query_embedding.reshape(1, -1).astype(np.float32)
+            q = _l2_normalize(q)
 
-        k = min(top_k, self._index.ntotal)
-        scores, indices = self._index.search(q, k)
+            k = min(top_k, self._index.ntotal)
+            scores, indices = self._index.search(q, k)
 
-        results: List[dict] = []
-        for score, idx in zip(scores[0], indices[0]):
-            if idx == -1:
-                continue
-            results.append(
-                {
-                    "score": float(score),
-                    "metadata": self._metadata[idx],
-                }
-            )
+            results: List[dict] = []
+            meta_len = len(self._metadata)
+            for score, idx in zip(scores[0], indices[0]):
+                if idx == -1 or idx >= meta_len:
+                    continue
+                results.append(
+                    {
+                        "score": float(score),
+                        "metadata": dict(self._metadata[idx]),
+                    }
+                )
 
         logger.debug("Search returned %d results (top_k=%d)", len(results), top_k)
         return results
@@ -128,7 +137,7 @@ class FAISSVectorStore:
     # ------------------------------------------------------------------
 
     def save(self, path: str) -> None:
-        """Save the FAISS index and metadata to *path*.
+        """Save the FAISS index and metadata to *path* atomically under lock.
 
         Two files are written:
 
@@ -144,19 +153,21 @@ class FAISSVectorStore:
         index_path = str(base) + ".faiss"
         meta_path = str(base) + ".meta.json"
 
-        faiss.write_index(self._index, index_path)
-        with open(meta_path, "w", encoding="utf-8") as fh:
-            json.dump(self._metadata, fh, ensure_ascii=False, indent=2)
+        with self._lock:
+            faiss.write_index(self._index, index_path)
+            with open(meta_path, "w", encoding="utf-8") as fh:
+                json.dump(self._metadata, fh, ensure_ascii=False, indent=2)
+            total = self._index.ntotal
 
         logger.info(
             "Saved index (%d vectors) → '%s' | metadata → '%s'",
-            self._index.ntotal,
+            total,
             index_path,
             meta_path,
         )
 
     def load(self, path: str) -> None:
-        """Load a previously saved index from *path*.
+        """Load a previously saved index from *path* atomically under lock.
 
         Args:
             path: Base path used when calling :meth:`save` (no extension).
@@ -172,13 +183,18 @@ class FAISSVectorStore:
             if not Path(fp).exists():
                 raise FileNotFoundError(f"Vector store file not found: {fp}")
 
-        self._index = faiss.read_index(index_path)
-        with open(meta_path, "r", encoding="utf-8") as fh:
-            self._metadata = json.load(fh)
+        with self._lock:
+            new_index = faiss.read_index(index_path)
+            with open(meta_path, "r", encoding="utf-8") as fh:
+                new_metadata = json.load(fh)
+
+            self._index = new_index
+            self._metadata = new_metadata
+            total = self._index.ntotal
 
         logger.info(
             "Loaded index with %d vectors from '%s'",
-            self._index.ntotal,
+            total,
             index_path,
         )
 
@@ -189,4 +205,5 @@ class FAISSVectorStore:
     @property
     def size(self) -> int:
         """Number of vectors currently stored."""
-        return self._index.ntotal
+        with self._lock:
+            return self._index.ntotal
