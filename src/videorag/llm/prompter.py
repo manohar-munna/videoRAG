@@ -56,8 +56,8 @@ class RAGPrompter:
         context_lines: List[str] = []
         for idx, chunk in enumerate(retrieved_chunks, start=1):
             meta = chunk.get("metadata", {})
-            camera = meta.get("camera", "Unknown Camera")
-            timestamp = meta.get("start_timestamp", meta.get("timestamp", "Unknown Time"))
+            camera = chunk.get("camera", meta.get("camera", "Unknown Camera"))
+            timestamp = chunk.get("time_range", meta.get("start_timestamp", meta.get("timestamp", "Unknown Time")))
             description = meta.get("description", chunk.get("text", "No description"))
             score = chunk.get("rerank_score", chunk.get("score", None))
             score_str = f" [relevance={score:.3f}]" if score is not None else ""

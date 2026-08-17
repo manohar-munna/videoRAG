@@ -1925,3 +1925,96 @@ body {
     color: var(--text-muted);
     font-family: var(--font-mono);
 }
+
+/* ------------------------------------------------------------- */
+/* Chronological Forensic Storyboard (Lazy VLM Multi-Frame UI)  */
+/* ------------------------------------------------------------- */
+.storyboard-container {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+}
+.storyboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.storyboard-title {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.storyboard-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.storyboard-strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+}
+.storyboard-card {
+    flex: 0 0 110px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.storyboard-card:hover {
+    border-color: var(--blue-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.storyboard-card.active {
+    border-color: var(--blue-primary);
+    box-shadow: 0 0 0 2px var(--blue-border);
+}
+.storyboard-card.anchor-frame {
+    border-color: #f59e0b;
+    background: #fffbeb;
+}
+.storyboard-thumb-wrap {
+    position: relative;
+    width: 100%;
+    height: 64px;
+    background: #1e293b;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.storyboard-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.anchor-badge {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    background: #f59e0b;
+    color: #ffffff;
+    font-size: 0.6rem;
+    font-weight: 800;
+    padding: 1px 4px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+}
+.storyboard-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: var(--text-heading);
+}

@@ -1,12 +1,10 @@
 """
 src/videorag/captioning/vlm_captioner.py
 -----------------------------------------
-VLM-based image frame captioning module.
+VLM-based image frame captioning and multi-frame forensic reasoning module.
 
-Converts sampled CCTV video frames into detailed natural language surveillance descriptions:
-- Objects & vehicles (type, color, direction)
-- People (clothing, count, behavior, loitering)
-- Security events (access, perimeter interaction, anomalous activity)
+Converts sampled CCTV video frames into natural language descriptions,
+and performs multi-frame chronological temporal reasoning over retrieved episodes.
 """
 
 import base64
@@ -47,7 +45,7 @@ def _encode_image_base64(image_path: str, max_dim: int = 640) -> str:
 
 
 class VLMCaptioner:
-    """Converts CCTV frame images into timestamped observation records."""
+    """Converts CCTV frame images into timestamped observation records and performs multi-frame reasoning."""
 
     def __init__(
         self,
@@ -92,6 +90,10 @@ class VLMCaptioner:
             logger.info("Gemini VLM client initialised.")
         except ImportError as exc:
             raise ImportError("google-generativeai package required for Gemini VLM.") from exc
+
+    # ------------------------------------------------------------------
+    # Single-Frame Captioning
+    # ------------------------------------------------------------------
 
     def caption_frame(self, image_path: str) -> str:
         """Generate a surveillance description for a single frame image."""
@@ -171,3 +173,150 @@ class VLMCaptioner:
                 logger.info("Captioned %d / %d frames...", idx, len(extracted_frames))
 
         return records
+
+    # ------------------------------------------------------------------
+    # Multi-Frame Chronological Forensic Reasoning
+    # ------------------------------------------------------------------
+
+    def reason_over_episode(self, query: str, episode: Dict[str, Any]) -> str:
+        """Perform step-by-step multi-frame forensic reasoning over a temporal episode.
+
+        Sends a sequence of chronological timestamped images to the VLM (Qwen3-VL/Gemini)
+        to answer the user's query with causal, temporal understanding.
+
+        Args:
+            query: The operator's natural-language query.
+            episode: An Episode dict containing ``camera``, ``time_range``, and ``frames``.
+
+        Returns:
+            The VLM's multi-frame forensic reasoning answer.
+        """
+        cam_id = episode.get("camera", "CAM_01")
+        time_range = episode.get("time_range", "00:00:00")
+        frames = episode.get("frames", [])
+
+        if not frames:
+            return f"No visual frames available for Camera {cam_id} in the requested timeframe."
+
+        if self.backend in ("local", "openai"):
+            return self._reason_openai(query, cam_id, time_range, frames)
+        elif self.backend == "gemini":
+            return self._reason_gemini(query, cam_id, time_range, frames)
+
+        return self._reason_heuristic(query, cam_id, time_range, frames)
+
+    def _reason_openai(
+        self,
+        query: str,
+        cam_id: str,
+        time_range: str,
+        frames: List[Dict[str, Any]],
+    ) -> str:
+        """Execute multi-frame vision completion using OpenAI / Local llama-server endpoint."""
+        try:
+            content_blocks: List[Dict[str, Any]] = [
+                {
+                    "type": "text",
+                    "text": (
+                        f"You are a forensic CCTV security analyst reviewing chronological video surveillance frames from Camera '{cam_id}'.\n"
+                        f"User Query: '{query}'\n"
+                        f"Sequence Time Range: {time_range}\n\n"
+                        "Analyze what happened across the following sequence of frames step-by-step and provide a factual, precise answer. "
+                        "Cite the specific timestamps where key actions or subjects appear."
+                    ),
+                }
+            ]
+
+            valid_image_count = 0
+            for idx, frame in enumerate(frames[:5], start=1):
+                img_p = frame.get("image_path", "")
+                ts = frame.get("timestamp", "00:00:00")
+                is_anchor = frame.get("is_anchor", False)
+                anchor_tag = " [Primary Target Moment]" if is_anchor else ""
+
+                content_blocks.append({
+                    "type": "text",
+                    "text": f"--- Frame {idx} (Camera: {cam_id}, Time: {ts}){anchor_tag} ---",
+                })
+
+                local_path = Path(img_p)
+                if not local_path.is_absolute():
+                    # Resolve relative to project root or data folder
+                    proj_root = Path(__file__).resolve().parent.parent.parent.parent
+                    cand1 = proj_root / img_p.lstrip("/")
+                    cand2 = proj_root / "data" / img_p.lstrip("/")
+                    local_path = cand1 if cand1.exists() else cand2
+
+                if local_path.exists():
+                    b64 = _encode_image_base64(str(local_path))
+                    content_blocks.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+                    })
+                    valid_image_count += 1
+
+            if valid_image_count == 0:
+                return self._reason_heuristic(query, cam_id, time_range, frames)
+
+            logger.info("Calling VLM for multi-frame episode reasoning (%d frames)...", valid_image_count)
+            res = self._client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": content_blocks}],
+                max_tokens=512,
+                temperature=0.2,
+            )
+            answer = res.choices[0].message.content or ""
+            return answer.strip()
+
+        except Exception as exc:
+            logger.warning("Multi-frame VLM reasoning failed: %s. Falling back to heuristic summary.", exc)
+            return self._reason_heuristic(query, cam_id, time_range, frames)
+
+    def _reason_gemini(
+        self,
+        query: str,
+        cam_id: str,
+        time_range: str,
+        frames: List[Dict[str, Any]],
+    ) -> str:
+        """Execute multi-frame vision completion using Gemini GenerativeAI."""
+        try:
+            from PIL import Image
+            contents = [
+                f"You are a forensic security analyst reviewing chronological CCTV footage from Camera '{cam_id}'.\n"
+                f"User Query: '{query}'\n"
+                f"Sequence Time Range: {time_range}\n\n"
+                "Analyze what happened across the following sequence of frames step-by-step and provide a factual, precise answer."
+            ]
+
+            for idx, frame in enumerate(frames[:5], start=1):
+                img_p = frame.get("image_path", "")
+                ts = frame.get("timestamp", "00:00:00")
+                contents.append(f"--- Frame {idx} (Time: {ts}) ---")
+                if Path(img_p).exists():
+                    contents.append(Image.open(img_p))
+
+            res = self._gemini_model.generate_content(contents)
+            return (res.text or "").strip()
+        except Exception as exc:
+            logger.warning("Gemini multi-frame VLM failed: %s", exc)
+            return self._reason_heuristic(query, cam_id, time_range, frames)
+
+    def _reason_heuristic(
+        self,
+        query: str,
+        cam_id: str,
+        time_range: str,
+        frames: List[Dict[str, Any]],
+    ) -> str:
+        """Generate structured contextual analysis when VLM backend is unavailable."""
+        anchor_frame = next((f for f in frames if f.get("is_anchor")), frames[0] if frames else {})
+        anchor_ts = anchor_frame.get("timestamp", "00:00:00")
+        frame_count = len(frames)
+
+        return (
+            f"Based on chronological CCTV surveillance footage from **{cam_id}** during **{time_range}**, "
+            f"the primary target activity corresponding to '{query}' was identified around **{anchor_ts}**.\n\n"
+            f"A sequence of {frame_count} keyframes (spanning before, during, and after the event) captures "
+            f"the movement timeline. Review the chronological storyboard below for visual verification."
+        )

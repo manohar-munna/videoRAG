@@ -40,7 +40,7 @@ from rich import box
 from rich.rule import Rule
 from rich.text import Text
 
-from videorag.indexing.embedder import TextEmbedder
+from videorag.indexing.embedder import MultimodalEmbedder, TextEmbedder
 from videorag.indexing.vector_store import FAISSVectorStore
 from videorag.retrieval.retriever import CCTVRetriever
 from videorag.retrieval.reranker import CrossEncoderReranker, ScoreReranker
@@ -74,7 +74,7 @@ def _build_pipeline(config: dict):
     cfg_ret = config.get("retrieval", {})
     cfg_llm = config.get("llm", {})
 
-    model_name: str = cfg_idx.get("model_name", "all-MiniLM-L6-v2")
+    model_name: str = cfg_idx.get("model_name", "clip-ViT-B-32")
     index_save_path: str = cfg_idx.get("index_save_path", "index/cctv_index")
 
     top_k: int = cfg_ret.get("top_k", 10)
@@ -90,8 +90,8 @@ def _build_pipeline(config: dict):
     if not idx_path.is_absolute():
         idx_path = _PROJECT_ROOT / idx_path
 
-    console.print(f"[dim]Loading embedding model '[cyan]{model_name}[/cyan]'…[/dim]")
-    embedder = TextEmbedder(model_name=model_name)
+    console.print(f"[dim]Loading multimodal embedding model '[cyan]{model_name}[/cyan]'…[/dim]")
+    embedder = MultimodalEmbedder(model_name=model_name)
 
     console.print(f"[dim]Loading FAISS index from '[cyan]{idx_path}[/cyan]'…[/dim]")
     store = FAISSVectorStore(dim=embedder.dimension)

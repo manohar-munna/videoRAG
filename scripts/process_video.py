@@ -97,10 +97,19 @@ def process_video_pipeline(
         console.print("[yellow]No keyframes passed the dHash filter threshold. Nothing to caption.[/yellow]")
         return
 
-    # 2. VLM Captioning
-    console.print("\n[bold cyan]Step 2/3: Captioning keyframes with local VLM…[/bold cyan]")
-    captioner = VLMCaptioner(backend=vlm_backend)
-    records = captioner.caption_batch(extracted_frames, show_progress=True)
+    # 2. Keyframe Records Preparation (Lazy VLM or Full Captioning)
+    if vlm_backend in ("lazy", "skip", "none"):
+        console.print("\n[bold cyan]Step 2/3: Fast Lazy VLM Mode (Instant direct visual embedding)…[/bold cyan]")
+        records = []
+        for item in extracted_frames:
+            rec = dict(item)
+            rec["description"] = f"Surveillance keyframe captured by {rec.get('camera', camera_id)} at {rec.get('timestamp', '00:00:00')}."
+            rec["image_path"] = str(rec.get("image_path", "")).replace("\\", "/")
+            records.append(rec)
+    else:
+        console.print("\n[bold cyan]Step 2/3: Captioning keyframes with local VLM…[/bold cyan]")
+        captioner = VLMCaptioner(backend=vlm_backend)
+        records = captioner.caption_batch(extracted_frames, show_progress=True)
 
     out_file = Path(output_json)
     if not out_file.is_absolute():

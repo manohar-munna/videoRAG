@@ -1649,9 +1649,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const results = data.results || [];
         evidenceCount.textContent = results.length;
 
-        // 1. Render AI Security Analysis with Interactive Timestamps
+        // 1. Render AI Security Analysis + Forensic Storyboard Strip
+        let storyboardHtml = '';
+        if (data.storyboard && data.storyboard.length > 0) {
+            storyboardHtml = `
+                <div class="storyboard-container">
+                    <div class="storyboard-header">
+                        <span class="storyboard-title">🎬 Chronological Forensic Storyboard (${data.storyboard.length} frames)</span>
+                        <span class="storyboard-hint">Click any frame to jump player</span>
+                    </div>
+                    <div class="storyboard-strip">
+                        ${data.storyboard.map((f, i) => `
+                            <div class="storyboard-card ${f.is_anchor ? 'anchor-frame' : ''}" data-seconds="${f.seconds}" data-timestamp="${f.timestamp}" data-epoch="${f.epoch_time || ''}" data-image="${escapeHtml(f.image_path || '')}" data-camera="${escapeHtml(f.camera || '')}" title="${f.is_anchor ? 'Target Match Moment' : 'Surrounding Context Frame'} @ ${f.timestamp}">
+                                <div class="storyboard-thumb-wrap">
+                                    ${f.image_path ? `<img src="${escapeHtml(f.image_path)}" class="storyboard-thumb" alt="Frame ${i+1}" onerror="this.style.display='none';">` : ''}
+                                    ${f.is_anchor ? `<span class="anchor-badge">TARGET</span>` : ''}
+                                </div>
+                                <div class="storyboard-meta">
+                                    <span class="storyboard-ts">${escapeHtml(f.timestamp)}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         const formattedAnswer = formatAiSecurityAnalysis(data.answer, results);
-        aiAnswerBody.innerHTML = `<div class="animate-slide-in">${formattedAnswer}</div>`;
+        aiAnswerBody.innerHTML = `<div class="animate-slide-in">${storyboardHtml}${formattedAnswer}</div>`;
+
+        // Attach Click Listeners to Storyboard Cards
+        aiAnswerBody.querySelectorAll('.storyboard-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                aiAnswerBody.querySelectorAll('.storyboard-card').forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+
+                const sec = parseFloat(card.dataset.seconds) || 0;
+                const ts = card.dataset.timestamp || '';
+                const cam = card.dataset.camera || (results.length > 0 ? results[0].camera : 'CAM_01');
+                const img = card.dataset.image || '';
+                const epoch = card.dataset.epoch ? parseFloat(card.dataset.epoch) : null;
+                seekToTime(sec, ts, cam, img, epoch);
+            });
+        });
 
         // 2. Attach Click Listeners to Interactive Timestamp Buttons in LLM Output
         aiAnswerBody.querySelectorAll('.answer-ts-btn').forEach(btn => {

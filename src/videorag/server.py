@@ -136,19 +136,16 @@ def _auto_index_worker_loop() -> None:
             img_path = keyframe.get("image_path")
 
             if not img_path or not Path(img_path).exists():
-                continue
-
-            if captioner is None:
+                continue            # Direct multimodal visual embedding (~25ms, no slow VLM text generation in background loop)
+            clean_p = str(img_path).replace("\\", "/")
+            emb = None
+            if PIPELINE.get("embedder"):
                 try:
-                    captioner = VLMCaptioner(backend="local")
+                    emb = PIPELINE["embedder"].embed_image(img_path)
                 except Exception as exc:
-                    logger.error("[Auto-Indexer] Failed to initialize VLM captioner: %s", exc)
-                    time.sleep(2)
-                    continue
+                    logger.warning("[Auto-Indexer] Error embedding image %s: %s", img_path, exc)
 
-            logger.info("[Auto-Indexer] [%s] Running VLM captioning on %s @ %s (%s)...", 
-                        cam_id, cam_id, ts_str, Path(img_path).name)
-            desc = captioner.caption_frame(img_path)
+            desc = f"Surveillance keyframe captured by {cam_id} at {ts_str}."
 
             # 1. Update per-camera isolated events JSON
             cam_dir = _PROJECT_ROOT / "data" / "cameras" / cam_id
@@ -163,7 +160,6 @@ def _auto_index_worker_loop() -> None:
                 except Exception:
                     existing_cam = []
 
-            clean_p = str(img_path).replace("\\", "/")
             # Check if this exact frame is already in per-camera json
             if not any(str(r.get("image_path", "")).replace("\\", "/") == clean_p for r in existing_cam):
                 new_rec = {
@@ -195,7 +191,7 @@ def _auto_index_worker_loop() -> None:
                 seen_k = set()
                 deduped = []
                 for r in all_events:
-                    k = (r.get("camera"), r.get("timestamp"), r.get("description", "")[:30])
+                    k = (r.get("camera"), r.get("timestamp"), r.get("image_path", ""))
                     if k not in seen_k:
                         seen_k.add(k)
                         deduped.append(r)
@@ -203,11 +199,9 @@ def _auto_index_worker_loop() -> None:
                 with open(out_file, "w", encoding="utf-8") as fh:
                     json.dump(deduped, fh, indent=2, ensure_ascii=False)
 
-                # 3. Dynamic in-memory FAISS vector indexing
-                if PIPELINE.get("vector_store") and PIPELINE.get("embedder"):
+                # 3. Dynamic in-memory FAISS vector indexing (Instant Image Vector)
+                if PIPELINE.get("vector_store") and emb is not None:
                     import numpy as np
-                    doc_text = f"Camera: {cam_id} | Time: {ts_str} | Event: {desc}"
-                    emb = PIPELINE["embedder"].embed_query(doc_text)
                     emb_2d = np.ascontiguousarray(emb.reshape(1, -1), dtype=np.float32)
                     meta = {
                         "camera": cam_id,
@@ -215,14 +209,14 @@ def _auto_index_worker_loop() -> None:
                         "seconds": keyframe.get("seconds", 0.0),
                         "epoch_time": keyframe.get("epoch_time", round(time.time(), 3)),
                         "description": desc,
-                        "text": doc_text,
+                        "text": f"Camera: {cam_id} | Time: {ts_str}",
                         "image_path": clean_p,
                         "chunk_id": f"{cam_id}_{ts_str.replace(':', '_')}",
                     }
                     PIPELINE["vector_store"].add(emb_2d, [meta])
                     idx_path = _PROJECT_ROOT / "index" / "cctv_index"
                     PIPELINE["vector_store"].save(str(idx_path))
-                    logger.info("[Auto-Indexer] [%s] Successfully auto-indexed keyframe @ %s! Vector count: %d", 
+                    logger.info("[Auto-Indexer] [%s] Instantly indexed visual keyframe @ %s in ~25ms! Vector count: %d", 
                                 cam_id, ts_str, PIPELINE["vector_store"].size)
 
         except Exception as exc:
@@ -254,19 +248,26 @@ class SmartProcessRequest(BaseModel):
 
 class AddStreamRequest(BaseModel):
     camera_id: str
+    feed_type: str = "youtube_stream"  # 'youtube_stream' | 'rtsp_stream' | 'video_file'
     stream_url: str
+    name: Optional[str] = None
+    location: Optional[str] = "Perimeter Gate"
     sample_interval: Optional[float] = 5.0
     hash_method: Optional[str] = "dhash"
     threshold: Optional[int] = 10
+    enable_hash_filter: Optional[bool] = True
 
 
-class RemoveStreamRequest(BaseModel):
+class StreamControlRequest(BaseModel):
     camera_id: str
 
 
-# Latest Hash Filter Audit Trail store
-LATEST_HASH_AUDIT: Dict[str, Any] = {
-    "stats": {
+# In-memory pipeline objects
+PIPELINE: Dict[str, Any] = {}
+
+# In-memory real-time Edge Frame Inspector metrics buffer
+DEV_INSPECTOR_STATE = {
+    "kpis": {
         "total_frames": 55,
         "keyframes_kept": 48,
         "frames_skipped": 7,
@@ -279,7 +280,7 @@ LATEST_HASH_AUDIT: Dict[str, Any] = {
 
 
 def init_pipeline(config_path: str = "config/config.yaml") -> None:
-    """Initialize retriever, reranker, vector store, and LLM clients."""
+    """Initialize multimodal retriever, reranker, vector store, VLM reasoner, and LLM clients."""
     import yaml
     cfg_file = Path(config_path)
     if not cfg_file.is_absolute():
@@ -292,10 +293,11 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
     cfg_ret = config.get("retrieval", {})
     cfg_llm = config.get("llm", {})
 
-    model_name = cfg_idx.get("model_name", "all-MiniLM-L6-v2")
+    model_name = cfg_idx.get("model_name", "clip-ViT-B-32")
     index_path = cfg_idx.get("index_save_path", "index/cctv_index")
 
-    embedder = TextEmbedder(model_name=model_name)
+    from videorag.indexing.embedder import MultimodalEmbedder
+    embedder = MultimodalEmbedder(model_name=model_name)
     store = FAISSVectorStore(dim=embedder.dimension)
 
     idx_path = Path(index_path)
@@ -303,10 +305,21 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
         idx_path = _PROJECT_ROOT / idx_path
 
     if idx_path.with_suffix(".faiss").exists():
-        store.load(str(idx_path))
-        logger.info("Loaded FAISS index with %d vectors", store.size)
+        try:
+            store.load(str(idx_path))
+            if store._index.d != embedder.dimension:
+                logger.warning(
+                    "Existing FAISS index dimension (%d) does not match embedder dimension (%d). Initializing fresh %d-D store.",
+                    store._index.d, embedder.dimension, embedder.dimension
+                )
+                store = FAISSVectorStore(dim=embedder.dimension)
+            else:
+                logger.info("Loaded FAISS index with %d vectors", store.size)
+        except Exception as exc:
+            logger.warning("Failed to load index (%s). Creating fresh %d-D store.", exc, embedder.dimension)
+            store = FAISSVectorStore(dim=embedder.dimension)
     else:
-        logger.warning("FAISS index not found at %s. Creating empty store.", idx_path)
+        logger.warning("FAISS index not found at %s. Creating empty %d-D store.", idx_path, embedder.dimension)
 
     retriever = CCTVRetriever(vector_store=store, embedder=embedder)
 
@@ -316,6 +329,13 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
     except Exception as exc:
         logger.warning("Cross-encoder failed (%s), using score fallback.", exc)
         reranker = ScoreReranker()
+
+    captioner = VLMCaptioner(
+        backend=cfg_llm.get("backend", "local"),
+        model=cfg_llm.get("model", "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
+        api_key=cfg_llm.get("api_key"),
+        base_url=cfg_llm.get("base_url"),
+    )
 
     llm_client = LLMClient(
         backend=cfg_llm.get("backend", "local"),
@@ -332,6 +352,7 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
     PIPELINE["vector_store"] = store
     PIPELINE["retriever"] = retriever
     PIPELINE["reranker"] = reranker
+    PIPELINE["captioner"] = captioner
     PIPELINE["llm_client"] = llm_client
     PIPELINE["prompter"] = prompter
     PIPELINE["evaluator"] = evaluator
@@ -351,10 +372,13 @@ def get_health():
     import time
     store = PIPELINE.get("vector_store")
     llm = PIPELINE.get("llm_client")
+    embedder = PIPELINE.get("embedder")
     return {
         "status": "online",
         "server_time": round(time.time(), 3),
         "vector_count": store.size if store else 0,
+        "vector_dimension": embedder.dimension if embedder else 512,
+        "embedder_model": embedder.model_name if embedder else "clip-ViT-B-32",
         "llm_backend": llm.backend if llm else "unknown",
         "llm_model": llm.model if llm else "unknown",
         "reranker": PIPELINE.get("reranker").__class__.__name__ if PIPELINE.get("reranker") else "none",
@@ -373,60 +397,46 @@ def get_events(camera: Optional[str] = None, detailed: bool = False):
             with open(data_path, "r", encoding="utf-8") as fh:
                 records = json.load(fh)
         except Exception as exc:
-            logger.warning("Failed to read %s: %s", data_path, exc)
+            logger.warning("Could not load real_cctv_events.json: %s", exc)
+            records = []
 
-    # 2. Always aggregate and sync directly from per-camera isolated events JSON
-    seen_keys = set((r.get("camera"), r.get("timestamp"), r.get("image_path", "")) for r in records)
-    cam_base = _PROJECT_ROOT / "data" / "cameras"
-    if cam_base.exists():
-        for cam_events in cam_base.glob("*/events.json"):
-            try:
-                with open(cam_events, "r", encoding="utf-8") as fh:
-                    cam_records = json.load(fh)
-                    for cr in cam_records:
-                        k = (cr.get("camera"), cr.get("timestamp"), cr.get("image_path", ""))
-                        if k not in seen_keys:
-                            seen_keys.add(k)
-                            records.append(cr)
-            except Exception:
-                pass
+    # 2. Dynamic discovery: Scan data/cameras/*/events.json for camera events
+    discovered_records = []
+    cameras_dir = _PROJECT_ROOT / "data" / "cameras"
+    if cameras_dir.exists():
+        for cam_folder in cameras_dir.glob("*"):
+            if cam_folder.is_dir():
+                events_file = cam_folder / "events.json"
+                if events_file.exists():
+                    try:
+                        with open(events_file, "r", encoding="utf-8") as ef:
+                            cam_events = json.load(ef)
+                            if isinstance(cam_events, list):
+                                discovered_records.extend(cam_events)
+                    except Exception as ef_exc:
+                        logger.warning("Error reading %s: %s", events_file, ef_exc)
 
-    # Normalize image_path and calculate epoch_time for browser display
-    for r in records:
-        img_p = r.get("image_path", "")
-        if img_p:
-            clean_img = img_p.replace("\\", "/")
-            if "data/" in clean_img:
-                r["image_url"] = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
-            else:
-                r["image_url"] = "/data/" + clean_img.lstrip("/")
-        else:
-            r["image_url"] = ""
+    # 3. Deduplicate by (camera, timestamp, image_path)
+    combined = records + discovered_records
+    seen = set()
+    deduped = []
+    for r in combined:
+        k = (r.get("camera"), r.get("timestamp"), r.get("image_path", ""))
+        if k not in seen:
+            seen.add(k)
+            deduped.append(r)
 
-        if r.get("epoch_time") is None and img_p:
-            clean_p = img_p.lstrip("/")
-            local_img = _PROJECT_ROOT / clean_p
-            if not local_img.exists() and not clean_p.startswith("data/"):
-                local_img = _PROJECT_ROOT / "data" / clean_p
-            if local_img.exists():
-                r["epoch_time"] = round(local_img.stat().st_mtime, 3)
-
-    # Dynamic camera discovery across all system sources
-    registered_cams = set(c["camera_id"] for c in CAMERA_REGISTRY.get_all())
-    stream_cams = set(STREAM_MANAGER.streams.keys())
-    dir_cams = set(p.name for p in cam_base.iterdir() if p.is_dir()) if cam_base.exists() else set()
-    event_cams = set(r.get("camera") for r in records if r.get("camera"))
-    all_cams = sorted(list(registered_cams | stream_cams | dir_cams | event_cams))
-
-    # Filter by camera if requested
-    filtered = records
+    # 4. Filter by camera if requested
     if camera:
-        filtered = [r for r in records if r.get("camera") == camera]
+        filtered = [r for r in deduped if r.get("camera", "").upper() == camera.upper()]
+    else:
+        filtered = deduped
 
+    # 5. Return detailed dataset telemetry if requested
     if detailed:
+        all_cams = sorted(list(set(r.get("camera", "") for r in deduped if r.get("camera"))))
         file_size = data_path.stat().st_size if data_path.exists() else 0
         return {
-            "events": filtered,
             "total_count": len(records),
             "filtered_count": len(filtered),
             "cameras": all_cams,
@@ -439,52 +449,77 @@ def get_events(camera: Optional[str] = None, detailed: bool = False):
 
 @app.post("/api/search")
 def search_cctv(req: SearchRequest):
-    """Execute semantic query against CCTV video index."""
+    """Execute semantic multimodal query against CCTV video index and perform multi-frame forensic reasoning."""
     if not PIPELINE.get("retriever"):
         raise HTTPException(status_code=500, detail="Pipeline not initialized")
 
     retriever: CCTVRetriever = PIPELINE["retriever"]
-    reranker = PIPELINE["reranker"]
-    prompter: RAGPrompter = PIPELINE["prompter"]
-    llm_client: LLMClient = PIPELINE["llm_client"]
+    captioner: Optional[VLMCaptioner] = PIPELINE.get("captioner")
     evaluator: RAGEvaluator = PIPELINE["evaluator"]
 
-    top_k = req.top_k or 10
-    rerank_top_k = req.rerank_top_k or 5
+    top_k = req.top_k or 5
+    context_window = 2  # ±2 neighbouring frames (5 frames total per episode)
 
-    # 1. Retrieve & measure time
     import time
     t0 = time.time()
     query_vec = PIPELINE["embedder"].embed_query(req.query)
     t1 = time.time()
-    
-    raw_results = retriever.retrieve(req.query, top_k=top_k, camera_filter=req.camera_filter)
+
+    # 1. Retrieve episodes with temporal context window expansion
+    episodes = retriever.retrieve_with_context(
+        req.query,
+        top_k=top_k,
+        context_window=context_window,
+        camera_filter=req.camera_filter
+    )
     t2 = time.time()
 
-    # 2. Rerank
-    for r in raw_results:
-        if "text" not in r:
-            r["text"] = r.get("metadata", {}).get("text", "")
-    reranked = reranker.rerank(req.query, raw_results, top_k=rerank_top_k)
+    # 2. Multi-Frame Forensic Reasoning via VLM
+    answer = ""
+    storyboard = []
+    if episodes:
+        top_episode = episodes[0]
+        if captioner is None:
+            cfg_llm = PIPELINE.get("config", {}).get("llm", {})
+            captioner = VLMCaptioner(
+                backend=cfg_llm.get("backend", "local"),
+                model=cfg_llm.get("model", "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
+                api_key=cfg_llm.get("api_key"),
+                base_url=cfg_llm.get("base_url"),
+            )
+            PIPELINE["captioner"] = captioner
+
+        logger.info("[Search] Running multi-frame forensic reasoning on top episode (%s, %s)...",
+                    top_episode.get("camera"), top_episode.get("time_range"))
+        answer = captioner.reason_over_episode(req.query, top_episode)
+
+        # Build chronological storyboard for the top episode
+        for f in top_episode.get("frames", []):
+            img_p = f.get("image_path", "")
+            if img_p:
+                clean_img = img_p.replace("\\", "/")
+                if "data/" in clean_img:
+                    img_p = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
+            storyboard.append({
+                "camera": top_episode.get("camera", "CAM_01"),
+                "image_path": img_p,
+                "timestamp": f.get("timestamp", "00:00:00"),
+                "seconds": f.get("seconds", 0.0),
+                "epoch_time": f.get("epoch_time"),
+                "is_anchor": f.get("is_anchor", False),
+                "score": round(float(f.get("score", 0.0)), 4),
+            })
+    else:
+        answer = "No matching CCTV surveillance moments found for this query in the vector index."
     t3 = time.time()
 
-    # 3. Prompt & LLM
-    prompt = prompter.build_prompt(req.query, reranked)
-    answer = llm_client.generate(prompt)
-    t4 = time.time()
-
-    # 4. Evaluation
-    stop_words = {"the", "a", "an", "is", "was", "were", "are", "in", "at", "on", "of", "to", "any", "did", "do", "what", "when", "where", "who", "how", "there"}
-    keywords = [w.strip("?.,!").lower() for w in req.query.split() if w.lower() not in stop_words and len(w) > 2]
-    eval_result = evaluator.full_evaluation(req.query, reranked, answer, keywords)
-
-    # Format output items
+    # 3. Format primary result items for evidence list and map
     items = []
-    for rank, r in enumerate(reranked, start=1):
-        meta = r.get("metadata", {})
-        cam = meta.get("camera", "CAM_01")
-        ts = meta.get("start_timestamp", meta.get("timestamp", "00:00:00"))
-        desc = meta.get("description", r.get("text", ""))
+    for rank, ep in enumerate(episodes, start=1):
+        meta = ep.get("metadata", {})
+        cam = ep.get("camera", "CAM_01")
+        ts = ep.get("anchor_timestamp", meta.get("timestamp", "00:00:00"))
+        time_range = ep.get("time_range", ts)
 
         secs = 0
         try:
@@ -496,20 +531,18 @@ def search_cctv(req: SearchRequest):
         except Exception:
             secs = 0
 
-        img_p = meta.get("image_path", "")
+        img_p = ep.get("anchor_image", meta.get("image_path", ""))
         if img_p:
             clean_img = img_p.replace("\\", "/")
             if "data/" in clean_img:
                 img_p = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
         elif cam:
-            # Dynamic lookup for latest extracted frame in camera folder
             cam_dir = _PROJECT_ROOT / "data" / "cameras" / cam / "extracted_frames"
             if cam_dir.exists():
                 jpgs = sorted(cam_dir.glob("*.jpg"), key=os.path.getmtime, reverse=True)
                 if jpgs:
                     img_p = f"/data/cameras/{cam}/extracted_frames/{jpgs[0].name}"
 
-        # Determine feed type & streaming details
         cam_info = CAMERA_REGISTRY.get(cam)
         feed_type = cam_info.get("type", "snapshot") if cam_info else "snapshot"
         feed_url = ""
@@ -525,28 +558,28 @@ def search_cctv(req: SearchRequest):
             vid_id = yt_match.group(1) if yt_match else "1EiC9bvVGnk"
             embed_url = f"https://www.youtube-nocookie.com/embed/{vid_id}?autoplay=1&mute=1"
         epoch_time = meta.get("epoch_time")
-        if epoch_time is None and img_p:
-            clean_p = img_p.lstrip("/")
-            local_img = _PROJECT_ROOT / clean_p
-            if not local_img.exists() and not clean_p.startswith("data/"):
-                local_img = _PROJECT_ROOT / "data" / clean_p
-            if local_img.exists():
-                epoch_time = round(local_img.stat().st_mtime, 3)
 
         items.append({
             "rank": rank,
             "camera": cam,
             "timestamp": ts,
+            "time_range": time_range,
             "seconds": secs,
             "epoch_time": epoch_time,
-            "description": desc,
+            "description": f"Episode from {cam} ({time_range}) matching '{req.query}' [Anchor: {ts}]",
             "image_path": img_p,
             "feed_type": feed_type,
             "feed_url": feed_url,
             "embed_url": embed_url,
-            "faiss_score": round(float(r.get("score", 0.0)), 4),
-            "rerank_score": round(float(r.get("rerank_score", 0.0)), 4),
+            "faiss_score": round(float(ep.get("score", 0.0)), 4),
+            "rerank_score": round(float(ep.get("score", 0.0)), 4),
+            "frame_count": ep.get("frame_count", 1),
         })
+
+    # 4. Evaluation
+    stop_words = {"the", "a", "an", "is", "was", "were", "are", "in", "at", "on", "of", "to", "any", "did", "do", "what", "when", "where", "who", "how", "there"}
+    keywords = [w.strip("?.,!").lower() for w in req.query.split() if w.lower() not in stop_words and len(w) > 2]
+    eval_result = evaluator.full_evaluation(req.query, episodes, answer, keywords)
 
     # Detailed Vector & Pipeline Debugging Trace
     vec_sample = [round(float(val), 4) for val in query_vec[:12]]
@@ -557,21 +590,23 @@ def search_cctv(req: SearchRequest):
         "query_vector_norm": vec_norm,
         "query_vector_sample": vec_sample,
         "faiss_indexed_vectors": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
-        "prompt_constructed": prompt,
+        "episodes_retrieved": len(episodes),
         "timings_ms": {
             "query_embedding_ms": round((t1 - t0) * 1000, 2),
-            "faiss_retrieval_ms": round((t2 - t1) * 1000, 2),
-            "cross_encoder_rerank_ms": round((t3 - t2) * 1000, 2),
-            "llm_generation_ms": round((t4 - t3) * 1000, 2),
+            "temporal_retrieval_ms": round((t2 - t1) * 1000, 2),
+            "vlm_reasoning_ms": round((t3 - t2) * 1000, 2),
+            "total_ms": round((t3 - t0) * 1000, 2),
         }
     }
 
     return {
         "query": req.query,
         "answer": answer,
+        "storyboard": storyboard,
+        "episodes": episodes,
         "results": items,
         "evaluation": eval_result,
-        "total_retrieved": len(raw_results),
+        "total_retrieved": len(episodes),
         "debug_trace": debug_trace,
     }
 

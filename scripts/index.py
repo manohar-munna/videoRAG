@@ -119,17 +119,40 @@ def run_indexing(config_path: str, data_path: str) -> None:
         console.print(f"  [OK] Created [green]{len(chunks)}[/green] chunks (individual mode)")
 
         # ------------------------------------------------------------------
-        # 4. Embed chunks
+        # 4. Embed chunks (Multimodal CLIP)
         # ------------------------------------------------------------------
-        task_embed = progress.add_task("[cyan]Loading embedding model…", total=1)
-        embedder = TextEmbedder(model_name=model_name)
+        task_embed = progress.add_task("[cyan]Loading multimodal CLIP embedder…", total=1)
+        from videorag.indexing.embedder import MultimodalEmbedder
+        embedder = MultimodalEmbedder(model_name=model_name)
         progress.update(task_embed, completed=1)
 
-        task_enc = progress.add_task("[cyan]Encoding chunks…", total=1)
-        texts = [c["text"] for c in chunks]
-        embeddings = embedder.embed(texts)
-        progress.update(task_enc, completed=1)
-        console.print(f"  [OK] Produced embeddings of shape [green]{embeddings.shape}[/green]")
+        task_enc = progress.add_task("[cyan]Encoding chunks (images/text)…", total=len(chunks))
+        import numpy as np
+        embeddings_list = []
+        for c in chunks:
+            img_p = c["metadata"].get("image_path", "")
+            img_embedded = False
+            if img_p:
+                local_img = Path(img_p)
+                if not local_img.is_absolute():
+                    cand1 = _PROJECT_ROOT / img_p.lstrip("/")
+                    cand2 = _PROJECT_ROOT / "data" / img_p.lstrip("/")
+                    local_img = cand1 if cand1.exists() else cand2
+                if local_img.exists():
+                    try:
+                        v = embedder.embed_image(local_img)
+                        embeddings_list.append(v)
+                        img_embedded = True
+                    except Exception:
+                        pass
+            if not img_embedded:
+                # Text embedding fallback
+                v = embedder.embed_query(c["text"])
+                embeddings_list.append(v)
+            progress.advance(task_enc, 1)
+
+        embeddings = np.vstack(embeddings_list)
+        console.print(f"  [OK] Produced multimodal embeddings of shape [green]{embeddings.shape}[/green]")
 
         # ------------------------------------------------------------------
         # 5. Build FAISS index

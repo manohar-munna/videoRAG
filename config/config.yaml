@@ -7,8 +7,8 @@ data:
   data_path: "data/real_cctv_events.json"
 
 indexing:
-  # Sentence-Transformers model for embedding
-  model_name: "all-MiniLM-L6-v2"
+  # Sentence-Transformers multimodal CLIP model for embedding
+  model_name: "clip-ViT-B-32"
   # Sliding-window chunk size (number of documents per window)
   chunk_size: 3
   # Number of overlapping documents between consecutive windows
