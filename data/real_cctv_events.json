@@ -1,5 +1,395 @@
 [
   {
+    "camera": "CAM_01",
+    "timestamp": "08:14:10",
+    "seconds": 0.0,
+    "epoch_time": 1786947250.925,
+    "description": "Security officer opens the main vehicle barrier gate for morning staff arrival. Clear weather conditions.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_08_14_10_0.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "08:22:45",
+    "seconds": 67.61,
+    "epoch_time": 1786947318.714,
+    "description": "White delivery van (Plate partial: 7X8) pauses at the checkpoint for driver ID credential scan.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_08_22_45_1.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "09:05:12",
+    "seconds": 135.21,
+    "epoch_time": 1786947386.463,
+    "description": "Pedestrian staff group wearing high-visibility safety vests enter through turnstile 1.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_09_05_12_2.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "10:30:20",
+    "seconds": 202.82,
+    "epoch_time": 1786947454.209,
+    "description": "Courier driver drops off priority parcel container at security guard booth.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_10_30_20_3.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "12:15:35",
+    "seconds": 270.42,
+    "epoch_time": 1786947521.885,
+    "description": "Lunchtime pedestrian traffic peak. Multiple employees exiting towards perimeter cafeteria.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_12_15_35_4.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "14:02:10",
+    "seconds": 338.03,
+    "epoch_time": 1786947589.542,
+    "description": "Black SUV approaches entrance gate, security guard inspects visitor pass and grants entry.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_14_02_10_5.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "15:45:00",
+    "seconds": 405.63,
+    "epoch_time": 1786947657.259,
+    "description": "Facilities maintenance team transporting boxed equipment on hand-trolley through gate.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_15_45_00_6.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "17:30:15",
+    "seconds": 473.24,
+    "epoch_time": 1786947724.951,
+    "description": "Evening departure rush: multiple employee vehicles and pedestrians clearing through exit lane.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_17_30_15_7.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "19:10:40",
+    "seconds": 540.84,
+    "epoch_time": 1786947792.606,
+    "description": "Evening shift security guard exchange and equipment handover log verified.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_19_10_40_8.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "21:40:00",
+    "seconds": 608.45,
+    "epoch_time": 1786947860.319,
+    "description": "Nighttime illumination active. Single security guard conducting perimeter flashlight check.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_21_40_00_9.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "23:15:30",
+    "seconds": 676.06,
+    "epoch_time": 1786947928.009,
+    "description": "Gate locked in overnight secure mode. Exterior floodlights operating normally.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_23_15_30_10.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "02:45:10",
+    "seconds": 743.66,
+    "epoch_time": 1786947995.664,
+    "description": "Overnight perimeter patrol: security mobile unit pauses at main entrance for clock-in.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_02_45_10_11.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "08:30:00",
+    "seconds": 600.0,
+    "epoch_time": 1786947852.049,
+    "description": "Silver hatchback maneuvers into reserved parking space slot P-14.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_08_30_00_1.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "10:15:20",
+    "seconds": 1200.0,
+    "epoch_time": 1786948452.052,
+    "description": "Contractor pickup truck parked across diagonal loading bay stripes for short drop-off.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_10_15_20_2.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "11:45:10",
+    "seconds": 1800.0,
+    "epoch_time": 1786949052.055,
+    "description": "Two individuals observed conversing near rear row of parked vehicles; regular staff.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_11_45_10_3.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "13:20:45",
+    "seconds": 2400.0,
+    "epoch_time": 1786949652.057,
+    "description": "Red compact vehicle backing out of space P-08, clear visibility across aisle.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_13_20_45_4.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "15:10:00",
+    "seconds": 3000.0,
+    "epoch_time": 1786950252.059,
+    "description": "Delivery courier parked in temporary loading stall with hazard blinkers on.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_15_10_00_5.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "16:45:30",
+    "seconds": 3600.0,
+    "epoch_time": 1786950852.06,
+    "description": "Unattended duffel bag spotted resting against light pole LP-3; security guard dispatched.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_16_45_30_6.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "18:00:15",
+    "seconds": 4200.0,
+    "epoch_time": 1786951452.063,
+    "description": "Commuter vehicle row emptying out during evening shift changeover.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_18_00_15_7.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "20:30:00",
+    "seconds": 4800.0,
+    "epoch_time": 1786952052.066,
+    "description": "Overhead parking lot floodlights active; low ambient activity.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_20_30_00_8.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "22:15:50",
+    "seconds": 5400.0,
+    "epoch_time": 1786952652.069,
+    "description": "Individual wearing dark hooded sweatshirt observed lingering between vehicle rows; perimeter alert flagged.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_22_15_50_9.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "01:20:00",
+    "seconds": 6000.0,
+    "epoch_time": 1786953252.072,
+    "description": "Night illumination check: empty parking lanes, clear line of sight to perimeter fence.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_01_20_00_10.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_03",
+    "timestamp": "08:45:00",
+    "seconds": 750.0,
+    "epoch_time": 1786948002.076,
+    "description": "Morning visitor registration desk busy with incoming client badge issuance.",
+    "image_path": "data/cameras/CAM_03/extracted_frames/CAM_03_08_45_00_1.jpg",
+    "hash_hex": "0xc3d4e5f60718293a",
+    "motion_pct": 14.8
+  },
+  {
+    "camera": "CAM_03",
+    "timestamp": "10:00:15",
+    "seconds": 1500.0,
+    "epoch_time": 1786948752.078,
+    "description": "Visitor in blue blazer badges through electronic speed gate 2 to elevator bank.",
+    "image_path": "data/cameras/CAM_03/extracted_frames/CAM_03_10_00_15_2.jpg",
+    "hash_hex": "0xc3d4e5f60718293a",
+    "motion_pct": 14.8
+  },
+  {
+    "camera": "CAM_03",
+    "timestamp": "11:30:40",
+    "seconds": 2250.0,
+    "epoch_time": 1786949502.079,
+    "description": "Janitorial staff mopping central lobby marble floor; safety cone deployed.",
+    "image_path": "data/cameras/CAM_03/extracted_frames/CAM_03_11_30_40_3.jpg",
+    "hash_hex": "0xc3d4e5f60718293a",
+    "motion_pct": 14.8
+  },
+  {
+    "camera": "CAM_03",
+    "timestamp": "13:00:00",
+    "seconds": 3000.0,
+    "epoch_time": 1786950252.082,
+    "description": "Executive guest greeted at reception desk and escorted by department host.",
+    "image_path": "data/cameras/CAM_03/extracted_frames/CAM_03_13_00_00_4.jpg",
+    "hash_hex": "0xc3d4e5f60718293a",
+    "motion_pct": 14.8
+  },
+  {
+    "camera": "CAM_03",
+    "timestamp": "14:35:20",
+    "seconds": 3750.0,
+    "epoch_time": 1786951002.086,
+    "description": "Guest seated in waiting lounge area reading document; normal lobby activity.",
+    "image_path": "data/cameras/CAM_03/extracted_frames/CAM_03_14_35_20_5.jpg",
+    "hash_hex": "0xc3d4e5f60718293a",
+    "motion_pct": 14.8
+  },
+  {
+    "camera": "CAM_03",
+    "timestamp": "16:10:50",
+    "seconds": 4500.0,
+    "epoch_time": 1786951752.088,
+    "description": "Package delivery handoff to front reception coordinator.",
+    "image_path": "data/cameras/CAM_03/extracted_frames/CAM_03_16_10_50_6.jpg",
+    "hash_hex": "0xc3d4e5f60718293a",
+    "motion_pct": 14.8
+  },
+  {
+    "camera": "CAM_03",
+    "timestamp": "17:50:00",
+    "seconds": 5250.0,
+    "epoch_time": 1786952502.093,
+    "description": "Evening departure through automated badge turnstiles.",
+    "image_path": "data/cameras/CAM_03/extracted_frames/CAM_03_17_50_00_7.jpg",
+    "hash_hex": "0xc3d4e5f60718293a",
+    "motion_pct": 14.8
+  },
+  {
+    "camera": "CAM_03",
+    "timestamp": "19:30:10",
+    "seconds": 6000.0,
+    "epoch_time": 1786953252.1,
+    "description": "Lobby overhead lights dimmed to night energy conservation mode.",
+    "image_path": "data/cameras/CAM_03/extracted_frames/CAM_03_19_30_10_8.jpg",
+    "hash_hex": "0xc3d4e5f60718293a",
+    "motion_pct": 14.8
+  },
+  {
+    "camera": "CAM_03",
+    "timestamp": "21:00:00",
+    "seconds": 6750.0,
+    "epoch_time": 1786954002.103,
+    "description": "Overnight guard check-in at front reception desk terminal.",
+    "image_path": "data/cameras/CAM_03/extracted_frames/CAM_03_21_00_00_9.jpg",
+    "hash_hex": "0xc3d4e5f60718293a",
+    "motion_pct": 14.8
+  },
+  {
+    "camera": "CAM_04",
+    "timestamp": "07:30:00",
+    "seconds": 900.0,
+    "epoch_time": 1786948152.118,
+    "description": "Forklift operator staging timber shipping pallets in aisle 4.",
+    "image_path": "data/cameras/CAM_04/extracted_frames/CAM_04_07_30_00_1.jpg",
+    "hash_hex": "0xd4e5f60718293a4b",
+    "motion_pct": 31.0
+  },
+  {
+    "camera": "CAM_04",
+    "timestamp": "09:15:30",
+    "seconds": 1800.0,
+    "epoch_time": 1786949052.128,
+    "description": "Articulated freight lorry docks at bay door 3; roll-up door opened.",
+    "image_path": "data/cameras/CAM_04/extracted_frames/CAM_04_09_15_30_2.jpg",
+    "hash_hex": "0xd4e5f60718293a4b",
+    "motion_pct": 31.0
+  },
+  {
+    "camera": "CAM_04",
+    "timestamp": "11:00:00",
+    "seconds": 2700.0,
+    "epoch_time": 1786949952.13,
+    "description": "Warehouse inventory scan with handheld barcode reader along pallet racks.",
+    "image_path": "data/cameras/CAM_04/extracted_frames/CAM_04_11_00_00_3.jpg",
+    "hash_hex": "0xd4e5f60718293a4b",
+    "motion_pct": 31.0
+  },
+  {
+    "camera": "CAM_04",
+    "timestamp": "13:45:20",
+    "seconds": 3600.0,
+    "epoch_time": 1786950852.135,
+    "description": "Two warehouse technicians inspecting hydraulic dock leveler mechanism.",
+    "image_path": "data/cameras/CAM_04/extracted_frames/CAM_04_13_45_20_4.jpg",
+    "hash_hex": "0xd4e5f60718293a4b",
+    "motion_pct": 31.0
+  },
+  {
+    "camera": "CAM_04",
+    "timestamp": "15:30:10",
+    "seconds": 4500.0,
+    "epoch_time": 1786951752.138,
+    "description": "Loading cargo cartons onto outgoing distribution transport vehicle.",
+    "image_path": "data/cameras/CAM_04/extracted_frames/CAM_04_15_30_10_5.jpg",
+    "hash_hex": "0xd4e5f60718293a4b",
+    "motion_pct": 31.0
+  },
+  {
+    "camera": "CAM_04",
+    "timestamp": "18:00:00",
+    "seconds": 5400.0,
+    "epoch_time": 1786952652.141,
+    "description": "Roll-up shutter door 3 lowered and locked at end of logistics shift.",
+    "image_path": "data/cameras/CAM_04/extracted_frames/CAM_04_18_00_00_6.jpg",
+    "hash_hex": "0xd4e5f60718293a4b",
+    "motion_pct": 31.0
+  },
+  {
+    "camera": "CAM_04",
+    "timestamp": "20:45:00",
+    "seconds": 6300.0,
+    "epoch_time": 1786953552.142,
+    "description": "Interior motion sensors active; high-bay LED lighting reduced to 30% intensity.",
+    "image_path": "data/cameras/CAM_04/extracted_frames/CAM_04_20_45_00_7.jpg",
+    "hash_hex": "0xd4e5f60718293a4b",
+    "motion_pct": 31.0
+  },
+  {
+    "camera": "CAM_04",
+    "timestamp": "23:30:00",
+    "seconds": 7200.0,
+    "epoch_time": 1786954452.144,
+    "description": "Night infrared camera view: clear unobstructed storage aisles, all dock doors secured.",
+    "image_path": "data/cameras/CAM_04/extracted_frames/CAM_04_23_30_00_8.jpg",
+    "hash_hex": "0xd4e5f60718293a4b",
+    "motion_pct": 31.0
+  },
+  {
     "camera": "CAM_3000",
     "timestamp": "22:29:07",
     "seconds": 1786813147.5,

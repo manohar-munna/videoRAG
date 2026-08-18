@@ -1,1 +1,122 @@
-[]
+[
+  {
+    "camera": "CAM_01",
+    "timestamp": "08:14:10",
+    "seconds": 0.0,
+    "epoch_time": 1786947250.925,
+    "description": "Security officer opens the main vehicle barrier gate for morning staff arrival. Clear weather conditions.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_08_14_10_0.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "08:22:45",
+    "seconds": 67.61,
+    "epoch_time": 1786947318.714,
+    "description": "White delivery van (Plate partial: 7X8) pauses at the checkpoint for driver ID credential scan.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_08_22_45_1.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "09:05:12",
+    "seconds": 135.21,
+    "epoch_time": 1786947386.463,
+    "description": "Pedestrian staff group wearing high-visibility safety vests enter through turnstile 1.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_09_05_12_2.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "10:30:20",
+    "seconds": 202.82,
+    "epoch_time": 1786947454.209,
+    "description": "Courier driver drops off priority parcel container at security guard booth.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_10_30_20_3.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "12:15:35",
+    "seconds": 270.42,
+    "epoch_time": 1786947521.885,
+    "description": "Lunchtime pedestrian traffic peak. Multiple employees exiting towards perimeter cafeteria.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_12_15_35_4.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "14:02:10",
+    "seconds": 338.03,
+    "epoch_time": 1786947589.542,
+    "description": "Black SUV approaches entrance gate, security guard inspects visitor pass and grants entry.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_14_02_10_5.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "15:45:00",
+    "seconds": 405.63,
+    "epoch_time": 1786947657.259,
+    "description": "Facilities maintenance team transporting boxed equipment on hand-trolley through gate.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_15_45_00_6.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "17:30:15",
+    "seconds": 473.24,
+    "epoch_time": 1786947724.951,
+    "description": "Evening departure rush: multiple employee vehicles and pedestrians clearing through exit lane.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_17_30_15_7.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "19:10:40",
+    "seconds": 540.84,
+    "epoch_time": 1786947792.606,
+    "description": "Evening shift security guard exchange and equipment handover log verified.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_19_10_40_8.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "21:40:00",
+    "seconds": 608.45,
+    "epoch_time": 1786947860.319,
+    "description": "Nighttime illumination active. Single security guard conducting perimeter flashlight check.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_21_40_00_9.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "23:15:30",
+    "seconds": 676.06,
+    "epoch_time": 1786947928.009,
+    "description": "Gate locked in overnight secure mode. Exterior floodlights operating normally.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_23_15_30_10.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "02:45:10",
+    "seconds": 743.66,
+    "epoch_time": 1786947995.664,
+    "description": "Overnight perimeter patrol: security mobile unit pauses at main entrance for clock-in.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_02_45_10_11.jpg",
+    "hash_hex": "0xa1b2c3d4e5f60718",
+    "motion_pct": 18.5
+  }
+]

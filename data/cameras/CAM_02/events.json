@@ -1,0 +1,102 @@
+[
+  {
+    "camera": "CAM_02",
+    "timestamp": "08:30:00",
+    "seconds": 600.0,
+    "epoch_time": 1786947852.049,
+    "description": "Silver hatchback maneuvers into reserved parking space slot P-14.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_08_30_00_1.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "10:15:20",
+    "seconds": 1200.0,
+    "epoch_time": 1786948452.052,
+    "description": "Contractor pickup truck parked across diagonal loading bay stripes for short drop-off.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_10_15_20_2.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "11:45:10",
+    "seconds": 1800.0,
+    "epoch_time": 1786949052.055,
+    "description": "Two individuals observed conversing near rear row of parked vehicles; regular staff.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_11_45_10_3.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "13:20:45",
+    "seconds": 2400.0,
+    "epoch_time": 1786949652.057,
+    "description": "Red compact vehicle backing out of space P-08, clear visibility across aisle.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_13_20_45_4.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "15:10:00",
+    "seconds": 3000.0,
+    "epoch_time": 1786950252.059,
+    "description": "Delivery courier parked in temporary loading stall with hazard blinkers on.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_15_10_00_5.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "16:45:30",
+    "seconds": 3600.0,
+    "epoch_time": 1786950852.06,
+    "description": "Unattended duffel bag spotted resting against light pole LP-3; security guard dispatched.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_16_45_30_6.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "18:00:15",
+    "seconds": 4200.0,
+    "epoch_time": 1786951452.063,
+    "description": "Commuter vehicle row emptying out during evening shift changeover.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_18_00_15_7.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "20:30:00",
+    "seconds": 4800.0,
+    "epoch_time": 1786952052.066,
+    "description": "Overhead parking lot floodlights active; low ambient activity.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_20_30_00_8.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "22:15:50",
+    "seconds": 5400.0,
+    "epoch_time": 1786952652.069,
+    "description": "Individual wearing dark hooded sweatshirt observed lingering between vehicle rows; perimeter alert flagged.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_22_15_50_9.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  },
+  {
+    "camera": "CAM_02",
+    "timestamp": "01:20:00",
+    "seconds": 6000.0,
+    "epoch_time": 1786953252.072,
+    "description": "Night illumination check: empty parking lanes, clear line of sight to perimeter fence.",
+    "image_path": "data/cameras/CAM_02/extracted_frames/CAM_02_01_20_00_10.jpg",
+    "hash_hex": "0xb2c3d4e5f6071829",
+    "motion_pct": 24.2
+  }
+]
