@@ -66,6 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const pstage4Detail = document.getElementById('pstage-4-detail');
     const lazyStatKeyframes = document.getElementById('lazy-stat-keyframes');
     const lazyStatLatency = document.getElementById('lazy-stat-latency');
+    const toggleVectorsGridBtn = document.getElementById('toggle-vectors-grid-btn');
+    const vgCollapseArrow = document.getElementById('vg-collapse-arrow');
+    const vgToggleText = document.getElementById('vg-toggle-text');
+    const vgSearchWrap = document.getElementById('vg-search-wrap');
     const vgSearchInput = document.getElementById('vg-search-input');
     const refreshVectorsBtn = document.getElementById('refresh-vectors-btn');
     const frameVectorsGrid = document.getElementById('frame-vectors-grid');
@@ -408,6 +412,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (refreshVectorsBtn) {
         refreshVectorsBtn.addEventListener('click', () => {
             fetchLazyVectors();
+        });
+    }
+
+    // Toggle Collapsible Keyframe Images Grid
+    let isKeyframeGridOpen = true;
+    if (toggleVectorsGridBtn && frameVectorsGrid) {
+        toggleVectorsGridBtn.addEventListener('click', () => {
+            isKeyframeGridOpen = !isKeyframeGridOpen;
+            const count = allLazyVectors.length || 179;
+            if (isKeyframeGridOpen) {
+                frameVectorsGrid.classList.remove('collapsed');
+                if (vgCollapseArrow) vgCollapseArrow.classList.remove('collapsed');
+                if (vgToggleText) vgToggleText.textContent = `Hide Images (${count})`;
+                if (vgSearchWrap) vgSearchWrap.style.opacity = '1';
+                if (vgSearchWrap) vgSearchWrap.style.pointerEvents = 'auto';
+            } else {
+                frameVectorsGrid.classList.add('collapsed');
+                if (vgCollapseArrow) vgCollapseArrow.classList.add('collapsed');
+                if (vgToggleText) vgToggleText.textContent = `Show Images (${count})`;
+                if (vgSearchWrap) vgSearchWrap.style.opacity = '0.5';
+                if (vgSearchWrap) vgSearchWrap.style.pointerEvents = 'none';
+            }
         });
     }
 

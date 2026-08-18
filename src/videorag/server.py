@@ -876,12 +876,10 @@ def index_stream_keyframes(req: RemoveStreamRequest):
 
 @app.get("/api/cameras")
 def get_camera_list():
-    """Return list of all dynamically registered cameras."""
-    registered = [c["camera_id"] for c in CAMERA_REGISTRY.get_all()]
-    # Add any cameras that have folders with events
-    for cam_dir in (_PROJECT_ROOT / "data" / "cameras").glob("*"):
-        if cam_dir.is_dir() and (cam_dir / "events.json").exists():
-            registered.append(cam_dir.name)
+    """Return list of all active registered cameras from CameraRegistry."""
+    registered = [c["camera_id"] for c in CAMERA_REGISTRY.get_all() if c.get("status") != "offline"]
+    if not registered:
+        registered = ["CAM_01"]
     return {"cameras": sorted(list(set(registered)))}
 
 

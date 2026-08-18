@@ -2381,12 +2381,31 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
+}
+
+.toggle-collapse-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.collapse-arrow {
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.collapse-arrow.collapsed {
+    transform: rotate(-90deg);
 }
 
 .vg-search-wrap {
     position: relative;
     display: flex;
     align-items: center;
+    transition: all 0.25s ease;
 }
 
 .vg-search-wrap svg {
@@ -2408,6 +2427,11 @@ body {
     max-height: 480px;
     overflow-y: auto;
     padding-right: 4px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.frame-vectors-grid.collapsed {
+    display: none;
 }
 
 .frame-vector-card {

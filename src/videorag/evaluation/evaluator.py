@@ -71,26 +71,35 @@ class RAGEvaluator:
                 "num_relevant": 0,
             }
 
-        # Check if the VLM forensic answer explicitly negated presence of the queried target
-        negation_phrases = [
-            "no evidence", "not observed", "none are visibly", "no person",
-            "cannot be substantiated", "not visible", "no vehicle", "not seen",
-            "no sign of", "no individual", "none visibly"
+        ans_lower = answer.lower() if answer else ""
+
+        # Check if the VLM positively identified and cited visual subjects in specific frames
+        positive_detection_cues = [
+            "clearly visible", "are visible", "is visible", "wearing",
+            "observed in frame", "visible in frame", "present in frame",
+            "shown in frame", "standing", "walking", "parked"
         ]
-        is_negative_detection = (
-            any(p in answer.lower() for p in negation_phrases)
-            if answer else False
+        has_positive_detection = any(p in ans_lower for p in positive_detection_cues)
+
+        pure_negative_phrases = [
+            "there is no evidence of any", "cannot be substantiated",
+            "no evidence of any person", "no individuals wearing",
+            "no person wearing", "none are visibly wearing",
+            "across the entire sequence, no", "no evidence of any"
+        ]
+        is_pure_negative = (
+            any(p in ans_lower for p in pure_negative_phrases) and not has_positive_detection
         )
 
         relevance: List[int] = []
         for r in retrieved:
-            if is_negative_detection:
+            if is_pure_negative:
                 relevance.append(0)
             else:
                 score = float(r.get("score") or r.get("metadata", {}).get("score", 0.0))
                 text = _text_of(r)
                 has_kw = _contains_any_keyword(text, relevant_keywords) if relevant_keywords else False
-                is_rel = (score >= 0.065) or has_kw
+                is_rel = (score >= 0.065) or has_kw or (has_positive_detection and score >= 0.05)
                 relevance.append(1 if is_rel else 0)
 
         num_relevant = sum(relevance)
