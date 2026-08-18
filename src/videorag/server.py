@@ -558,7 +558,7 @@ def search_cctv(req: SearchRequest):
             "time_range": time_range,
             "seconds": secs,
             "epoch_time": epoch_time,
-            "description": f"Episode from {cam} ({time_range}) matching '{req.query}' [Anchor: {ts}]",
+            "description": f"Sequence from {cam} ({time_range}) · Primary anchor moment at {ts} (Cosine score: {round(float(ep.get('score', 0.0)), 4)}).",
             "image_path": img_p,
             "feed_type": feed_type,
             "feed_url": feed_url,

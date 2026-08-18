@@ -41,29 +41,18 @@ class RAGEvaluator:
         query: str,
         retrieved: List[dict],
         relevant_keywords: List[str],
+        answer: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Compute retrieval quality metrics.
+        """Compute retrieval quality metrics for multimodal and text CCTV RAG.
 
         Args:
-            query: The original query string (logged but not used in
-                computation).
+            query: The original query string.
             retrieved: Ordered list of retrieval result dicts.
-            relevant_keywords: Keywords that a relevant result should
-                contain (e.g. object type, location name).
+            relevant_keywords: Keywords that a relevant result should contain.
+            answer: Optional VLM answer to check for negative visual detection.
 
         Returns:
-            A dict with keys:
-
-            * ``precision_at_k`` – fraction of retrieved results
-              containing at least one keyword.
-            * ``recall_estimate`` – ``min(1.0, precision_at_k * 1.2)``
-              (rough heuristic when no labelled pool is available).
-            * ``mrr`` – reciprocal rank of the first relevant result
-              (0.0 if none found).
-            * ``ndcg_at_k`` – normalised discounted cumulative gain
-              using binary relevance.
-            * ``num_retrieved`` – total results evaluated.
-            * ``num_relevant`` – results flagged as relevant.
+            A dict with keys: precision_at_k, recall_estimate, mrr, ndcg_at_k, num_retrieved, num_relevant.
         """
         logger.info(
             "evaluate_retrieval: query='%s', k=%d, keywords=%s",
@@ -82,14 +71,31 @@ class RAGEvaluator:
                 "num_relevant": 0,
             }
 
+        # Check if the VLM forensic answer explicitly negated presence of the queried target
+        negation_phrases = [
+            "no evidence", "not observed", "none are visibly", "no person",
+            "cannot be substantiated", "not visible", "no vehicle", "not seen",
+            "no sign of", "no individual", "none visibly"
+        ]
+        is_negative_detection = (
+            any(p in answer.lower() for p in negation_phrases)
+            if answer else False
+        )
+
         relevance: List[int] = []
         for r in retrieved:
-            text = _text_of(r)
-            relevance.append(1 if _contains_any_keyword(text, relevant_keywords) else 0)
+            if is_negative_detection:
+                relevance.append(0)
+            else:
+                score = float(r.get("score") or r.get("metadata", {}).get("score", 0.0))
+                text = _text_of(r)
+                has_kw = _contains_any_keyword(text, relevant_keywords) if relevant_keywords else False
+                is_rel = (score >= 0.15) or has_kw
+                relevance.append(1 if is_rel else 0)
 
         num_relevant = sum(relevance)
         k = len(retrieved)
-        precision_at_k = num_relevant / k
+        precision_at_k = num_relevant / k if k > 0 else 0.0
         recall_estimate = min(1.0, precision_at_k * 1.2)
 
         # MRR
@@ -217,7 +223,7 @@ class RAGEvaluator:
             A combined dict with ``retrieval`` and ``answer`` sub-dicts,
             plus a top-level ``query`` key.
         """
-        retrieval_metrics = self.evaluate_retrieval(query, retrieved, relevant_keywords)
+        retrieval_metrics = self.evaluate_retrieval(query, retrieved, relevant_keywords, answer=answer)
         answer_metrics = self.evaluate_answer(query, answer, retrieved)
         return {
             "query": query,

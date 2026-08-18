@@ -2013,12 +2013,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // 3. Render Evaluation Metrics
         if (data.evaluation) {
             const ev = data.evaluation;
-            const ret = ev.retrieval_metrics || {};
-            const ans = ev.answer_metrics || {};
-            mPrecision.textContent = (ret.precision_at_k ?? 1.0).toFixed(1);
-            mMrr.textContent = (ret.mrr ?? 1.0).toFixed(1);
-            mNdcg.textContent = (ret.ndcg_at_k ?? 1.0).toFixed(1);
-            mUtil.textContent = `${Math.round((ans.context_utilization ?? 1.0) * 100)}%`;
+            const ret = ev.retrieval || ev.retrieval_metrics || {};
+            const ans = ev.answer || ev.answer_metrics || {};
+            mPrecision.textContent = (ret.precision_at_k !== undefined ? ret.precision_at_k : 0.0).toFixed(2);
+            mMrr.textContent = (ret.mrr !== undefined ? ret.mrr : 0.0).toFixed(2);
+            mNdcg.textContent = (ret.ndcg_at_k !== undefined ? ret.ndcg_at_k : 0.0).toFixed(2);
+            mUtil.textContent = `${Math.round((ans.context_utilization !== undefined ? ans.context_utilization : 0.0) * 100)}%`;
             metricsBar.style.display = 'grid';
         }
 
