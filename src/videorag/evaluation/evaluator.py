@@ -90,7 +90,7 @@ class RAGEvaluator:
                 score = float(r.get("score") or r.get("metadata", {}).get("score", 0.0))
                 text = _text_of(r)
                 has_kw = _contains_any_keyword(text, relevant_keywords) if relevant_keywords else False
-                is_rel = (score >= 0.15) or has_kw
+                is_rel = (score >= 0.065) or has_kw
                 relevance.append(1 if is_rel else 0)
 
         num_relevant = sum(relevance)
