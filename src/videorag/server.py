@@ -48,6 +48,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger("videorag.server")
 
+
+def _parse_ts_to_seconds(val: Any) -> float:
+    """Parse 'HH:MM:SS', 'MM:SS', or numeric value into float seconds."""
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    try:
+        parts = str(val).strip().split(":")
+        if len(parts) == 3:
+            return float(parts[0]) * 3600.0 + float(parts[1]) * 60.0 + float(parts[2])
+        elif len(parts) == 2:
+            return float(parts[0]) * 60.0 + float(parts[1])
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
+
+
 app = FastAPI(title="VideoRAG Intelligence Platform", version="1.0.0")
 
 app.add_middleware(
@@ -492,11 +510,13 @@ def search_cctv(req: SearchRequest):
                 clean_img = img_p.replace("\\", "/")
                 if "data/" in clean_img:
                     img_p = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
+            f_ts = f.get("timestamp", "00:00:00")
+            f_sec = _parse_ts_to_seconds(f.get("seconds") or f_ts)
             storyboard.append({
                 "camera": top_episode.get("camera", "CAM_01"),
                 "image_path": img_p,
-                "timestamp": f.get("timestamp", "00:00:00"),
-                "seconds": f.get("seconds", 0.0),
+                "timestamp": f_ts,
+                "seconds": f_sec,
                 "epoch_time": f.get("epoch_time"),
                 "is_anchor": f.get("is_anchor", False),
                 "score": round(float(f.get("score", 0.0)), 4),
@@ -512,16 +532,7 @@ def search_cctv(req: SearchRequest):
         cam = ep.get("camera", "CAM_01")
         ts = ep.get("anchor_timestamp", meta.get("timestamp", "00:00:00"))
         time_range = ep.get("time_range", ts)
-
-        secs = 0
-        try:
-            parts = [int(p) for p in ts.split(":")]
-            if len(parts) == 3:
-                secs = parts[0] * 3600 + parts[1] * 60 + parts[2]
-            elif len(parts) == 2:
-                secs = parts[0] * 60 + parts[1]
-        except Exception:
-            secs = 0
+        secs = _parse_ts_to_seconds(meta.get("seconds") or ts)
 
         img_p = ep.get("anchor_image", meta.get("image_path", ""))
         if img_p:

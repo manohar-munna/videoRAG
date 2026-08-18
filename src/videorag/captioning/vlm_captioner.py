@@ -218,11 +218,14 @@ class VLMCaptioner:
                 {
                     "type": "text",
                     "text": (
-                        f"You are a forensic CCTV security analyst reviewing chronological video surveillance frames from Camera '{cam_id}'.\n"
-                        f"User Query: '{query}'\n"
+                        f"You are an expert CCTV Forensic Intelligence Analyst reviewing chronological surveillance frames from Camera '{cam_id}'.\n"
+                        f"Target Query: \"{query}\"\n"
                         f"Sequence Time Range: {time_range}\n\n"
-                        "Analyze what happened across the following sequence of frames step-by-step and provide a factual, precise answer. "
-                        "Cite the specific timestamps where key actions or subjects appear."
+                        "Instructions:\n"
+                        "1. First, examine each frame sequentially (Frame 1, Frame 2, Frame 3, etc.) and state your factual observations for each timestamp.\n"
+                        "2. In each frame's description, specifically indicate whether the queried subject or activity is visible or absent.\n"
+                        "3. Conclude with a clear summary determining whether the query is satisfied across the sequence, citing all matching timestamps.\n"
+                        "Important Rule: Do NOT make a blanket negative statement at the opening. Examine all frames first before concluding."
                     ),
                 }
             ]

@@ -423,8 +423,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Toggle Collapsible Keyframe Images Grid
-    let isKeyframeGridOpen = true;
+    // Toggle Collapsible Keyframe Images Grid (Collapsed by Default)
+    let isKeyframeGridOpen = false;
     if (toggleVectorsGridBtn && frameVectorsGrid) {
         toggleVectorsGridBtn.addEventListener('click', () => {
             isKeyframeGridOpen = !isKeyframeGridOpen;
@@ -1978,6 +1978,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ------------------------------------------------------------------
+    // Helper: Parse Timestamp string to Seconds
+    // ------------------------------------------------------------------
+    function parseTsToSeconds(ts, fallbackSec = 0) {
+        if (fallbackSec && Number(fallbackSec) > 0) return Number(fallbackSec);
+        if (!ts) return 0;
+        try {
+            const parts = String(ts).trim().split(':');
+            if (parts.length === 3) {
+                return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+            } else if (parts.length === 2) {
+                return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+            }
+            return parseFloat(ts) || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Render Results in Classic Light UI
     // ------------------------------------------------------------------
     function renderResults(data) {
@@ -1994,8 +2013,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="storyboard-hint">Click any frame to jump player</span>
                     </div>
                     <div class="storyboard-strip">
-                        ${data.storyboard.map((f, i) => `
-                            <div class="storyboard-card ${f.is_anchor ? 'anchor-frame' : ''}" data-seconds="${f.seconds}" data-timestamp="${f.timestamp}" data-epoch="${f.epoch_time || ''}" data-image="${escapeHtml(f.image_path || '')}" data-camera="${escapeHtml(f.camera || '')}" title="${f.is_anchor ? 'Target Match Moment' : 'Surrounding Context Frame'} @ ${f.timestamp}">
+                        ${data.storyboard.map((f, i) => {
+                            const secVal = parseTsToSeconds(f.timestamp, f.seconds);
+                            return `
+                            <div class="storyboard-card ${f.is_anchor ? 'anchor-frame' : ''}" data-seconds="${secVal}" data-timestamp="${escapeHtml(f.timestamp)}" data-epoch="${f.epoch_time || ''}" data-image="${escapeHtml(f.image_path || '')}" data-camera="${escapeHtml(f.camera || '')}" title="${f.is_anchor ? 'Target Match Moment' : 'Surrounding Context Frame'} @ ${escapeHtml(f.timestamp)}">
                                 <div class="storyboard-thumb-wrap">
                                     ${f.image_path ? `<img src="${escapeHtml(f.image_path)}" class="storyboard-thumb" alt="Frame ${i+1}" onerror="this.style.display='none';">` : ''}
                                     ${f.is_anchor ? `<span class="anchor-badge">TARGET</span>` : ''}
@@ -2004,7 +2025,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <span class="storyboard-ts">${escapeHtml(f.timestamp)}</span>
                                 </div>
                             </div>
-                        `).join('')}
+                        `;}).join('')}
                     </div>
                 </div>
             `;
@@ -2020,8 +2041,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 aiAnswerBody.querySelectorAll('.storyboard-card').forEach(c => c.classList.remove('active'));
                 card.classList.add('active');
 
-                const sec = parseFloat(card.dataset.seconds) || 0;
                 const ts = card.dataset.timestamp || '';
+                const sec = parseTsToSeconds(ts, parseFloat(card.dataset.seconds) || 0);
                 const cam = card.dataset.camera || (results.length > 0 ? results[0].camera : 'CAM_01');
                 const img = card.dataset.image || '';
                 const epoch = card.dataset.epoch ? parseFloat(card.dataset.epoch) : null;
@@ -2039,12 +2060,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 aiAnswerBody.querySelectorAll('.answer-ts-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
 
-                const sec = parseFloat(btn.dataset.seconds) || 0;
                 const ts = btn.dataset.timestamp || '';
+                const sec = parseTsToSeconds(ts, parseFloat(btn.dataset.seconds) || 0);
                 const cam = btn.dataset.camera || (results.length > 0 ? results[0].camera : 'CAM_01');
 
                 // Lookup matching result item to get high-res moment image and epoch timestamp
-                const matchingItem = results.find(r => r.camera === cam && (r.timestamp === ts || Math.abs((r.seconds || 0) - sec) < 2));
+                const matchingItem = results.find(r => r.camera === cam && (r.timestamp === ts || Math.abs(parseTsToSeconds(r.timestamp, r.seconds) - sec) < 2));
                 const img = matchingItem ? (matchingItem.image_path || '') : '';
                 const epoch = matchingItem && matchingItem.epoch_time ? parseFloat(matchingItem.epoch_time) : null;
 
@@ -2071,8 +2092,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        evidenceList.innerHTML = results.map((item) => `
-            <div class="evidence-item" data-seconds="${item.seconds}" data-timestamp="${item.timestamp}" data-epoch="${item.epoch_time || ''}" data-image="${escapeHtml(item.image_path || '')}" data-camera="${escapeHtml(item.camera)}" data-feed-type="${escapeHtml(item.feed_type || '')}">
+        evidenceList.innerHTML = results.map((item) => {
+            const secVal = parseTsToSeconds(item.timestamp, item.seconds);
+            return `
+            <div class="evidence-item" data-seconds="${secVal}" data-timestamp="${item.timestamp}" data-epoch="${item.epoch_time || ''}" data-image="${escapeHtml(item.image_path || '')}" data-camera="${escapeHtml(item.camera)}" data-feed-type="${escapeHtml(item.feed_type || '')}">
                 <div class="evidence-meta">
                     <div class="ev-header">
                         <span class="ev-rank">#${item.rank}</span>
@@ -2092,7 +2115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </button>
                 </div>
             </div>
-        `).join('');
+        `;}).join('');
 
         // 5. Attach Click Listeners to Evidence Cards and Seek Buttons
         evidenceList.querySelectorAll('.evidence-item').forEach(card => {
@@ -2100,8 +2123,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (e) e.stopPropagation();
                 evidenceList.querySelectorAll('.evidence-item').forEach(c => c.classList.remove('selected'));
                 card.classList.add('selected');
-                const secs = parseFloat(card.dataset.seconds) || 0;
                 const ts = card.dataset.timestamp || '';
+                const secs = parseTsToSeconds(ts, parseFloat(card.dataset.seconds) || 0);
                 const img = card.dataset.image || '';
                 const cam = card.dataset.camera || 'CAM_01';
                 const epoch = card.dataset.epoch ? parseFloat(card.dataset.epoch) : null;

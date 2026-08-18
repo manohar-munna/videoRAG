@@ -14,6 +14,23 @@ from videorag.indexing.vector_store import FAISSVectorStore
 logger = logging.getLogger(__name__)
 
 
+def _parse_ts_to_seconds(val: Any) -> float:
+    """Parse 'HH:MM:SS', 'MM:SS', or numeric value into float seconds."""
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    try:
+        parts = str(val).strip().split(":")
+        if len(parts) == 3:
+            return float(parts[0]) * 3600.0 + float(parts[1]) * 60.0 + float(parts[2])
+        elif len(parts) == 2:
+            return float(parts[0]) * 60.0 + float(parts[1])
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
+
+
 class CCTVRetriever:
     """Retrieves relevant CCTV keyframe visual moments and expands them into temporal episodes.
 
@@ -117,7 +134,7 @@ class CCTVRetriever:
         for cam, entries in camera_index.items():
             entries.sort(key=lambda m: (
                 float(m.get("epoch_time") or 0.0),
-                float(m.get("seconds") or 0.0),
+                _parse_ts_to_seconds(m.get("seconds") or m.get("timestamp") or m.get("start_timestamp")),
                 str(m.get("timestamp") or m.get("start_timestamp") or "")
             ))
 
@@ -147,10 +164,11 @@ class CCTVRetriever:
 
             # Fallback if exact match not found
             if anchor_pos == -1:
+                anchor_secs = _parse_ts_to_seconds(anchor_meta.get("seconds") or anchor_ts)
                 storyboard_frames = [{
                     "image_path": anchor_img,
                     "timestamp": anchor_ts,
-                    "seconds": anchor_meta.get("seconds", 0.0),
+                    "seconds": anchor_secs,
                     "epoch_time": anchor_meta.get("epoch_time"),
                     "score": anchor_score,
                     "is_anchor": True,
@@ -168,10 +186,11 @@ class CCTVRetriever:
                 for idx_in_cam, frame_meta in enumerate(window_slice, start=start_idx):
                     is_anchor = (idx_in_cam == anchor_pos)
                     frame_ts = frame_meta.get("timestamp") or frame_meta.get("start_timestamp", "00:00:00")
+                    frame_secs = _parse_ts_to_seconds(frame_meta.get("seconds") or frame_ts)
                     storyboard_frames.append({
                         "image_path": frame_meta.get("image_path", ""),
                         "timestamp": frame_ts,
-                        "seconds": frame_meta.get("seconds", 0.0),
+                        "seconds": frame_secs,
                         "epoch_time": frame_meta.get("epoch_time"),
                         "score": anchor_score if is_anchor else 0.0,
                         "is_anchor": is_anchor,
