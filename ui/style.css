@@ -2020,9 +2020,37 @@ body {
 }
 
 /* ==========================================================================
-   Lazy VLM & Vector Grounding Inspector Styles
+   Architecture Badge Strip & Dev Panel Header
    ========================================================================== */
-.lazy-stepper-card {
+.arch-badge-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 12px 0;
+}
+
+.arch-tag {
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--bg-main);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-light);
+}
+
+.arch-tag.arch-active {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+    border-color: rgba(59, 130, 246, 0.35);
+    font-weight: 800;
+}
+
+/* ==========================================================================
+   Lazy VLM 4-Stage Horizontal Live Operating Pipeline
+   ========================================================================== */
+.lazy-pipeline-container {
     background: var(--bg-surface);
     border: 1px solid var(--border-light);
     border-radius: var(--radius-md);
@@ -2031,7 +2059,7 @@ body {
     box-shadow: var(--shadow-sm);
 }
 
-.lazy-stepper-header {
+.lazy-pipeline-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2057,8 +2085,8 @@ body {
 }
 
 .status-pulse-dot {
-    width: 8px;
-    height: 8px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
     background: #10b981;
     display: inline-block;
@@ -2101,90 +2129,160 @@ body {
     border-color: rgba(59, 130, 246, 0.3);
 }
 
-.lazy-stepper-grid {
+/* 4 Horizontal Connected Stage Boxes */
+.horizontal-stages-grid {
     display: grid;
     grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
-    align-items: center;
+    align-items: stretch;
     gap: 8px;
     margin-bottom: 14px;
 }
 
-@media (max-width: 860px) {
-    .lazy-stepper-grid {
+@media (max-width: 980px) {
+    .horizontal-stages-grid {
         grid-template-columns: 1fr;
+        gap: 10px;
     }
-    .step-arrow {
+    .stage-connector {
         transform: rotate(90deg);
-        text-align: center;
-        margin: 2px 0;
+        display: flex;
+        justify-content: center;
+        margin: -4px 0;
     }
 }
 
-.step-card {
+.stage-box {
     background: var(--bg-main);
     border: 1px solid var(--border-light);
     border-radius: var(--radius-sm);
-    padding: 10px 12px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    transition: all 0.25s ease;
+    gap: 4px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 }
 
-.step-card.active {
+.stage-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: transparent;
+    transition: all 0.3s ease;
+}
+
+.stage-box.active {
     border-color: #3b82f6;
     background: rgba(59, 130, 246, 0.04);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.12);
 }
 
-.step-card.done {
+.stage-box.active::before {
+    background: #3b82f6;
+}
+
+.stage-box.done {
     border-color: #10b981;
-    background: rgba(16, 185, 129, 0.04);
+    background: rgba(16, 185, 129, 0.03);
 }
 
-.step-badge {
+.stage-box.done::before {
+    background: #10b981;
+}
+
+.stage-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.stage-num {
     font-size: 0.62rem;
+    font-family: var(--font-mono);
     font-weight: 800;
     text-transform: uppercase;
     color: var(--text-muted);
     letter-spacing: 0.5px;
 }
 
-.step-card.active .step-badge {
+.stage-badge {
+    font-size: 0.60rem;
+    font-family: var(--font-mono);
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--border-light);
+    color: var(--text-secondary);
+}
+
+.stage-box.active .stage-badge {
+    background: rgba(59, 130, 246, 0.15);
     color: #2563eb;
 }
 
-.step-card.done .step-badge {
+.stage-box.done .stage-badge {
+    background: rgba(16, 185, 129, 0.15);
     color: #059669;
 }
 
-.step-name {
-    font-size: 0.82rem;
+.stage-title {
+    margin: 0;
+    font-size: 0.84rem;
     font-weight: 700;
     color: var(--text-heading);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.step-desc {
+.stage-tech {
     font-size: 0.68rem;
-    color: var(--text-muted);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
 }
 
-.step-stat {
+.stage-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-top: 4px;
     font-size: 0.72rem;
-    font-family: var(--font-mono);
-    font-weight: 700;
-    color: var(--blue-primary);
 }
 
-.step-arrow {
+.stat-lbl {
     color: var(--text-muted);
-    font-weight: 800;
-    font-size: 1.1rem;
+}
+
+.stat-val {
+    font-family: var(--font-mono);
+    font-weight: 700;
+}
+
+.stage-sub {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stage-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
     opacity: 0.6;
 }
 
-.lazy-kpi-bar {
+/* Pipeline Telemetry Bar */
+.lazy-telemetry-bar {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 8px;
@@ -2192,19 +2290,25 @@ body {
     border-top: 1px dashed var(--border-light);
 }
 
-.lazy-kpi-item {
+.telemetry-item {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    background: var(--bg-main);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    border: 1px solid var(--border-light);
 }
 
-.kpi-micro-label {
-    font-size: 0.68rem;
+.telemetry-lbl {
+    font-size: 0.62rem;
     color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
 }
 
-.kpi-micro-val {
-    font-size: 0.8rem;
+.telemetry-val {
+    font-size: 0.76rem;
     font-family: var(--font-mono);
 }
 

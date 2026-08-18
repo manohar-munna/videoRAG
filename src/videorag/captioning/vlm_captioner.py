@@ -228,16 +228,26 @@ class VLMCaptioner:
             ]
 
             valid_image_count = 0
+            prompt_summary_lines = [
+                f"[SYSTEM & FORENSIC TASK INSTRUCTIONS]",
+                f"Role: CCTV Forensic Security Vision Analyst",
+                f"Camera: {cam_id} | Episode Time Range: {time_range}",
+                f"User Query: \"{query}\"",
+                f"Instruction: Analyze multi-frame visual progression and output step-by-step observations.",
+                f"\n[CHRONOLOGICAL MULTI-FRAME PAYLOAD SENT TO QWEN3-VL]"
+            ]
+
             for idx, frame in enumerate(frames[:3], start=1):
                 img_p = frame.get("image_path", "")
                 ts = frame.get("timestamp", "00:00:00")
                 is_anchor = frame.get("is_anchor", False)
-                anchor_tag = " [Primary Target Moment]" if is_anchor else ""
+                anchor_tag = " [PRIMARY TARGET ANCHOR]" if is_anchor else ""
 
                 content_blocks.append({
                     "type": "text",
                     "text": f"--- Frame {idx} (Camera: {cam_id}, Time: {ts}){anchor_tag} ---",
                 })
+                prompt_summary_lines.append(f"  • Frame {idx}: Timestamp {ts} | Camera: {cam_id}{anchor_tag} | Image: {Path(img_p).name} (base64 image)")
 
                 local_path = Path(img_p)
                 if not local_path.is_absolute():
@@ -254,6 +264,9 @@ class VLMCaptioner:
                         "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
                     })
                     valid_image_count += 1
+
+            prompt_summary_lines.append(f"\n[VLM ENGINE]: Local Qwen3-VL 4B Instruct via llama-server (CUDA GPU)")
+            self.last_constructed_prompt = "\n".join(prompt_summary_lines)
 
             if valid_image_count == 0:
                 return self._reason_heuristic(query, cam_id, time_range, frames)
