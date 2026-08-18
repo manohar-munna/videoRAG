@@ -35,7 +35,9 @@ Thumbs.db
 
 # Local GGUF models & binaries
 *.gguf
+*.safetensors
 Local LLM 3VL 4Q/
+models/
 tools/
 
 # Video files & extracted frame image caches

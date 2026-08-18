@@ -293,11 +293,12 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
     cfg_ret = config.get("retrieval", {})
     cfg_llm = config.get("llm", {})
 
-    model_name = cfg_idx.get("model_name", "clip-ViT-B-32")
+    model_name = cfg_idx.get("model_name", "MobileCLIP-S2")
+    model_path = cfg_idx.get("model_path")
     index_path = cfg_idx.get("index_save_path", "index/cctv_index")
 
     from videorag.indexing.embedder import MultimodalEmbedder
-    embedder = MultimodalEmbedder(model_name=model_name)
+    embedder = MultimodalEmbedder(model_name=model_name, model_path=model_path)
     store = FAISSVectorStore(dim=embedder.dimension)
 
     idx_path = Path(index_path)

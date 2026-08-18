@@ -7,8 +7,9 @@ data:
   data_path: "data/real_cctv_events.json"
 
 indexing:
-  # Sentence-Transformers multimodal CLIP model for embedding
-  model_name: "clip-ViT-B-32"
+  # Apple MobileCLIP model for ultra-fast edge multimodal embedding
+  model_name: "MobileCLIP-S2"
+  model_path: "models/mobileclip_s2/open_clip_model.safetensors"
   # Sliding-window chunk size (number of documents per window)
   chunk_size: 3
   # Number of overlapping documents between consecutive windows

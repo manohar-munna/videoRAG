@@ -74,7 +74,8 @@ def _build_pipeline(config: dict):
     cfg_ret = config.get("retrieval", {})
     cfg_llm = config.get("llm", {})
 
-    model_name: str = cfg_idx.get("model_name", "clip-ViT-B-32")
+    model_name: str = cfg_idx.get("model_name", "MobileCLIP-S2")
+    model_path = cfg_idx.get("model_path")
     index_save_path: str = cfg_idx.get("index_save_path", "index/cctv_index")
 
     top_k: int = cfg_ret.get("top_k", 10)
@@ -90,8 +91,8 @@ def _build_pipeline(config: dict):
     if not idx_path.is_absolute():
         idx_path = _PROJECT_ROOT / idx_path
 
-    console.print(f"[dim]Loading multimodal embedding model '[cyan]{model_name}[/cyan]'…[/dim]")
-    embedder = MultimodalEmbedder(model_name=model_name)
+    console.print(f"[dim]Loading MobileCLIP embedding model '[cyan]{model_name}[/cyan]'…[/dim]")
+    embedder = MultimodalEmbedder(model_name=model_name, model_path=model_path)
 
     console.print(f"[dim]Loading FAISS index from '[cyan]{idx_path}[/cyan]'…[/dim]")
     store = FAISSVectorStore(dim=embedder.dimension)

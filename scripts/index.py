@@ -84,7 +84,8 @@ def run_indexing(config_path: str, data_path: str) -> None:
     cfg_idx = config.get("indexing", {})
 
     effective_data_path = data_path or cfg_data.get("data_path", cfg_data.get("mock_path", "data/real_cctv_events.json"))
-    model_name: str = cfg_idx.get("model_name", "all-MiniLM-L6-v2")
+    model_name: str = cfg_idx.get("model_name", "MobileCLIP-S2")
+    model_path = cfg_idx.get("model_path")
     index_save_path: str = cfg_idx.get("index_save_path", "index/cctv_index")
 
     console.print(f"[bold]Config:[/bold]       {config_path}")
@@ -121,9 +122,9 @@ def run_indexing(config_path: str, data_path: str) -> None:
         # ------------------------------------------------------------------
         # 4. Embed chunks (Multimodal CLIP)
         # ------------------------------------------------------------------
-        task_embed = progress.add_task("[cyan]Loading multimodal CLIP embedder…", total=1)
+        task_embed = progress.add_task("[cyan]Loading MobileCLIP embedder…", total=1)
         from videorag.indexing.embedder import MultimodalEmbedder
-        embedder = MultimodalEmbedder(model_name=model_name)
+        embedder = MultimodalEmbedder(model_name=model_name, model_path=model_path)
         progress.update(task_embed, completed=1)
 
         task_enc = progress.add_task("[cyan]Encoding chunks (images/text)…", total=len(chunks))
