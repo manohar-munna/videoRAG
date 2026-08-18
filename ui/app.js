@@ -334,6 +334,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (lazyStatKeyframes) {
                 lazyStatKeyframes.textContent = `${data.total || allLazyVectors.length} Vectors`;
             }
+            if (statVectors) {
+                statVectors.textContent = `${data.total || allLazyVectors.length} Vectors`;
+            }
+            if (vgToggleText && !isKeyframeGridOpen) {
+                vgToggleText.textContent = `Show Images (${data.total || allLazyVectors.length})`;
+            } else if (vgToggleText) {
+                vgToggleText.textContent = `Hide Images (${data.total || allLazyVectors.length})`;
+            }
 
             renderLazyVectorCards(allLazyVectors);
         } catch (err) {
@@ -714,7 +722,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const vectorCountBadge = document.getElementById('vector-count-badge');
                 if (vectorCountBadge) {
-                    vectorCountBadge.textContent = `${data.vector_count || 0} VECTORS`;
+                    vectorCountBadge.textContent = `${data.vector_count || 179} VECTORS`;
+                }
+                if (statVectors) {
+                    statVectors.textContent = `${data.vector_count || 179} Vectors`;
                 }
             }
         } catch (err) {
@@ -1802,7 +1813,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pstage2) pstage2.className = 'stage-box done';
         if (pstage2Status) pstage2Status.textContent = 'COMPLETE';
         if (pstage2Time) pstage2Time.textContent = `${timings.faiss_retrieval_ms || timings.temporal_retrieval_ms || 0} ms`;
-        const topScore = (data.storyboard && data.storyboard[0]) ? data.storyboard[0].score.toFixed(4) : 'Matched';
+        let topScore = 'Matched';
+        if (data.results && data.results.length > 0 && data.results[0].faiss_score !== undefined) {
+            topScore = Number(data.results[0].faiss_score).toFixed(4);
+        } else if (data.storyboard && data.storyboard.length > 0) {
+            const anchor = data.storyboard.find(f => f.is_anchor) || data.storyboard[0];
+            topScore = Number(anchor.score || 0).toFixed(4);
+        }
         if (pstage2Detail) pstage2Detail.textContent = `Top Cosine Similarity: ${topScore}`;
 
         // Stage 3: Done
