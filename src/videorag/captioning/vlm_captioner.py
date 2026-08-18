@@ -25,8 +25,8 @@ _CCTV_CAPTION_PROMPT = (
 )
 
 
-def _encode_image_base64(image_path: str, max_dim: int = 640) -> str:
-    """Encode image file to base64 string with optional downsampling for fast VLM processing."""
+def _encode_image_base64(image_path: str, max_dim: int = 384) -> str:
+    """Encode image file to base64 string with optimized resolution (max_dim=384) for fast VLM processing."""
     try:
         import cv2
         img = cv2.imread(str(image_path))
@@ -35,7 +35,7 @@ def _encode_image_base64(image_path: str, max_dim: int = 640) -> str:
             if max(h, w) > max_dim:
                 scale = max_dim / max(h, w)
                 img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-            _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
             return base64.b64encode(buf).decode("utf-8")
     except Exception:
         pass
@@ -228,7 +228,7 @@ class VLMCaptioner:
             ]
 
             valid_image_count = 0
-            for idx, frame in enumerate(frames[:5], start=1):
+            for idx, frame in enumerate(frames[:3], start=1):
                 img_p = frame.get("image_path", "")
                 ts = frame.get("timestamp", "00:00:00")
                 is_anchor = frame.get("is_anchor", False)
@@ -259,14 +259,25 @@ class VLMCaptioner:
                 return self._reason_heuristic(query, cam_id, time_range, frames)
 
             logger.info("Calling VLM for multi-frame episode reasoning (%d frames)...", valid_image_count)
-            res = self._client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": content_blocks}],
-                max_tokens=512,
-                temperature=0.2,
-            )
-            answer = res.choices[0].message.content or ""
-            return answer.strip()
+            import time
+            for attempt in range(1, 15):
+                try:
+                    res = self._client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": content_blocks}],
+                        max_tokens=300,
+                        temperature=0.2,
+                    )
+                    answer = res.choices[0].message.content or ""
+                    return answer.strip()
+                except Exception as exc:
+                    if "503" in str(exc) or "Loading model" in str(exc) or "Connection" in str(exc):
+                        logger.info("Local VLM server still initializing (%s). Retrying in 2s (attempt %d/15)...", exc, attempt)
+                        time.sleep(2.0)
+                    else:
+                        raise
+
+            return self._reason_heuristic(query, cam_id, time_range, frames)
 
         except Exception as exc:
             logger.warning("Multi-frame VLM reasoning failed: %s. Falling back to heuristic summary.", exc)

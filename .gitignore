@@ -43,6 +43,7 @@ tools/
 # Video files & extracted frame image caches
 Video Footage/
 data/extracted_frames/
+data/cameras/
 
 # Logs
 *.log

@@ -179,8 +179,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--backend",
-        default="local",
-        help="VLM backend: local | gemini | heuristic (default: local)",
+        default="lazy",
+        help="VLM backend: lazy | local | gemini | heuristic (default: lazy)",
     )
     parser.add_argument(
         "--config",
@@ -190,7 +190,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--enable-hash-filter",
         action="store_true",
-        help="Enable dHash/pHash frame filtering to skip duplicate/static frames",
+        default=True,
+        help="Enable dHash/pHash frame filtering to skip duplicate/static frames (default: True)",
     )
     parser.add_argument(
         "--hash-method",
@@ -201,8 +202,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--threshold",
         type=int,
-        default=10,
-        help="Hamming distance threshold (default: 10)",
+        default=8,
+        help="Hamming distance threshold (default: 8)",
     )
     return parser.parse_args()
 

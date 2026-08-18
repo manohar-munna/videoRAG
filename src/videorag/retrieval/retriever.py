@@ -118,7 +118,7 @@ class CCTVRetriever:
             entries.sort(key=lambda m: (
                 float(m.get("epoch_time") or 0.0),
                 float(m.get("seconds") or 0.0),
-                str(m.get("timestamp") or "")
+                str(m.get("timestamp") or m.get("start_timestamp") or "")
             ))
 
         episodes: List[dict] = []
@@ -127,7 +127,7 @@ class CCTVRetriever:
         for rank, anchor_result in enumerate(primary_results, start=1):
             anchor_meta = anchor_result.get("metadata", {})
             cam = anchor_meta.get("camera", "CAM_01")
-            anchor_ts = anchor_meta.get("timestamp", anchor_meta.get("start_timestamp", ""))
+            anchor_ts = anchor_meta.get("timestamp") or anchor_meta.get("start_timestamp", "")
             anchor_img = anchor_meta.get("image_path", "")
             anchor_score = float(anchor_result.get("score", 0.0))
 
@@ -140,7 +140,8 @@ class CCTVRetriever:
             # Find the position of the anchor in the sorted camera timeline
             anchor_pos = -1
             for i, item in enumerate(cam_entries):
-                if item.get("image_path") == anchor_img or item.get("timestamp") == anchor_ts:
+                item_ts = item.get("timestamp") or item.get("start_timestamp", "")
+                if (anchor_img and item.get("image_path") == anchor_img) or (anchor_ts and item_ts == anchor_ts):
                     anchor_pos = i
                     break
 
@@ -166,9 +167,10 @@ class CCTVRetriever:
                 storyboard_frames = []
                 for idx_in_cam, frame_meta in enumerate(window_slice, start=start_idx):
                     is_anchor = (idx_in_cam == anchor_pos)
+                    frame_ts = frame_meta.get("timestamp") or frame_meta.get("start_timestamp", "00:00:00")
                     storyboard_frames.append({
                         "image_path": frame_meta.get("image_path", ""),
-                        "timestamp": frame_meta.get("timestamp", "00:00:00"),
+                        "timestamp": frame_ts,
                         "seconds": frame_meta.get("seconds", 0.0),
                         "epoch_time": frame_meta.get("epoch_time"),
                         "score": anchor_score if is_anchor else 0.0,
