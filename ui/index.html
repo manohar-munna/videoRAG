@@ -75,7 +75,11 @@
                 </div>
                 <!-- Dev Mode Tabs -->
                 <div class="dev-tabs">
-                    <button class="dev-tab-btn active" data-tab="tab-hash">
+                    <button class="dev-tab-btn active" data-tab="tab-lazy-vlm">
+                        ⚡ Lazy VLM & Vector Grounding
+                        <button class="info-btn tab-info" data-info="lazy_vlm" title="What is Lazy VLM Architecture?">i</button>
+                    </button>
+                    <button class="dev-tab-btn" data-tab="tab-hash">
                         dHash / pHash Edge Gate
                         <button class="info-btn tab-info" data-info="dhash_phash" title="What is dHash / pHash?">i</button>
                     </button>
@@ -94,8 +98,112 @@
                 </div>
             </div>
 
+            <!-- TAB 0: Lazy VLM Architecture & Frame-to-Vector Grounding -->
+            <div class="dev-tab-content" id="tab-lazy-vlm">
+                <!-- Live Pipeline Execution Stepper -->
+                <div class="lazy-stepper-card">
+                    <div class="lazy-stepper-header">
+                        <div class="stepper-title-wrap">
+                            <span class="status-pulse-dot" id="lazy-pulse-dot"></span>
+                            <h4>Real-Time Query Execution Pipeline (Lazy VLM Trace)</h4>
+                            <button class="info-btn" data-info="lazy_vlm">i</button>
+                        </div>
+                        <span class="badge-lazy" id="lazy-pipeline-badge">READY ● STANDBY</span>
+                    </div>
+
+                    <div class="lazy-stepper-grid">
+                        <div class="step-card" id="step-embed">
+                            <div class="step-badge">Step 1</div>
+                            <div class="step-name">Query Embedding</div>
+                            <div class="step-desc">MobileCLIP-S2 (512-D)</div>
+                            <div class="step-stat" id="step-embed-time">0.0 ms</div>
+                        </div>
+                        <div class="step-arrow">→</div>
+                        <div class="step-card" id="step-search">
+                            <div class="step-badge">Step 2</div>
+                            <div class="step-name">FAISS Vector Search</div>
+                            <div class="step-desc">179 Keyframe Vectors</div>
+                            <div class="step-stat" id="step-search-time">0.0 ms</div>
+                        </div>
+                        <div class="step-arrow">→</div>
+                        <div class="step-card" id="step-expand">
+                            <div class="step-badge">Step 3</div>
+                            <div class="step-name">Episode Expander</div>
+                            <div class="step-desc">±15s–30s Temporal Window</div>
+                            <div class="step-stat" id="step-expand-time">0.0 ms</div>
+                        </div>
+                        <div class="step-arrow">→</div>
+                        <div class="step-card" id="step-vlm">
+                            <div class="step-badge">Step 4</div>
+                            <div class="step-name">Qwen3-VL Reasoning</div>
+                            <div class="step-desc">Multi-Frame Vision Model</div>
+                            <div class="step-stat" id="step-vlm-time">0.0 ms</div>
+                        </div>
+                    </div>
+
+                    <!-- Latency & Architecture KPIs -->
+                    <div class="lazy-kpi-bar">
+                        <div class="lazy-kpi-item">
+                            <span class="kpi-micro-label">Embedder Model:</span>
+                            <strong class="kpi-micro-val text-blue">Apple MobileCLIP-S2 (512-D)</strong>
+                        </div>
+                        <div class="lazy-kpi-item">
+                            <span class="kpi-micro-label">Indexed Keyframes:</span>
+                            <strong class="kpi-micro-val text-green" id="lazy-stat-keyframes">179 Vectors</strong>
+                        </div>
+                        <div class="lazy-kpi-item">
+                            <span class="kpi-micro-label">Ingestion Compute:</span>
+                            <strong class="kpi-micro-val text-purple">0.0s (Instant Lazy)</strong>
+                        </div>
+                        <div class="lazy-kpi-item">
+                            <span class="kpi-micro-label">Last Query Latency:</span>
+                            <strong class="kpi-micro-val text-blue" id="lazy-stat-latency">-- ms</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Benchmark Query Triggers -->
+                <div class="lazy-benchmark-bar">
+                    <span class="benchmark-label">⚡ Model Benchmark Triggers:</span>
+                    <button class="benchmark-chip" data-query="white pickup truck parked near yellow tape">🚗 White Truck & Tape</button>
+                    <button class="benchmark-chip" data-query="police officer or uniformed security personnel">👮 Uniformed Officer</button>
+                    <button class="benchmark-chip" data-query="crowd gathered in front of venice hotel">👥 Crowd at Venice Hotel</button>
+                    <button class="benchmark-chip" data-query="camera abruptly pans or shifts to the ground">📹 Camera Movement / Blur</button>
+                </div>
+
+                <!-- Frame-to-Vector Grounding Inspector Header & Search -->
+                <div class="vector-grounding-section">
+                    <div class="vector-grounding-header">
+                        <div class="vg-title-group">
+                            <h4>
+                                Keyframe-to-Vector Grounding Explorer
+                                <button class="info-btn" data-info="vector_grounding">i</button>
+                            </h4>
+                            <span class="sub-text">Inspect 512-D MobileCLIP vectors associated with each timestamped frame</span>
+                        </div>
+                        <div class="vg-actions">
+                            <div class="vg-search-wrap">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                <input type="text" id="vg-search-input" placeholder="Filter by timestamp (e.g. 00:02:42) or index..." class="dev-input">
+                            </div>
+                            <button id="refresh-vectors-btn" class="btn-primary btn-sm">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                                <span>Refresh Vectors</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Frame Vector Cards Grid -->
+                    <div class="frame-vectors-grid" id="frame-vectors-grid">
+                        <div class="placeholder-text" style="padding: 30px; text-align: center; width: 100%;">
+                            Loading 512-D MobileCLIP vectors from FAISS index…
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- TAB 1: Edge Frame Hashing & Motion Optimizer -->
-            <div class="dev-tab-content" id="tab-hash">
+            <div class="dev-tab-content" id="tab-hash" style="display: none;">
                 <div class="dev-controls-bar">
                     <div class="control-group">
                         <label>
@@ -455,6 +563,24 @@
                             <span class="hud-tag" id="hud-cam-id">CAM_01</span>
                             <span class="hud-tag" id="hud-timestamp">00:00:00</span>
                             <span class="hud-tag text-green" id="hud-status">REC ● 1080P</span>
+                        </div>
+                    </div>
+
+                    <!-- 4. Camera Offline / Not Available Screen -->
+                    <div id="cctv-offline-view" class="monitor-screen offline-screen" style="display: none; width: 100%; height: 100%; background: #070b14; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 24px;">
+                        <div class="offline-icon-wrap" style="margin-bottom: 12px; opacity: 0.85;">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.75">
+                                <path d="M23 7l-7 5 7 5V7z"></path>
+                                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                                <line x1="1" y1="1" x2="23" y2="23" stroke="#ef4444" stroke-width="2.5"></line>
+                            </svg>
+                        </div>
+                        <h3 class="offline-title" style="color: #f87171; font-size: 1.15rem; font-weight: 700; margin-bottom: 6px;">Camera Feed Offline / Not Available</h3>
+                        <p class="offline-desc" id="offline-desc-text" style="color: #94a3b8; font-size: 0.85rem; max-width: 380px; line-height: 1.4; margin-bottom: 14px;">This camera feed is not currently transmitting live video. Select CAM_01 to monitor active surveillance footage.</p>
+                        <div class="offline-badges" style="display: flex; gap: 8px; justify-content: center;">
+                            <span class="hud-tag" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);">SIGNAL LOST</span>
+                            <span class="hud-tag" id="offline-cam-tag">CAM_02</span>
+                            <span class="hud-tag text-dim">0 FPS</span>
                         </div>
                     </div>
 

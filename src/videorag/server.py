@@ -262,6 +262,8 @@ class StreamControlRequest(BaseModel):
     camera_id: str
 
 
+RemoveStreamRequest = StreamControlRequest
+
 # In-memory pipeline objects
 PIPELINE: Dict[str, Any] = {}
 
@@ -609,6 +611,64 @@ def search_cctv(req: SearchRequest):
         "evaluation": eval_result,
         "total_retrieved": len(episodes),
         "debug_trace": debug_trace,
+    }
+
+
+@app.get("/api/lazy_vlm/vectors")
+def get_lazy_vlm_vectors(camera: Optional[str] = None, limit: int = 250):
+    """Return all indexed keyframe images and their 512-D MobileCLIP vector representations."""
+    store = PIPELINE.get("vector_store")
+    embedder = PIPELINE.get("embedder")
+    if not store:
+        return {"total": 0, "dimension": 512, "model": "MobileCLIP-S2", "items": []}
+
+    items = []
+    with store._lock:
+        meta_list = list(store._metadata)
+        total_vectors = len(meta_list)
+        for i, meta in enumerate(meta_list):
+            cam = meta.get("camera", "CAM_01")
+            if camera and cam.upper() != camera.upper():
+                continue
+
+            vec_sample = []
+            vec_norm = 1.0
+            try:
+                vec = store._index.reconstruct(i)
+                vec_sample = [round(float(v), 4) for v in vec[:8]]
+                vec_norm = round(float(sum(v*v for v in vec)**0.5), 4)
+            except Exception:
+                pass
+
+            img_p = meta.get("image_path", "")
+            if img_p:
+                clean_img = img_p.replace("\\", "/")
+                if "data/" in clean_img:
+                    img_p = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
+
+            items.append({
+                "index": i,
+                "camera": cam,
+                "timestamp": meta.get("timestamp") or meta.get("start_timestamp", "00:00:00"),
+                "seconds": meta.get("seconds", 0.0),
+                "image_path": img_p,
+                "filename": Path(meta.get("image_path", "")).name,
+                "dimension": embedder.dimension if embedder else 512,
+                "model": embedder.model_name if embedder else "MobileCLIP-S2",
+                "vector_sample": vec_sample,
+                "vector_norm": vec_norm,
+                "hash_hex": meta.get("hash_hex", ""),
+            })
+
+            if len(items) >= limit:
+                break
+
+    return {
+        "total": total_vectors,
+        "count": len(items),
+        "dimension": embedder.dimension if embedder else 512,
+        "model": embedder.model_name if embedder else "MobileCLIP-S2",
+        "items": items,
     }
 
 
