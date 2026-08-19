@@ -1,15 +1,4 @@
 {
-  "CAM_01": {
-    "camera_id": "CAM_01",
-    "name": "Main Entrance Barrier Gate (sample_cctv.mp4)",
-    "location": "North Access Perimeter",
-    "type": "video_file",
-    "stream_url": "/video/sample_cctv.mp4",
-    "sample_interval": 3.0,
-    "hash_method": "dhash",
-    "threshold": 8,
-    "status": "paused"
-  },
   "Cam_3000": {
     "camera_id": "Cam_3000",
     "name": "Camera Cam_3000",

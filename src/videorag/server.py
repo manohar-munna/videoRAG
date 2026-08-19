@@ -291,17 +291,18 @@ RemoveStreamRequest = StreamControlRequest
 PIPELINE: Dict[str, Any] = {}
 
 # In-memory real-time Edge Frame Inspector metrics buffer
-DEV_INSPECTOR_STATE = {
-    "kpis": {
-        "total_frames": 55,
-        "keyframes_kept": 48,
-        "frames_skipped": 7,
-        "llm_compute_saved_pct": 12.7,
+LATEST_HASH_AUDIT: Dict[str, Any] = {
+    "stats": {
+        "total_frames": 0,
+        "keyframes_kept": 0,
+        "frames_skipped": 0,
+        "llm_compute_saved_pct": 0.0,
         "method": "dhash",
         "threshold": 10,
     },
     "audit_trail": [],
 }
+DEV_INSPECTOR_STATE = LATEST_HASH_AUDIT
 
 
 def init_pipeline(config_path: str = "config/config.yaml") -> None:
@@ -905,6 +906,52 @@ def process_video_smart(req: SmartProcessRequest):
 def get_hash_audit():
     """Return the latest frame hashing audit log for Developer Mode UI inspection."""
     return LATEST_HASH_AUDIT
+
+
+class HashFilterRunRequest(BaseModel):
+    video_path: Optional[str] = "Video Footage/sample_cctv.mp4"
+    camera_id: Optional[str] = "CAM_01"
+    sample_interval: Optional[float] = 4.0
+    hash_method: Optional[str] = "dhash"
+    threshold: Optional[int] = 10
+    max_frames: Optional[int] = 400
+
+
+@app.post("/api/run_hash_filter")
+def run_hash_filter_simulation(req: HashFilterRunRequest):
+    """Run pure perceptual hash filtering (dHash/pHash/aHash) on a video to inspect Hamming distance and audit logs dynamically."""
+    video_p = req.video_path or "Video Footage/sample_cctv.mp4"
+    video_file = Path(video_p)
+    if not video_file.is_absolute():
+        video_file = _PROJECT_ROOT / video_file
+
+    if not video_file.exists():
+        raise HTTPException(status_code=404, detail=f"Video file not found: {video_p}")
+
+    out_dir = _PROJECT_ROOT / "data" / "extracted_frames"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    extractor = VideoFrameExtractor(output_dir=str(out_dir))
+    hash_filter = EdgeFrameFilter(method=req.hash_method or "dhash", threshold=req.threshold or 10)
+
+    result = extractor.extract_frames(
+        video_path=str(video_file),
+        camera_id=req.camera_id or "CAM_01",
+        sample_interval=req.sample_interval or 4.0,
+        max_frames=req.max_frames or 400,
+        hash_filter=hash_filter,
+    )
+
+    LATEST_HASH_AUDIT["stats"] = result["filter_stats"]
+    LATEST_HASH_AUDIT["audit_trail"] = result["audit_trail"]
+
+    return {
+        "status": "success",
+        "filter_stats": result["filter_stats"],
+        "audit_trail": result["audit_trail"][:200],
+        "total_sampled": result["total_sampled"],
+        "keyframes_kept": len(result["extracted_frames"]),
+        "skipped_count": result["skipped_count"],
+    }
 
 
 @app.post("/api/streams/add")

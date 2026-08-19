@@ -340,7 +340,12 @@
 
             <!-- TAB 2: Edge Frame Hashing & Motion Optimizer -->
             <div class="dev-tab-content" id="tab-hash" style="display: none;">
-                <div class="dev-controls-bar">
+                <div class="dev-controls-bar" style="flex-wrap: wrap; gap: 10px;">
+                    <div class="control-group" style="min-width: 220px; flex: 1;">
+                        <label>Target Video / Camera:</label>
+                        <input type="text" id="hash-target-video" value="Video Footage/sample_cctv.mp4" placeholder="Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
+                    </div>
+
                     <div class="control-group">
                         <label>
                             Hash Algorithm:
@@ -355,13 +360,18 @@
 
                     <div class="control-group">
                         <label>
-                            Hamming Threshold: <strong id="threshold-val" class="text-blue">8</strong>
+                            Hamming Cut: <strong id="threshold-val" class="text-blue">10</strong>
                             <button class="info-btn" data-info="hamming_threshold">i</button>
                         </label>
-                        <input type="range" id="threshold-range" min="1" max="32" value="8" class="dev-slider">
+                        <input type="range" id="threshold-range" min="1" max="32" value="10" class="dev-slider">
                     </div>
 
-                    <button id="run-smart-filter-btn" class="btn-primary btn-sm">
+                    <div class="control-group">
+                        <label>Sample (s):</label>
+                        <input type="number" id="hash-sample-interval" value="4.0" min="1.0" max="30.0" step="0.5" class="dev-input" style="width: 65px;">
+                    </div>
+
+                    <button id="run-smart-filter-btn" class="btn-primary btn-sm" style="height: 34px; align-self: flex-end;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="5 3 19 12 5 21 5 3"></polygon>
                         </svg>
@@ -375,12 +385,11 @@
                         <strong>💡 Hamming Distance & Threshold Guide</strong>
                         <button class="info-btn" data-info="hamming_threshold">i</button>
                     </div>
-                    <p>
+                    <p id="hash-guide-summary">
                         A 64-bit dHash converts frames into 64 binary bits. 
                         <strong>Hamming Distance</strong> measures bitwise differences: 
                         <code>0</code> = identical duplicate, <code>64</code> = completely inverted image.
-                        <br>
-                        🎯 <strong>Current Setting on sample_cctv.mp4 (Threshold = 8):</strong> Sampled 271 frames, kept <strong>179 keyframes</strong>, dropped <strong>92 static frames (33.9% compute saved)</strong>!
+                        Adjust threshold slider and click <strong>Run Smart Frame Filter</strong> to calculate live bitwise distances and compute savings.
                     </p>
                 </div>
 
@@ -390,28 +399,28 @@
                             Total Frames Sampled
                             <button class="info-btn" data-info="total_frames">i</button>
                         </span>
-                        <span class="kpi-val" id="kpi-total">271</span>
+                        <span class="kpi-val" id="kpi-total">--</span>
                     </div>
                     <div class="kpi-card">
                         <span class="kpi-label">
                             Keyframes Kept (MobileCLIP)
                             <button class="info-btn" data-info="keyframes_kept">i</button>
                         </span>
-                        <span class="kpi-val text-green" id="kpi-kept">179</span>
+                        <span class="kpi-val text-green" id="kpi-kept">--</span>
                     </div>
                     <div class="kpi-card">
                         <span class="kpi-label">
                             Static Frames Skipped
                             <button class="info-btn" data-info="static_frames">i</button>
                         </span>
-                        <span class="kpi-val text-dim" id="kpi-skipped">92</span>
+                        <span class="kpi-val text-dim" id="kpi-skipped">--</span>
                     </div>
                     <div class="kpi-card highlight-blue">
                         <span class="kpi-label">
                             Compute Saved
                             <button class="info-btn" data-info="compute_saved">i</button>
                         </span>
-                        <span class="kpi-val text-blue" id="kpi-saved">33.9%</span>
+                        <span class="kpi-val text-blue" id="kpi-saved">--%</span>
                     </div>
                 </div>
 
@@ -456,7 +465,7 @@
                             <button class="info-btn" data-info="json_explorer">i</button>
                         </h4>
                         <div class="json-stats-chips">
-                            <span class="chip-badge chip-blue" id="json-stat-total">179 Keyframes</span>
+                            <span class="chip-badge chip-blue" id="json-stat-total">0 Keyframes</span>
                             <span class="chip-badge chip-green" id="json-stat-cams">1 Camera</span>
                             <span class="chip-badge chip-purple" id="json-stat-dim">512-D MobileCLIP</span>
                             <span class="chip-badge chip-dark" id="json-stat-size">0s LLM Wait</span>
@@ -487,13 +496,12 @@
                 <!-- Dynamic Filter Toolbar: Search -->
                 <div class="json-filter-toolbar">
                     <div class="json-cam-pills" id="json-camera-filters">
-                        <button class="json-cam-pill active" data-camera="">All Keyframes (179)</button>
-                        <button class="json-cam-pill" data-camera="CAM_01">CAM_01 (179)</button>
+                        <button class="json-cam-pill active" data-camera="">All Keyframes (0)</button>
                     </div>
                     <div class="json-search-wrap">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         <input type="text" id="json-search-input" placeholder="Filter by timestamp (e.g. 00:02:42) or index..." class="dev-input">
-                        <span id="json-match-count" class="json-match-count">179 / 179 items</span>
+                        <span id="json-match-count" class="json-match-count">0 / 0 items</span>
                     </div>
                 </div>
 
@@ -506,26 +514,29 @@
                 <pre class="json-code-box" id="json-code-display" style="display: none;">Loading indexed keyframe metadata JSON…</pre>
             </div>
 
-            <!-- TAB 4: RTSP & Footage Stream Manager -->
+            <!-- TAB 4: RTSP & Video Footage Ingestion Manager -->
             <div class="dev-tab-content" id="tab-rtsp" style="display: none;">
-                <!-- Feed Ingestion Mode Selector -->
-                <div class="ingest-mode-toolbar" style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
-                    <span style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-right: 4px;">Source Type:</span>
-                    <button type="button" class="btn-secondary btn-sm ingest-type-pill active" data-type="video_file" id="type-btn-file">
-                        📹 Local Video Footage
+                <!-- Feed Ingestion Mode Toolbar -->
+                <div class="ingest-mode-toolbar" style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-right: 4px;">Feed Ingestion:</span>
+                    <button type="button" class="btn-secondary btn-sm ingest-type-pill active" data-type="all" id="type-btn-all">
+                        ⚡ Quick Add (URL / File)
+                    </button>
+                    <button type="button" class="btn-secondary btn-sm ingest-type-pill" data-type="video_file" id="type-btn-file">
+                        📹 Local Footage
                     </button>
                     <button type="button" class="btn-secondary btn-sm ingest-type-pill" data-type="rtsp_stream" id="type-btn-rtsp">
-                        🌐 RTSP / Network Stream
+                        🌐 RTSP Live Stream
                     </button>
                     <button type="button" class="btn-secondary btn-sm ingest-type-pill" data-type="youtube_stream" id="type-btn-yt">
-                        🔴 YouTube Live Stream
+                        🔴 YouTube Stream
                     </button>
                 </div>
 
-                <!-- Mode 1: Local Video Footage Ingestion Form -->
-                <div id="form-mode-file" class="rtsp-form-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 14px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span style="font-size: 0.85rem; font-weight: 700; color: #1e293b;">Select or Upload Surveillance Video File</span>
+                <!-- Unified Stream & Footage Form Card -->
+                <div class="rtsp-form-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                        <span style="font-size: 0.85rem; font-weight: 700; color: #1e293b;">Live Stream URL (RTSP/RTMP/YouTube) & Local Video Ingestion</span>
                         <div id="local-videos-quick-chips" style="display: flex; gap: 6px; flex-wrap: wrap;">
                             <!-- Auto-populated detected video chips e.g. sample_cctv.mp4 -->
                         </div>
@@ -534,63 +545,44 @@
                     <div class="rtsp-form-bar" style="flex-wrap: wrap; gap: 10px;">
                         <div class="control-group">
                             <label>Camera ID:</label>
-                            <input type="text" id="file-cam-id" value="CAM_01" placeholder="CAM_01" class="dev-input" style="width: 110px;">
+                            <input type="text" id="rtsp-cam-id" value="CAM_01" placeholder="CAM_01" class="dev-input" style="width: 110px;">
                         </div>
 
-                        <div class="control-group" style="flex: 1; min-width: 220px;">
-                            <label>Video File Path:</label>
-                            <input type="text" id="file-video-path" value="Video Footage/sample_cctv.mp4" placeholder="Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
+                        <div class="control-group" style="flex: 1; min-width: 250px;">
+                            <label id="rtsp-url-label">Stream URL (RTSP / RTMP / YouTube) or File Path:</label>
+                            <input type="text" id="rtsp-url" value="Video Footage/sample_cctv.mp4" placeholder="rtsp://192.168.1.100:554/live or Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
                         </div>
 
-                        <div class="control-group">
+                        <div class="control-group" id="browse-file-group">
                             <label>Browse Local File:</label>
-                            <input type="file" id="file-video-upload" accept="video/mp4,video/mkv,video/avi,video/mov" class="dev-input" style="width: 190px; padding: 4px; font-size: 0.75rem;">
+                            <input type="file" id="file-video-upload" accept="video/mp4,video/mkv,video/avi,video/mov" class="dev-input" style="width: 180px; padding: 4px; font-size: 0.75rem;">
                         </div>
 
                         <div class="control-group">
                             <label>Sample (s):</label>
-                            <input type="number" id="file-sample-interval" value="4.0" min="1.0" max="30.0" step="0.5" class="dev-input" style="width: 65px;">
+                            <input type="number" id="rtsp-interval" value="4.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 65px;">
                         </div>
 
                         <div class="control-group">
                             <label>dHash Cut:</label>
-                            <input type="number" id="file-dhash-threshold" value="10" min="1" max="32" class="dev-input" style="width: 55px;">
+                            <input type="number" id="rtsp-dhash-threshold" value="10" min="1" max="32" class="dev-input" style="width: 55px;">
                         </div>
 
-                        <button id="extract-and-index-btn" class="btn-primary btn-sm" style="height: 34px; align-self: flex-end; background: #059669; border-color: #047857;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                            </svg>
-                            <span>Extract & Index (MobileCLIP ~3s)</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Mode 2 & 3: RTSP / Network / YouTube Stream Form -->
-                <div id="form-mode-stream" class="rtsp-form-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 14px; display: none;">
-                    <div class="rtsp-form-bar" style="flex-wrap: wrap; gap: 10px;">
-                        <div class="control-group">
-                            <label>Camera ID:</label>
-                            <input type="text" id="rtsp-cam-id" placeholder="CAM_NORTH_RTSP" class="dev-input" style="width: 140px;">
+                        <div style="display: flex; gap: 8px; align-self: flex-end;">
+                            <button id="add-rtsp-btn" class="btn-primary btn-sm" style="height: 34px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                <span>Connect Live Stream</span>
+                            </button>
+                            <button id="extract-and-index-btn" class="btn-primary btn-sm" style="height: 34px; background: #059669; border-color: #047857;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                                <span>Extract & Index (MobileCLIP ~3s)</span>
+                            </button>
                         </div>
-
-                        <div class="control-group" style="flex: 1; min-width: 250px;">
-                            <label id="rtsp-url-label">Stream URL (RTSP / RTMP / YouTube):</label>
-                            <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live" class="dev-input" style="width: 100%;">
-                        </div>
-
-                        <div class="control-group">
-                            <label>Sample (s):</label>
-                            <input type="number" id="rtsp-interval" value="5.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 70px;">
-                        </div>
-
-                        <button id="add-rtsp-btn" class="btn-primary btn-sm" style="height: 34px; align-self: flex-end;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <line x1="12" y1="5" x2="12" y2="19"></line>
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                            <span>Connect Stream</span>
-                        </button>
                     </div>
                 </div>
 
@@ -600,13 +592,13 @@
                         <button class="info-btn" data-info="rtsp_manager">i</button>
                     </div>
                     <p>
-                        Add local footage files or live camera feeds (RTSP/RTMP/YouTube). Ingestion uses <strong>dHash Edge Perceptual Filtering</strong> to discard static duplicate frames, and embeds multi-scale visual spatial crops via <strong>MobileCLIP-S2</strong> for instant semantic search.
+                        Captures live CCTV network feeds (RTSP/RTMP/YouTube) on non-blocking background threads, or processes local video files. Ingestion uses <strong>dHash Edge Perceptual Filtering</strong> to discard static duplicate frames, and embeds multi-scale visual spatial crops via <strong>MobileCLIP-S2</strong> for instant semantic search.
                     </p>
                 </div>
 
                 <div class="rtsp-streams-grid" id="rtsp-streams-list">
                     <div class="empty-state" style="padding: 20px;">
-                        <p class="placeholder-text">No active camera streams running. Enter or select video footage above to index.</p>
+                        <p class="placeholder-text">No active camera streams running. Enter a stream URL or select video footage above to index.</p>
                     </div>
                 </div>
             </div>
