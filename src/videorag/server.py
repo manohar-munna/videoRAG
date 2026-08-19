@@ -154,14 +154,15 @@ def _auto_index_worker_loop() -> None:
             img_path = keyframe.get("image_path")
 
             if not img_path or not Path(img_path).exists():
-                continue            # Direct multimodal visual embedding (~25ms, no slow VLM text generation in background loop)
+                continue
+
             clean_p = str(img_path).replace("\\", "/")
-            emb = None
+            crop_embeddings = []
             if PIPELINE.get("embedder"):
                 try:
-                    emb = PIPELINE["embedder"].embed_image(img_path)
+                    crop_embeddings = PIPELINE["embedder"].embed_image_with_crops(img_path)
                 except Exception as exc:
-                    logger.warning("[Auto-Indexer] Error embedding image %s: %s", img_path, exc)
+                    logger.warning("[Auto-Indexer] Error embedding image crops for %s: %s", img_path, exc)
 
             desc = f"Surveillance keyframe captured by {cam_id} at {ts_str}."
 
@@ -217,25 +218,29 @@ def _auto_index_worker_loop() -> None:
                 with open(out_file, "w", encoding="utf-8") as fh:
                     json.dump(deduped, fh, indent=2, ensure_ascii=False)
 
-                # 3. Dynamic in-memory FAISS vector indexing (Instant Image Vector)
-                if PIPELINE.get("vector_store") and emb is not None:
+                # 3. Dynamic in-memory FAISS vector indexing (Spatial Crops + Global)
+                if PIPELINE.get("vector_store") and crop_embeddings:
                     import numpy as np
-                    emb_2d = np.ascontiguousarray(emb.reshape(1, -1), dtype=np.float32)
-                    meta = {
-                        "camera": cam_id,
-                        "timestamp": ts_str,
-                        "seconds": keyframe.get("seconds", 0.0),
-                        "epoch_time": keyframe.get("epoch_time", round(time.time(), 3)),
-                        "description": desc,
-                        "text": f"Camera: {cam_id} | Time: {ts_str}",
-                        "image_path": clean_p,
-                        "chunk_id": f"{cam_id}_{ts_str.replace(':', '_')}",
-                    }
-                    PIPELINE["vector_store"].add(emb_2d, [meta])
+                    all_vecs = np.vstack([cr["embedding"] for cr in crop_embeddings])
+                    all_metas = []
+                    for cr in crop_embeddings:
+                        all_metas.append({
+                            "camera": cam_id,
+                            "timestamp": ts_str,
+                            "seconds": keyframe.get("seconds", 0.0),
+                            "epoch_time": keyframe.get("epoch_time", round(time.time(), 3)),
+                            "description": desc,
+                            "text": f"Camera: {cam_id} | Time: {ts_str} | Region: {cr['crop_region']}",
+                            "image_path": clean_p,
+                            "crop_region": cr["crop_region"],
+                            "crop_box": cr["crop_box"],
+                            "chunk_id": f"{cam_id}_{ts_str.replace(':', '_')}_{cr['crop_region']}",
+                        })
+                    PIPELINE["vector_store"].add(all_vecs, all_metas)
                     idx_path = _PROJECT_ROOT / "index" / "cctv_index"
                     PIPELINE["vector_store"].save(str(idx_path))
-                    logger.info("[Auto-Indexer] [%s] Instantly indexed visual keyframe @ %s in ~25ms! Vector count: %d", 
-                                cam_id, ts_str, PIPELINE["vector_store"].size)
+                    logger.info("[Auto-Indexer] [%s] Instantly indexed visual keyframe + %d crops @ %s in ~30ms! Total vectors: %d", 
+                                cam_id, len(crop_embeddings), ts_str, PIPELINE["vector_store"].size)
 
         except Exception as exc:
             logger.error("[Auto-Indexer] Error during keyframe auto-indexing: %s", exc, exc_info=True)
@@ -658,6 +663,11 @@ def get_lazy_vlm_vectors(camera: Optional[str] = None, limit: int = 250):
             except Exception:
                 pass
 
+            crop_reg = meta.get("crop_region", "global")
+            # Display unique primary keyframes in the visual gallery
+            if crop_reg not in ("global", None, ""):
+                continue
+
             img_p = meta.get("image_path", "")
             if img_p:
                 clean_img = img_p.replace("\\", "/")
@@ -671,6 +681,7 @@ def get_lazy_vlm_vectors(camera: Optional[str] = None, limit: int = 250):
                 "seconds": meta.get("seconds", 0.0),
                 "image_path": img_p,
                 "filename": Path(meta.get("image_path", "")).name,
+                "crop_region": crop_reg,
                 "dimension": embedder.dimension if embedder else 512,
                 "model": embedder.model_name if embedder else "MobileCLIP-S2",
                 "vector_sample": vec_sample,

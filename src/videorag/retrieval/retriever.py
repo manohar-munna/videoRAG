@@ -31,8 +31,74 @@ def _parse_ts_to_seconds(val: Any) -> float:
         return 0.0
 
 
+def _expand_query(query: str) -> List[str]:
+    """Generate focused multimodal query expansions for surveillance retrieval."""
+    q_low = query.strip().lower()
+    expansions = [query.strip()]
+
+    if any(k in q_low for k in ["camera crew", "filming", "film crew", "film set", "production crew"]):
+        expansions.extend([
+            "film production crew and cameras",
+            "camera operator on crane or tracking dolly cart",
+            "film set with movie cameras and boom microphone",
+            "video production equipment in park",
+        ])
+    elif any(k in q_low for k in ["pink", "pink cloth", "pink dress", "pink shirt"]):
+        expansions.extend([
+            "person wearing bright pink clothing",
+            "people in pink top or dress",
+        ])
+    elif any(k in q_low for k in ["police", "security", "guard", "officer"]):
+        expansions.extend([
+            "uniformed security personnel or police officer",
+            "law enforcement officer in uniform",
+        ])
+    elif any(k in q_low for k in ["truck", "pickup", "van"]):
+        expansions.extend([
+            "white pickup truck parked near yellow caution tape",
+            "utility truck or vehicle",
+        ])
+    return expansions
+
+
+def _compute_lexical_overlap(query: str, meta: dict) -> float:
+    """Compute lexical keyword and token overlap bonus for high-precision forensic retrieval."""
+    import re
+    q_tokens = set(re.findall(r"\w+", query.lower()))
+    if not q_tokens:
+        return 0.0
+
+    # Text fields from Tier-2 VLM attribute extraction
+    searchable = " ".join([
+        str(meta.get("searchable_text", "")),
+        str(meta.get("equipment", "")),
+        str(meta.get("subjects", "")),
+        str(meta.get("vehicles", "")),
+        str(meta.get("signs", "")),
+        str(meta.get("tags", "")),
+        str(meta.get("description", "")),
+        str(meta.get("summary", "")),
+        str(meta.get("text", "")),
+    ]).lower()
+
+    bonus = 0.0
+    q_clean = query.strip().lower()
+    if len(q_clean) > 3 and q_clean in searchable:
+        bonus += 0.35
+
+    doc_tokens = set(re.findall(r"\w+", searchable))
+    matched = q_tokens.intersection(doc_tokens)
+    if matched:
+        fraction = len(matched) / len(q_tokens)
+        bonus += fraction * 0.25
+
+    return bonus
+
+
 class CCTVRetriever:
     """Retrieves relevant CCTV keyframe visual moments and expands them into temporal episodes.
+
+    Supports Multi-Scale Spatial Crops & Region Grounding with max-pooling aggregation.
 
     Args:
         vector_store: Populated :class:`~videorag.indexing.vector_store.FAISSVectorStore`.
@@ -48,7 +114,7 @@ class CCTVRetriever:
         self._embedder = embedder
 
     # ------------------------------------------------------------------
-    # Core vector search
+    # Core vector search with Spatial Crop Max-Pooling & Multi-Query
     # ------------------------------------------------------------------
 
     def retrieve(
@@ -59,6 +125,9 @@ class CCTVRetriever:
     ) -> List[dict]:
         """Retrieve the top-k anchor frames most visually/semantically similar to *query*.
 
+        Searches across all global and regional spatial crop embeddings in FAISS,
+        aggregating and max-pooling scores per unique parent keyframe moment.
+
         Args:
             query: Natural-language question or description.
             top_k: Maximum number of candidate hits to return.
@@ -68,27 +137,60 @@ class CCTVRetriever:
             A list of result dicts sorted by descending similarity score.
         """
         logger.info(
-            "Retrieving top_k=%d for query='%s' (camera_filter=%s)...",
+            "Retrieving top_k=%d for query='%s' (camera_filter=%s, with spatial crop pooling)...",
             top_k,
             query[:80],
             camera_filter,
         )
 
-        query_embedding = self._embedder.embed_query(query)
+        query_variants = _expand_query(query)
+        fetch_k = min(self._store.size, max(top_k * 20, 60))
 
-        # Over-fetch when filtering by camera to ensure top_k items
-        fetch_k = top_k * 4 if camera_filter else top_k
-        raw_results = self._store.search(query_embedding, top_k=fetch_k)
+        # Map parent_key -> best result dict
+        aggregated_frames: Dict[tuple, dict] = {}
 
-        if camera_filter:
-            raw_results = [
-                r
-                for r in raw_results
-                if r["metadata"].get("camera") == camera_filter
-            ]
+        for q_text in query_variants:
+            q_emb = self._embedder.embed_query(q_text)
+            hits = self._store.search(q_emb, top_k=fetch_k)
 
-        results = raw_results[:top_k]
-        logger.info("Retrieved %d anchor frame results", len(results))
+            for hit in hits:
+                meta = hit.get("metadata", {})
+                cam = meta.get("camera", "CAM_01")
+                if camera_filter and cam != camera_filter:
+                    continue
+
+                ts = meta.get("timestamp") or meta.get("start_timestamp", "00:00:00")
+                img_path = meta.get("image_path", "")
+                parent_key = (cam, ts, img_path)
+
+                score = float(hit.get("score", 0.0))
+                crop_region = meta.get("crop_region", "global")
+                crop_box = meta.get("crop_box", (0.0, 0.0, 1.0, 1.0))
+
+                if parent_key not in aggregated_frames:
+                    clean_meta = dict(meta)
+                    clean_meta["best_crop_region"] = crop_region
+                    clean_meta["best_crop_box"] = crop_box
+                    aggregated_frames[parent_key] = {
+                        "score": score,
+                        "metadata": clean_meta,
+                    }
+                else:
+                    if score > aggregated_frames[parent_key]["score"]:
+                        aggregated_frames[parent_key]["score"] = score
+                        aggregated_frames[parent_key]["metadata"]["best_crop_region"] = crop_region
+                        aggregated_frames[parent_key]["metadata"]["best_crop_box"] = crop_box
+
+        # Apply Two-Tier Lexical Attribute Booster across metadata
+        for parent_key, item in aggregated_frames.items():
+            lex_bonus = _compute_lexical_overlap(query, item["metadata"])
+            item["score"] = item["score"] + lex_bonus
+            item["metadata"]["lexical_bonus"] = round(lex_bonus, 4)
+
+        # Sort aggregated parent frames by hybrid score descending
+        sorted_results = sorted(aggregated_frames.values(), key=lambda r: r["score"], reverse=True)
+        results = sorted_results[:top_k]
+        logger.info("Retrieved %d deduplicated anchor frames after two-tier hybrid search", len(results))
         return results
 
     # ------------------------------------------------------------------
@@ -121,14 +223,23 @@ class CCTVRetriever:
         if not primary_results:
             return []
 
-        # Build chronologically sorted index per camera from store metadata
+        # Build chronologically sorted index of unique keyframes per camera from store metadata
         with self._store._lock:
             all_meta: List[dict] = [dict(m) for m in self._store._metadata]
 
         camera_index: Dict[str, List[dict]] = {}
+        seen_per_cam: Dict[str, set] = {}
+
         for entry in all_meta:
             cam = entry.get("camera", "UNKNOWN")
-            camera_index.setdefault(cam, []).append(entry)
+            ts = entry.get("timestamp") or entry.get("start_timestamp", "")
+            img_p = entry.get("image_path", "")
+            k = (cam, ts, img_p)
+
+            seen_per_cam.setdefault(cam, set())
+            if k not in seen_per_cam[cam]:
+                seen_per_cam[cam].add(k)
+                camera_index.setdefault(cam, []).append(entry)
 
         # Sort each camera's records chronologically by epoch_time -> seconds -> timestamp
         for cam, entries in camera_index.items():

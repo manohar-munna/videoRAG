@@ -8,6 +8,26 @@
     "sample_interval": 3.0,
     "hash_method": "dhash",
     "threshold": 8,
-    "status": "active"
+    "status": "paused"
+  },
+  "Cam_3000": {
+    "camera_id": "Cam_3000",
+    "name": "Camera Cam_3000",
+    "stream_url": "https://www.youtube.com/watch?v=zl1woMXGGmQ",
+    "type": "youtube_stream",
+    "sample_interval": 5.0,
+    "hash_method": "dhash",
+    "threshold": 10,
+    "status": "paused"
+  },
+  "CAM_4000": {
+    "camera_id": "CAM_4000",
+    "name": "Camera CAM_4000",
+    "stream_url": "https://www.youtube.com/watch?v=EO_1LWqsCNE",
+    "type": "youtube_stream",
+    "sample_interval": 5.0,
+    "hash_method": "dhash",
+    "threshold": 10,
+    "status": "paused"
   }
 }

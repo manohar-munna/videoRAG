@@ -140,6 +140,87 @@ class MultimodalEmbedder:
         logger.info("SentenceTransformer CLIP model loaded successfully (dimension=%d)", self.dimension)
 
     # ------------------------------------------------------------------
+    # Spatial Crop Embedding API (Spatial Pyramid & Region Grounding)
+    # ------------------------------------------------------------------
+
+    # Normalized bounding boxes: (ymin, xmin, ymax, xmax)
+    DEFAULT_SPATIAL_CROPS = {
+        "global": (0.0, 0.0, 1.0, 1.0),
+        "top_left": (0.0, 0.0, 0.6, 0.6),
+        "top_right": (0.0, 0.4, 0.6, 1.0),
+        "bottom_left": (0.4, 0.0, 1.0, 0.6),
+        "bottom_right": (0.4, 0.4, 1.0, 1.0),
+        "center": (0.2, 0.2, 0.8, 0.8),
+    }
+
+    def embed_image_with_crops(
+        self,
+        image_path_or_pil: Union[str, Path, Image.Image],
+        crop_definitions: Optional[dict] = None,
+    ) -> List[dict]:
+        """Embed an image and its spatial pyramid crops in a single fast batch forward pass.
+
+        Args:
+            image_path_or_pil: File path to image or PIL Image object.
+            crop_definitions: Optional custom dict mapping crop_name -> (ymin, xmin, ymax, xmax).
+
+        Returns:
+            A list of dicts, each with keys ``'embedding'`` (1-D np.ndarray),
+            ``'crop_region'`` (str), and ``'crop_box'`` (tuple of floats).
+        """
+        if isinstance(image_path_or_pil, (str, Path)):
+            full_img = Image.open(str(image_path_or_pil)).convert("RGB")
+        else:
+            full_img = image_path_or_pil.convert("RGB")
+
+        w, h = full_img.size
+        crops_dict = crop_definitions or self.DEFAULT_SPATIAL_CROPS
+
+        crop_images: List[Image.Image] = []
+        crop_meta_info: List[dict] = []
+
+        for name, (ymin, xmin, ymax, xmax) in crops_dict.items():
+            if name == "global" or (ymin == 0.0 and xmin == 0.0 and ymax == 1.0 and xmax == 1.0):
+                c_img = full_img
+            else:
+                left = max(0, int(xmin * w))
+                top = max(0, int(ymin * h))
+                right = min(w, int(xmax * w))
+                bottom = min(h, int(ymax * h))
+                c_img = full_img.crop((left, top, right, bottom))
+
+            crop_images.append(c_img)
+            crop_meta_info.append({
+                "crop_region": name,
+                "crop_box": (ymin, xmin, ymax, xmax),
+            })
+
+        # Batch encode all crops simultaneously on GPU
+        if self._is_open_clip:
+            tensors = torch.stack([self._preprocess(img) for img in crop_images]).to(self.device)
+            with torch.no_grad():
+                features = self._model.encode_image(tensors)
+                features /= features.norm(dim=-1, keepdim=True)
+                embs = features.cpu().numpy()
+        else:
+            embs = self._model.encode(
+                crop_images,
+                convert_to_numpy=True,
+                show_progress_bar=False,
+                normalize_embeddings=True,
+            )
+
+        results = []
+        for i, info in enumerate(crop_meta_info):
+            results.append({
+                "embedding": np.ascontiguousarray(embs[i], dtype=np.float32),
+                "crop_region": info["crop_region"],
+                "crop_box": info["crop_box"],
+            })
+
+        return results
+
+    # ------------------------------------------------------------------
     # Image Embedding API (Ingestion)
     # ------------------------------------------------------------------
 
