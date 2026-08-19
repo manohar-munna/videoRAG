@@ -398,15 +398,20 @@ class MultiCameraStreamManager:
         self._lock = threading.Lock()
 
     def initialize_from_registry(self) -> None:
-        """Boot up streams that have status 'running' in persistent registry."""
+        """Boot up live streams that have status 'running' in persistent registry."""
         configs = self.registry.get_all()
         for cfg in configs:
             cam_id = cfg["camera_id"]
             stream_url = cfg["stream_url"]
+            cam_type = cfg.get("type", "rtsp_stream")
             status = cfg.get("status", "stopped")
             interval = cfg.get("sample_interval", 5.0)
             method = cfg.get("hash_method", "dhash")
             thresh = cfg.get("threshold", 10)
+
+            # Local video files do not need 24/7 background capture loops
+            if cam_type == "video_file" or str(stream_url).lower().endswith((".mp4", ".mkv", ".avi", ".mov")) or str(stream_url).startswith("/video/"):
+                continue
 
             stream = RTSPStreamCapture(
                 camera_id=cam_id,
@@ -422,7 +427,7 @@ class MultiCameraStreamManager:
             elif status == "paused":
                 stream._paused = True
 
-        logger.info("MultiCameraStreamManager initialized with %d persistent camera streams.", len(self.streams))
+        logger.info("MultiCameraStreamManager initialized with %d active live camera streams.", len(self.streams))
 
     def add_camera(
         self,

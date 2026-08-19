@@ -220,27 +220,29 @@ def _auto_index_worker_loop() -> None:
 
                 # 3. Dynamic in-memory FAISS vector indexing (Spatial Crops + Global)
                 if PIPELINE.get("vector_store") and crop_embeddings:
-                    import numpy as np
-                    all_vecs = np.vstack([cr["embedding"] for cr in crop_embeddings])
-                    all_metas = []
-                    for cr in crop_embeddings:
-                        all_metas.append({
-                            "camera": cam_id,
-                            "timestamp": ts_str,
-                            "seconds": keyframe.get("seconds", 0.0),
-                            "epoch_time": keyframe.get("epoch_time", round(time.time(), 3)),
-                            "description": desc,
-                            "text": f"Camera: {cam_id} | Time: {ts_str} | Region: {cr['crop_region']}",
-                            "image_path": clean_p,
-                            "crop_region": cr["crop_region"],
-                            "crop_box": cr["crop_box"],
-                            "chunk_id": f"{cam_id}_{ts_str.replace(':', '_')}_{cr['crop_region']}",
-                        })
-                    PIPELINE["vector_store"].add(all_vecs, all_metas)
-                    idx_path = _PROJECT_ROOT / "index" / "cctv_index"
-                    PIPELINE["vector_store"].save(str(idx_path))
-                    logger.info("[Auto-Indexer] [%s] Instantly indexed visual keyframe + %d crops @ %s in ~30ms! Total vectors: %d", 
-                                cam_id, len(crop_embeddings), ts_str, PIPELINE["vector_store"].size)
+                    already_in_vs = any(m.get("image_path") == clean_p for m in PIPELINE["vector_store"].metadata) if PIPELINE["vector_store"].metadata else False
+                    if not already_in_vs:
+                        import numpy as np
+                        all_vecs = np.vstack([cr["embedding"] for cr in crop_embeddings])
+                        all_metas = []
+                        for cr in crop_embeddings:
+                            all_metas.append({
+                                "camera": cam_id,
+                                "timestamp": ts_str,
+                                "seconds": keyframe.get("seconds", 0.0),
+                                "epoch_time": keyframe.get("epoch_time", round(time.time(), 3)),
+                                "description": desc,
+                                "text": f"Camera: {cam_id} | Time: {ts_str} | Region: {cr['crop_region']}",
+                                "image_path": clean_p,
+                                "crop_region": cr["crop_region"],
+                                "crop_box": cr["crop_box"],
+                                "chunk_id": f"{cam_id}_{ts_str.replace(':', '_')}_{cr['crop_region']}",
+                            })
+                        PIPELINE["vector_store"].add(all_vecs, all_metas)
+                        idx_path = _PROJECT_ROOT / "index" / "cctv_index"
+                        PIPELINE["vector_store"].save(str(idx_path))
+                        logger.info("[Auto-Indexer] [%s] Instantly indexed visual keyframe + %d crops @ %s in ~30ms! Total vectors: %d", 
+                                    cam_id, len(crop_embeddings), ts_str, PIPELINE["vector_store"].size)
 
         except Exception as exc:
             logger.error("[Auto-Indexer] Error during keyframe auto-indexing: %s", exc, exc_info=True)
@@ -853,31 +855,25 @@ def process_video_smart(req: SmartProcessRequest):
                 logger.warning("Error embedding keyframe %s: %s", img_p, exc)
 
         if embeddings_list:
+            from videorag.indexing.vector_store import FAISSVectorStore
             embeddings_arr = np.vstack(embeddings_list)
-            vector_store.add(embeddings_arr, metadata_list)
+            clean_store = FAISSVectorStore(dim=512)
+            clean_store.add(embeddings_arr, metadata_list)
             idx_path = _PROJECT_ROOT / "index" / "cctv_index"
-            vector_store.save(str(idx_path))
+            clean_store.save(str(idx_path))
+            PIPELINE["vector_store"] = clean_store
             logger.info("Instantly indexed %d keyframes (%d vectors) for camera %s.", len(extracted_frames), len(embeddings_list), cam_id)
 
-        # Update master dataset real_cctv_events.json
+        # Update per-camera isolated events JSON
+        cam_dir = _PROJECT_ROOT / "data" / "cameras" / cam_id
+        cam_dir.mkdir(parents=True, exist_ok=True)
+        with open(cam_dir / "events.json", "w", encoding="utf-8") as fh:
+            json.dump(extracted_frames, fh, indent=2, ensure_ascii=False)
+
+        # Update master dataset real_cctv_events.json cleanly
         events_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-        existing_events = []
-        if events_file.exists():
-            try:
-                with open(events_file, "r", encoding="utf-8") as fh:
-                    existing_events = json.load(fh)
-            except Exception:
-                existing_events = []
-
-        seen_imgs = {str(e.get("image_path", "")).replace("\\", "/") for e in existing_events}
-        for f in extracted_frames:
-            clean_p = str(f.get("image_path", "")).replace("\\", "/")
-            if clean_p not in seen_imgs:
-                seen_imgs.add(clean_p)
-                existing_events.append(f)
-
         with open(events_file, "w", encoding="utf-8") as fh:
-            json.dump(existing_events, fh, indent=2, ensure_ascii=False)
+            json.dump(extracted_frames, fh, indent=2, ensure_ascii=False)
 
     # 3. Register camera in persistent CameraRegistry
     CAMERA_REGISTRY.register(
