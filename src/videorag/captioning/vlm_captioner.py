@@ -29,10 +29,10 @@ _STRUCTURED_FORENSIC_PROMPT = (
     "Identify all specific subjects, equipment, objects, text/signs, vehicles, and activities.\n"
     "Respond in this concise format:\n"
     "Summary: <1-2 sentences describing the overall scene and activity>\n"
-    "Subjects: <list people, roles e.g. camera operators, security, crowd, clothing colors>\n"
-    "Equipment & Objects: <list all equipment e.g. camera crane, dolly cart, boom microphone, tripods, lights, caution tape, backpacks, fences>\n"
-    "Vehicles & Signs: <list vehicles with colors, readable signage or text e.g. hotel names, road signs>\n"
-    "Tags: <comma-separated search tags e.g. camera crew, filming, crane, dolly, boom mic, venice hotel, yellow tape>"
+    "Subjects: <list people, roles, clothing colors, actions>\n"
+    "Equipment & Objects: <list all visible equipment, tools, gear, bags, barriers, furniture, electronics>\n"
+    "Vehicles & Signs: <list vehicles with colors, readable signage, logos or on-screen text>\n"
+    "Tags: <comma-separated search keywords for all key visual objects, people, actions, and background elements>"
 )
 
 

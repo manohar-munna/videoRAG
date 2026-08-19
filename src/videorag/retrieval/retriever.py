@@ -32,33 +32,21 @@ def _parse_ts_to_seconds(val: Any) -> float:
 
 
 def _expand_query(query: str) -> List[str]:
-    """Generate focused multimodal query expansions for surveillance retrieval."""
-    q_low = query.strip().lower()
-    expansions = [query.strip()]
+    """Generate generic zero-shot prompt ensemble variations for multimodal surveillance retrieval.
 
-    if any(k in q_low for k in ["camera crew", "filming", "film crew", "film set", "production crew"]):
-        expansions.extend([
-            "film production crew and cameras",
-            "camera operator on crane or tracking dolly cart",
-            "film set with movie cameras and boom microphone",
-            "video production equipment in park",
-        ])
-    elif any(k in q_low for k in ["pink", "pink cloth", "pink dress", "pink shirt"]):
-        expansions.extend([
-            "person wearing bright pink clothing",
-            "people in pink top or dress",
-        ])
-    elif any(k in q_low for k in ["police", "security", "guard", "officer"]):
-        expansions.extend([
-            "uniformed security personnel or police officer",
-            "law enforcement officer in uniform",
-        ])
-    elif any(k in q_low for k in ["truck", "pickup", "van"]):
-        expansions.extend([
-            "white pickup truck parked near yellow caution tape",
-            "utility truck or vehicle",
-        ])
-    return expansions
+    Uses standard CLIP prompt ensembling templates so that any arbitrary natural language
+    query benefits from surveillance-specific visual alignments without hardcoding keywords.
+    """
+    q_clean = query.strip()
+    if not q_clean:
+        return []
+
+    return [
+        q_clean,
+        f"a surveillance camera photo of {q_clean}",
+        f"CCTV footage showing {q_clean}",
+        f"security camera view of {q_clean}",
+    ]
 
 
 def _compute_lexical_overlap(query: str, meta: dict) -> float:

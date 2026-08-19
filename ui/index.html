@@ -506,46 +506,107 @@
                 <pre class="json-code-box" id="json-code-display" style="display: none;">Loading indexed keyframe metadata JSON…</pre>
             </div>
 
-            <!-- TAB 4: RTSP Live Stream Manager -->
+            <!-- TAB 4: RTSP & Footage Stream Manager -->
             <div class="dev-tab-content" id="tab-rtsp" style="display: none;">
-                <div class="rtsp-form-bar">
-                    <div class="control-group">
-                        <label>Camera ID:</label>
-                        <input type="text" id="rtsp-cam-id" placeholder="CAM_NORTH_RTSP" class="dev-input" style="width: 140px;">
-                    </div>
-
-                    <div class="control-group" style="flex: 1;">
-                        <label>Stream URL (RTSP / RTMP / File):</label>
-                        <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live or Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
-                    </div>
-
-                    <div class="control-group">
-                        <label>Interval (s):</label>
-                        <input type="number" id="rtsp-interval" value="5.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 70px;">
-                    </div>
-
-                    <button id="add-rtsp-btn" class="btn-primary btn-sm">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        <span>Start Async RTSP Capture</span>
+                <!-- Feed Ingestion Mode Selector -->
+                <div class="ingest-mode-toolbar" style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: #475569; margin-right: 4px;">Source Type:</span>
+                    <button type="button" class="btn-secondary btn-sm ingest-type-pill active" data-type="video_file" id="type-btn-file">
+                        📹 Local Video Footage
                     </button>
+                    <button type="button" class="btn-secondary btn-sm ingest-type-pill" data-type="rtsp_stream" id="type-btn-rtsp">
+                        🌐 RTSP / Network Stream
+                    </button>
+                    <button type="button" class="btn-secondary btn-sm ingest-type-pill" data-type="youtube_stream" id="type-btn-yt">
+                        🔴 YouTube Live Stream
+                    </button>
+                </div>
+
+                <!-- Mode 1: Local Video Footage Ingestion Form -->
+                <div id="form-mode-file" class="rtsp-form-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="font-size: 0.85rem; font-weight: 700; color: #1e293b;">Select or Upload Surveillance Video File</span>
+                        <div id="local-videos-quick-chips" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <!-- Auto-populated detected video chips e.g. sample_cctv.mp4 -->
+                        </div>
+                    </div>
+
+                    <div class="rtsp-form-bar" style="flex-wrap: wrap; gap: 10px;">
+                        <div class="control-group">
+                            <label>Camera ID:</label>
+                            <input type="text" id="file-cam-id" value="CAM_01" placeholder="CAM_01" class="dev-input" style="width: 110px;">
+                        </div>
+
+                        <div class="control-group" style="flex: 1; min-width: 220px;">
+                            <label>Video File Path:</label>
+                            <input type="text" id="file-video-path" value="Video Footage/sample_cctv.mp4" placeholder="Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
+                        </div>
+
+                        <div class="control-group">
+                            <label>Browse Local File:</label>
+                            <input type="file" id="file-video-upload" accept="video/mp4,video/mkv,video/avi,video/mov" class="dev-input" style="width: 190px; padding: 4px; font-size: 0.75rem;">
+                        </div>
+
+                        <div class="control-group">
+                            <label>Sample (s):</label>
+                            <input type="number" id="file-sample-interval" value="4.0" min="1.0" max="30.0" step="0.5" class="dev-input" style="width: 65px;">
+                        </div>
+
+                        <div class="control-group">
+                            <label>dHash Cut:</label>
+                            <input type="number" id="file-dhash-threshold" value="10" min="1" max="32" class="dev-input" style="width: 55px;">
+                        </div>
+
+                        <button id="extract-and-index-btn" class="btn-primary btn-sm" style="height: 34px; align-self: flex-end; background: #059669; border-color: #047857;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            <span>Extract & Index (MobileCLIP ~3s)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Mode 2 & 3: RTSP / Network / YouTube Stream Form -->
+                <div id="form-mode-stream" class="rtsp-form-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 14px; display: none;">
+                    <div class="rtsp-form-bar" style="flex-wrap: wrap; gap: 10px;">
+                        <div class="control-group">
+                            <label>Camera ID:</label>
+                            <input type="text" id="rtsp-cam-id" placeholder="CAM_NORTH_RTSP" class="dev-input" style="width: 140px;">
+                        </div>
+
+                        <div class="control-group" style="flex: 1; min-width: 250px;">
+                            <label id="rtsp-url-label">Stream URL (RTSP / RTMP / YouTube):</label>
+                            <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live" class="dev-input" style="width: 100%;">
+                        </div>
+
+                        <div class="control-group">
+                            <label>Sample (s):</label>
+                            <input type="number" id="rtsp-interval" value="5.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 70px;">
+                        </div>
+
+                        <button id="add-rtsp-btn" class="btn-primary btn-sm" style="height: 34px; align-self: flex-end;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <span>Connect Stream</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="guide-box" style="margin: 10px 0;">
                     <div class="guide-header">
-                        <strong>⚡ Async Multi-Threaded RTSP Stream Capture Engine</strong>
+                        <strong>⚡ Async Multi-Source Video & Stream Ingestion Engine</strong>
                         <button class="info-btn" data-info="rtsp_manager">i</button>
                     </div>
                     <p>
-                        Captures live CCTV network feeds (RTSP/RTMP) on non-blocking background producer threads using a <strong>Size-1 Ring Buffer</strong>. Ensures zero streaming lag while running continuous edge dHash keyframe extraction and automatic reconnection watchdogs.
+                        Add local footage files or live camera feeds (RTSP/RTMP/YouTube). Ingestion uses <strong>dHash Edge Perceptual Filtering</strong> to discard static duplicate frames, and embeds multi-scale visual spatial crops via <strong>MobileCLIP-S2</strong> for instant semantic search.
                     </p>
                 </div>
 
                 <div class="rtsp-streams-grid" id="rtsp-streams-list">
                     <div class="empty-state" style="padding: 20px;">
-                        <p class="placeholder-text">No active camera streams running. Enter a stream URL above to launch multi-threaded capture.</p>
+                        <p class="placeholder-text">No active camera streams running. Enter or select video footage above to index.</p>
                     </div>
                 </div>
             </div>

@@ -701,13 +701,97 @@ def get_lazy_vlm_vectors(camera: Optional[str] = None, limit: int = 250):
     }
 
 
+@app.get("/api/local_videos")
+def get_local_videos():
+    """Scan and return available local surveillance video files in project directories."""
+    import cv2
+    video_extensions = {".mp4", ".mkv", ".avi", ".mov"}
+    search_dirs = [
+        _PROJECT_ROOT / "Video Footage",
+        _PROJECT_ROOT / "data" / "videos",
+        _PROJECT_ROOT / "data",
+        _PROJECT_ROOT,
+    ]
+
+    found_videos = []
+    seen_paths = set()
+
+    for s_dir in search_dirs:
+        if not s_dir.exists():
+            continue
+        for ext in video_extensions:
+            for v_path in s_dir.glob(f"*{ext}"):
+                abs_str = str(v_path.resolve())
+                if abs_str in seen_paths:
+                    continue
+                seen_paths.add(abs_str)
+
+                try:
+                    rel_p = str(v_path.relative_to(_PROJECT_ROOT)).replace("\\", "/")
+                except ValueError:
+                    rel_p = str(v_path).replace("\\", "/")
+
+                size_mb = round(v_path.stat().st_size / (1024 * 1024), 2)
+                duration_sec = 0.0
+                fps = 30.0
+
+                try:
+                    cap = cv2.VideoCapture(str(v_path))
+                    if cap.isOpened():
+                        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+                        total_f = cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0
+                        duration_sec = round(total_f / fps, 1)
+                        cap.release()
+                except Exception:
+                    pass
+
+                mins = int(duration_sec // 60)
+                secs = int(duration_sec % 60)
+                dur_str = f"{mins}m {secs:02d}s" if mins > 0 else f"{int(duration_sec)}s"
+
+                found_videos.append({
+                    "filename": v_path.name,
+                    "relative_path": rel_p,
+                    "absolute_path": str(v_path),
+                    "size_mb": size_mb,
+                    "duration_sec": duration_sec,
+                    "duration_str": dur_str,
+                    "fps": round(fps, 1),
+                })
+
+    return {"videos": found_videos}
+
+
+@app.post("/api/upload_video")
+async def upload_video_file(file: UploadFile = File(...)):
+    """Upload a new video file into the Video Footage directory."""
+    dest_dir = _PROJECT_ROOT / "Video Footage"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_file = dest_dir / file.filename
+
+    content = await file.read()
+    with open(dest_file, "wb") as fh:
+        fh.write(content)
+
+    rel_p = f"Video Footage/{file.filename}"
+    logger.info("Uploaded video '%s' (%d bytes) to %s", file.filename, len(content), rel_p)
+
+    return {
+        "status": "success",
+        "filename": file.filename,
+        "path": rel_p,
+        "size_mb": round(len(content) / (1024 * 1024), 2),
+    }
+
+
 @app.post("/api/process_video_smart")
 def process_video_smart(req: SmartProcessRequest):
     """
-    Run smart video processing with dHash/pHash frame filtering,
-    optional VLM keyframe captioning, FAISS index rebuilding, and in-memory pipeline reloading.
+    Run high-speed video processing: dHash perceptual frame extraction,
+    instant MobileCLIP-S2 spatial crops indexing, camera registry registration, and FAISS index update.
     """
-    video_p = req.video_path or str(_PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4")
+    import numpy as np
+    video_p = req.video_path or "Video Footage/sample_cctv.mp4"
     video_file = Path(video_p)
     if not video_file.is_absolute():
         video_file = _PROJECT_ROOT / video_file
@@ -715,14 +799,21 @@ def process_video_smart(req: SmartProcessRequest):
     if not video_file.exists():
         raise HTTPException(status_code=404, detail=f"Video file not found: {video_p}")
 
+    cam_id = req.camera_id or "CAM_01"
+    sample_interval = req.sample_interval or 4.0
+    threshold = req.threshold or 10
+
     # 1. Extract frames with EdgeFrameFilter
-    extractor = VideoFrameExtractor(output_dir=str(_PROJECT_ROOT / "data" / "extracted_frames"))
-    hash_filter = EdgeFrameFilter(method=req.hash_method or "dhash", threshold=req.threshold or 10) if req.enable_hash_filter else None
+    out_dir = _PROJECT_ROOT / "data" / "extracted_frames"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    extractor = VideoFrameExtractor(output_dir=str(out_dir))
+    hash_filter = EdgeFrameFilter(method=req.hash_method or "dhash", threshold=threshold) if req.enable_hash_filter else None
 
     result = extractor.extract_frames(
         video_path=str(video_file),
-        camera_id=req.camera_id or "CAM_01",
-        sample_interval=req.sample_interval or 15.0,
+        camera_id=cam_id,
+        sample_interval=sample_interval,
+        max_frames=600,
         hash_filter=hash_filter,
     )
 
@@ -731,27 +822,76 @@ def process_video_smart(req: SmartProcessRequest):
 
     extracted_frames = result["extracted_frames"]
 
-    # 2. VLM Captioning & Indexing if requested
-    if req.run_vlm_captioning and extracted_frames:
-        logger.info("Dev Mode: Running VLM captioning on %d keyframes...", len(extracted_frames))
-        captioner = VLMCaptioner(backend="local")
-        records = captioner.caption_batch(extracted_frames, show_progress=False)
+    # 2. Fast MobileCLIP-S2 Spatial Crops Indexing
+    if extracted_frames and PIPELINE.get("embedder") and PIPELINE.get("vector_store"):
+        embedder = PIPELINE["embedder"]
+        vector_store = PIPELINE["vector_store"]
 
-        out_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-        with open(out_file, "w", encoding="utf-8") as fh:
-            json.dump(records, fh, indent=2, ensure_ascii=False)
+        embeddings_list = []
+        metadata_list = []
 
-        # Rebuild FAISS Index
-        from scripts.index import run_indexing
-        cfg_file = PIPELINE.get("config_path", str(_PROJECT_ROOT / "config" / "config.yaml"))
-        run_indexing(config_path=cfg_file, data_path=str(out_file))
+        for f in extracted_frames:
+            img_p = Path(f["image_path"])
+            clean_rel = str(f["image_path"]).replace("\\", "/")
+            f["description"] = f"Surveillance keyframe captured by {cam_id} at {f['timestamp']}."
+            f["searchable_text"] = f["description"]
 
-        # Reload in-memory PIPELINE FAISS index
-        init_pipeline(config_path=cfg_file)
-        logger.info("Dev Mode: In-memory pipeline reloaded with %d new keyframe vectors.", PIPELINE["vector_store"].size)
+            try:
+                crop_results = embedder.embed_image_with_crops(img_p)
+                for cr in crop_results:
+                    embeddings_list.append(cr["embedding"])
+                    meta = dict(f)
+                    meta["chunk_id"] = f"{cam_id}_{f['timestamp'].replace(':', '_')}_{cr['crop_region']}"
+                    meta["crop_region"] = cr["crop_region"]
+                    meta["crop_box"] = cr["crop_box"]
+                    meta["vector_type"] = "visual"
+                    meta["image_path"] = clean_rel
+                    meta["text"] = f"Camera: {cam_id} | Time: {f['timestamp']} | Region: {cr['crop_region']}"
+                    metadata_list.append(meta)
+            except Exception as exc:
+                logger.warning("Error embedding keyframe %s: %s", img_p, exc)
+
+        if embeddings_list:
+            embeddings_arr = np.vstack(embeddings_list)
+            vector_store.add(embeddings_arr, metadata_list)
+            idx_path = _PROJECT_ROOT / "index" / "cctv_index"
+            vector_store.save(str(idx_path))
+            logger.info("Instantly indexed %d keyframes (%d vectors) for camera %s.", len(extracted_frames), len(embeddings_list), cam_id)
+
+        # Update master dataset real_cctv_events.json
+        events_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+        existing_events = []
+        if events_file.exists():
+            try:
+                with open(events_file, "r", encoding="utf-8") as fh:
+                    existing_events = json.load(fh)
+            except Exception:
+                existing_events = []
+
+        seen_imgs = {str(e.get("image_path", "")).replace("\\", "/") for e in existing_events}
+        for f in extracted_frames:
+            clean_p = str(f.get("image_path", "")).replace("\\", "/")
+            if clean_p not in seen_imgs:
+                seen_imgs.add(clean_p)
+                existing_events.append(f)
+
+        with open(events_file, "w", encoding="utf-8") as fh:
+            json.dump(existing_events, fh, indent=2, ensure_ascii=False)
+
+    # 3. Register camera in persistent CameraRegistry
+    CAMERA_REGISTRY.register(
+        camera_id=cam_id,
+        name=f"Camera {cam_id} ({video_file.name})",
+        stream_url=f"/video/{video_file.name}",
+        cam_type="video_file",
+        sample_interval=sample_interval,
+        hash_method=req.hash_method or "dhash",
+        threshold=threshold,
+    )
 
     return {
         "status": "success",
+        "camera_id": cam_id,
         "extracted_count": len(extracted_frames),
         "skipped_count": result["skipped_count"],
         "total_sampled": result["total_sampled"],

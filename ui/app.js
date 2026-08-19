@@ -457,14 +457,182 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ------------------------------------------------------------------
-    // Tab 4: RTSP Live Stream Manager & Multi-Camera Stream Controls
+    // Tab 4: RTSP & Footage Stream Manager & Multi-Camera Controls
     // ------------------------------------------------------------------
     const rtspStreamsList = document.getElementById('rtsp-streams-list');
+    const typeBtnFile = document.getElementById('type-btn-file');
+    const typeBtnRtsp = document.getElementById('type-btn-rtsp');
+    const typeBtnYt = document.getElementById('type-btn-yt');
+    const formModeFile = document.getElementById('form-mode-file');
+    const formModeStream = document.getElementById('form-mode-stream');
+    const localVideosQuickChips = document.getElementById('local-videos-quick-chips');
+
+    const fileCamId = document.getElementById('file-cam-id');
+    const fileVideoPath = document.getElementById('file-video-path');
+    const fileVideoUpload = document.getElementById('file-video-upload');
+    const fileSampleInterval = document.getElementById('file-sample-interval');
+    const fileDhashThreshold = document.getElementById('file-dhash-threshold');
+    const extractAndIndexBtn = document.getElementById('extract-and-index-btn');
+
     const addRtspBtn = document.getElementById('add-rtsp-btn');
     const rtspCamId = document.getElementById('rtsp-cam-id');
     const rtspUrl = document.getElementById('rtsp-url');
+    const rtspUrlLabel = document.getElementById('rtsp-url-label');
     const rtspInterval = document.getElementById('rtsp-interval');
 
+    let currentIngestType = 'video_file';
+
+    function setIngestType(type) {
+        currentIngestType = type;
+        [typeBtnFile, typeBtnRtsp, typeBtnYt].forEach(btn => btn?.classList.remove('active'));
+
+        if (type === 'video_file') {
+            typeBtnFile?.classList.add('active');
+            if (formModeFile) formModeFile.style.display = 'block';
+            if (formModeStream) formModeStream.style.display = 'none';
+        } else {
+            if (type === 'rtsp_stream') {
+                typeBtnRtsp?.classList.add('active');
+                if (rtspUrlLabel) rtspUrlLabel.textContent = 'RTSP / Network Stream URL:';
+                if (rtspUrl) rtspUrl.placeholder = 'rtsp://192.168.1.100:554/live';
+            } else {
+                typeBtnYt?.classList.add('active');
+                if (rtspUrlLabel) rtspUrlLabel.textContent = 'YouTube Live URL:';
+                if (rtspUrl) rtspUrl.placeholder = 'https://www.youtube.com/watch?v=...';
+            }
+            if (formModeFile) formModeFile.style.display = 'none';
+            if (formModeStream) formModeStream.style.display = 'block';
+        }
+    }
+
+    typeBtnFile?.addEventListener('click', () => setIngestType('video_file'));
+    typeBtnRtsp?.addEventListener('click', () => setIngestType('rtsp_stream'));
+    typeBtnYt?.addEventListener('click', () => setIngestType('youtube_stream'));
+
+    async function fetchLocalVideos() {
+        if (!localVideosQuickChips) return;
+        try {
+            const resp = await fetch('/api/local_videos');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const videos = data.videos || [];
+
+            if (videos.length === 0) {
+                localVideosQuickChips.innerHTML = `<span style="font-size: 0.75rem; color: #94a3b8;">No video files found</span>`;
+                return;
+            }
+
+            localVideosQuickChips.innerHTML = videos.map(v => `
+                <button type="button" class="btn-secondary btn-sm local-video-chip" 
+                        data-path="${v.relative_path}" data-cam="CAM_01" 
+                        title="Click to select ${v.filename} (${v.duration_str}, ${v.size_mb} MB)"
+                        style="padding: 2px 8px; font-size: 0.75rem; border-radius: 12px; cursor: pointer;">
+                    📹 ${v.filename} <span style="opacity: 0.7;">(${v.duration_str})</span>
+                </button>
+            `).join('');
+
+            localVideosQuickChips.querySelectorAll('.local-video-chip').forEach(chip => {
+                chip.addEventListener('click', () => {
+                    if (fileVideoPath) fileVideoPath.value = chip.getAttribute('data-path');
+                    if (fileCamId && !fileCamId.value) fileCamId.value = 'CAM_01';
+                });
+            });
+        } catch (err) {
+            console.warn('Failed to fetch local videos:', err);
+        }
+    }
+
+    // Handle upload
+    fileVideoUpload?.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            if (extractAndIndexBtn) {
+                extractAndIndexBtn.disabled = true;
+                extractAndIndexBtn.innerHTML = `<span>Uploading Video…</span>`;
+            }
+
+            const resp = await fetch('/api/upload_video', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (resp.ok) {
+                const data = await resp.json();
+                if (fileVideoPath) fileVideoPath.value = data.path;
+                let cleanName = file.name.split('.')[0].toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                if (fileCamId) fileCamId.value = cleanName.startsWith('CAM') ? cleanName : `CAM_${cleanName.slice(0, 8)}`;
+                fetchLocalVideos();
+            } else {
+                alert('Failed to upload video file.');
+            }
+        } catch (err) {
+            alert('Upload error: ' + err.message);
+        } finally {
+            if (extractAndIndexBtn) {
+                extractAndIndexBtn.disabled = false;
+                extractAndIndexBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Extract & Index (MobileCLIP ~3s)</span>`;
+            }
+        }
+    });
+
+    // Handle Fast Extraction & MobileCLIP Spatial Crops Indexing
+    extractAndIndexBtn?.addEventListener('click', async () => {
+        const camId = fileCamId?.value.trim() || 'CAM_01';
+        const videoPath = fileVideoPath?.value.trim() || 'Video Footage/sample_cctv.mp4';
+        const interval = parseFloat(fileSampleInterval?.value) || 4.0;
+        const threshold = parseInt(fileDhashThreshold?.value, 10) || 10;
+
+        try {
+            extractAndIndexBtn.disabled = true;
+            extractAndIndexBtn.innerHTML = `<span>Extracting & Indexing MobileCLIP…</span>`;
+
+            const resp = await fetch('/api/process_video_smart', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    camera_id: camId,
+                    video_path: videoPath,
+                    sample_interval: interval,
+                    threshold: threshold,
+                    enable_hash_filter: true,
+                    hash_method: 'dhash',
+                    run_vlm_captioning: false,
+                }),
+            });
+
+            if (resp.ok) {
+                const data = await resp.json();
+                const kept = data.extracted_count || 0;
+                const skipped = data.skipped_count || 0;
+                const totalVecs = data.new_vector_count || 0;
+                const savedPct = (skipped / (kept + skipped) * 100).toFixed(1);
+
+                alert(`Indexing Complete!\n- Extracted: ${kept} Keyframes\n- Dropped: ${skipped} duplicate static frames (${savedPct}% compute saved)\n- Total Multi-Scale Vectors: ${totalVecs}`);
+
+                fetchRtspStreamsStatus();
+                fetchCameraFeeds();
+                fetchCameraPills();
+                fetchEventsJson();
+                fetchVectorsDataset();
+                fetchHealthStatus();
+            } else {
+                const err = await resp.json();
+                alert('Indexing error: ' + (err.detail || 'Failed to process video'));
+            }
+        } catch (err) {
+            alert('Processing error: ' + err.message);
+        } finally {
+            extractAndIndexBtn.disabled = false;
+            extractAndIndexBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Extract & Index (MobileCLIP ~3s)</span>`;
+        }
+    });
+
+    // Handle RTSP Stream Connect
     if (addRtspBtn) {
         addRtspBtn.addEventListener('click', async () => {
             const camId = rtspCamId.value.trim();
@@ -507,10 +675,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Stream connection error: ' + err.message);
             } finally {
                 addRtspBtn.disabled = false;
-                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Start Async RTSP Capture</span>`;
+                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Connect Stream</span>`;
             }
         });
     }
+
+    // Call fetchLocalVideos on startup
+    fetchLocalVideos();
 
     async function fetchRtspStreamsStatus() {
         if (!rtspStreamsList) return;
