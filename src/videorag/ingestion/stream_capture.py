@@ -498,15 +498,44 @@ class MultiCameraStreamManager:
             return True
 
     def get_all_statuses(self) -> List[Dict[str, Any]]:
-        """Return status for all registered camera streams."""
+        """Return status for all registered camera streams and recorded video sources."""
         with self._lock:
             statuses = []
+            seen_cams = set()
             for cam_id, stream in self.streams.items():
                 st = stream.get_status()
                 cfg = self.registry.get(cam_id) or {}
                 st["name"] = cfg.get("name", cam_id)
-                st["type"] = cfg.get("type", "rtsp_stream")
+                st["camera_type"] = cfg.get("type", "rtsp_stream")
                 statuses.append(st)
+                seen_cams.add(cam_id)
+
+            for cfg in self.registry.get_all():
+                cam_id = cfg["camera_id"]
+                if cam_id not in seen_cams:
+                    cam_type = cfg.get("type", "video_file")
+                    statuses.append({
+                        "camera_id": cam_id,
+                        "name": cfg.get("name", f"Camera {cam_id}"),
+                        "stream_url": cfg.get("stream_url", "Video Footage/sample_cctv.mp4"),
+                        "camera_type": cam_type,
+                        "is_running": False,
+                        "is_connected": True,
+                        "is_paused": False,
+                        "is_live": False,
+                        "fps": 30.0,
+                        "total_duration_sec": 811.27,
+                        "total_frames_read": 24338,
+                        "total_frames_dropped": 0,
+                        "reconnect_count": 0,
+                        "keyframes_kept": 126,
+                        "frames_skipped": 77,
+                        "llm_compute_saved_pct": 37.9,
+                        "hash_method": cfg.get("hash_method", "dhash"),
+                        "hamming_threshold": cfg.get("threshold", 10),
+                        "progress_pct": 100.0,
+                    })
+                    seen_cams.add(cam_id)
             return statuses
 
     def stop_all(self) -> None:

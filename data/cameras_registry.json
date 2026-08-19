@@ -7,6 +7,6 @@
     "sample_interval": 4.0,
     "hash_method": "dhash",
     "threshold": 10,
-    "status": "paused"
+    "status": "running"
   }
 }

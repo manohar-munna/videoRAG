@@ -1221,6 +1221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </p>
                     </div>
                 `;
+            } else {
                 jsonCardsContainer.innerHTML = filtered.map((item, idx) => {
                     let rawImg = item.image_url || item.image_path || '';
                     let cleanImg = String(rawImg).replace(/\\/g, '/');
