@@ -82,22 +82,27 @@ class CameraRegistry:
         camera_id: str,
         stream_url: str,
         name: Optional[str] = None,
+        cam_type: Optional[str] = None,
+        type: Optional[str] = None,
         sample_interval: float = 5.0,
         hash_method: str = "dhash",
         threshold: int = 10,
         status: str = "running",
+        **kwargs,
     ) -> Dict[str, Any]:
         """Register or update a camera configuration and create its folder dynamically."""
         clean_id = camera_id.strip()
         
         # Determine camera type
-        url_lower = stream_url.lower()
-        if "youtube.com" in url_lower or "youtu.be" in url_lower:
-            cam_type = "youtube_stream"
-        elif url_lower.endswith(".mp4") or url_lower.endswith(".avi") or url_lower.endswith(".mkv") or Path(stream_url).exists():
-            cam_type = "video_file"
-        else:
-            cam_type = "rtsp_stream"
+        chosen_type = cam_type or type
+        if not chosen_type:
+            url_lower = stream_url.lower()
+            if "youtube.com" in url_lower or "youtu.be" in url_lower:
+                chosen_type = "youtube_stream"
+            elif url_lower.endswith(".mp4") or url_lower.endswith(".avi") or url_lower.endswith(".mkv") or Path(stream_url).exists() or url_lower.startswith("/video/"):
+                chosen_type = "video_file"
+            else:
+                chosen_type = "rtsp_stream"
 
         cam_name = name or f"Camera {clean_id}"
 
@@ -109,7 +114,7 @@ class CameraRegistry:
             "camera_id": clean_id,
             "name": cam_name,
             "stream_url": stream_url,
-            "type": cam_type,
+            "type": chosen_type,
             "sample_interval": sample_interval,
             "hash_method": hash_method,
             "threshold": threshold,
@@ -120,6 +125,8 @@ class CameraRegistry:
         self.save()
         logger.info("Registered camera '%s' in persistent registry.", clean_id)
         return entry
+
+    register = register_camera
 
     def update_status(self, camera_id: str, status: str) -> bool:
         """Update camera state ('running', 'paused', 'stopped')."""

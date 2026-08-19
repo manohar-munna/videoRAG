@@ -1311,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', () => {
             devStatusText.textContent = isDevModeActive ? 'ON' : 'OFF';
 
             if (isDevModeActive) {
-                fetchHashAuditLogs();
+                fetchHashAudit();
                 fetchEventsJson(false);
                 fetchRtspStreamsStatus();
                 checkHealth();

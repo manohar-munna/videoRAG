@@ -172,7 +172,15 @@ class RTSPStreamCapture:
         logger.info("[%s] Opening video source (%s): %s", self.camera_id, self.camera_type, self.stream_url)
         
         url_to_open = self.stream_url
-        if "youtube.com" in url_to_open.lower() or "youtu.be" in url_to_open.lower():
+        if url_to_open.startswith("/video/"):
+            cand = Path("Video Footage") / url_to_open[7:]
+            if cand.exists():
+                url_to_open = str(cand.resolve())
+        elif not url_to_open.startswith("rtsp://") and not url_to_open.startswith("http"):
+            cand = Path(url_to_open)
+            if cand.exists():
+                url_to_open = str(cand.resolve())
+        elif "youtube.com" in url_to_open.lower() or "youtu.be" in url_to_open.lower():
             try:
                 import subprocess
                 res = subprocess.run(["yt-dlp", "-g", url_to_open], capture_output=True, text=True, timeout=15)
