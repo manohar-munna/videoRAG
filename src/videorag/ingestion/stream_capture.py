@@ -172,15 +172,7 @@ class RTSPStreamCapture:
         logger.info("[%s] Opening video source (%s): %s", self.camera_id, self.camera_type, self.stream_url)
         
         url_to_open = self.stream_url
-        if url_to_open.startswith("/video/"):
-            cand = Path("Video Footage") / url_to_open[7:]
-            if cand.exists():
-                url_to_open = str(cand.resolve())
-        elif not url_to_open.startswith("rtsp://") and not url_to_open.startswith("http"):
-            cand = Path(url_to_open)
-            if cand.exists():
-                url_to_open = str(cand.resolve())
-        elif "youtube.com" in url_to_open.lower() or "youtu.be" in url_to_open.lower():
+        if "youtube.com" in url_to_open.lower() or "youtu.be" in url_to_open.lower():
             try:
                 import subprocess
                 res = subprocess.run(["yt-dlp", "-g", url_to_open], capture_output=True, text=True, timeout=15)
@@ -398,20 +390,15 @@ class MultiCameraStreamManager:
         self._lock = threading.Lock()
 
     def initialize_from_registry(self) -> None:
-        """Boot up live streams that have status 'running' in persistent registry."""
+        """Boot up streams that have status 'running' in persistent registry."""
         configs = self.registry.get_all()
         for cfg in configs:
             cam_id = cfg["camera_id"]
             stream_url = cfg["stream_url"]
-            cam_type = cfg.get("type", "rtsp_stream")
             status = cfg.get("status", "stopped")
             interval = cfg.get("sample_interval", 5.0)
             method = cfg.get("hash_method", "dhash")
             thresh = cfg.get("threshold", 10)
-
-            # Local video files do not need 24/7 background capture loops
-            if cam_type == "video_file" or str(stream_url).lower().endswith((".mp4", ".mkv", ".avi", ".mov")) or str(stream_url).startswith("/video/"):
-                continue
 
             stream = RTSPStreamCapture(
                 camera_id=cam_id,
@@ -427,7 +414,7 @@ class MultiCameraStreamManager:
             elif status == "paused":
                 stream._paused = True
 
-        logger.info("MultiCameraStreamManager initialized with %d active live camera streams.", len(self.streams))
+        logger.info("MultiCameraStreamManager initialized with %d persistent camera streams.", len(self.streams))
 
     def add_camera(
         self,
@@ -498,44 +485,15 @@ class MultiCameraStreamManager:
             return True
 
     def get_all_statuses(self) -> List[Dict[str, Any]]:
-        """Return status for all registered camera streams and recorded video sources."""
+        """Return status for all registered camera streams."""
         with self._lock:
             statuses = []
-            seen_cams = set()
             for cam_id, stream in self.streams.items():
                 st = stream.get_status()
                 cfg = self.registry.get(cam_id) or {}
                 st["name"] = cfg.get("name", cam_id)
-                st["camera_type"] = cfg.get("type", "rtsp_stream")
+                st["type"] = cfg.get("type", "rtsp_stream")
                 statuses.append(st)
-                seen_cams.add(cam_id)
-
-            for cfg in self.registry.get_all():
-                cam_id = cfg["camera_id"]
-                if cam_id not in seen_cams:
-                    cam_type = cfg.get("type", "video_file")
-                    statuses.append({
-                        "camera_id": cam_id,
-                        "name": cfg.get("name", f"Camera {cam_id}"),
-                        "stream_url": cfg.get("stream_url", "Video Footage/sample_cctv.mp4"),
-                        "camera_type": cam_type,
-                        "is_running": False,
-                        "is_connected": True,
-                        "is_paused": False,
-                        "is_live": False,
-                        "fps": 30.0,
-                        "total_duration_sec": 811.27,
-                        "total_frames_read": 24338,
-                        "total_frames_dropped": 0,
-                        "reconnect_count": 0,
-                        "keyframes_kept": 126,
-                        "frames_skipped": 77,
-                        "llm_compute_saved_pct": 37.9,
-                        "hash_method": cfg.get("hash_method", "dhash"),
-                        "hamming_threshold": cfg.get("threshold", 10),
-                        "progress_pct": 100.0,
-                    })
-                    seen_cams.add(cam_id)
             return statuses
 
     def stop_all(self) -> None:

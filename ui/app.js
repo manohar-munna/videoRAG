@@ -364,13 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `[${v.vector_sample.slice(0, 5).join(', ')}, …]`
                 : `[512-D float32]`;
 
-            let rawThumb = v.image_path || '';
-            if (rawThumb.includes('data/extracted_frames/')) {
-                rawThumb = 'data/extracted_frames/' + rawThumb.split('data/extracted_frames/').pop();
-            } else if (rawThumb.includes('data/cameras/')) {
-                rawThumb = 'data/cameras/' + rawThumb.split('data/cameras/').pop();
-            }
-            const thumb = rawThumb ? (rawThumb.startsWith('/') ? rawThumb : '/' + rawThumb) : '/ui/favicon.ico';
+            const thumb = v.image_path || '/data/extracted_frames/placeholder.jpg';
 
             return `
                 <div class="frame-vector-card" data-index="${v.index}" data-ts="${escapeHtml(v.timestamp)}" data-secs="${v.seconds || 0}" data-img="${escapeHtml(thumb)}">
@@ -463,304 +457,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ------------------------------------------------------------------
-    // ------------------------------------------------------------------
-    // Tab 2: Edge Frame Hashing & Motion Optimizer (Dynamic dHash Runner)
-    // ------------------------------------------------------------------
-    const hashTargetVideo = document.getElementById('hash-target-video');
-    const hashSampleInterval = document.getElementById('hash-sample-interval');
-    const hashGuideSummary = document.getElementById('hash-guide-summary');
-
-    if (thresholdRange && thresholdVal) {
-        thresholdRange.addEventListener('input', () => {
-            thresholdVal.textContent = thresholdRange.value;
-        });
-    }
-
-    async function fetchHashAudit() {
-        if (!devAuditTbody) return;
-        try {
-            const resp = await fetch('/api/hash_audit');
-            if (resp.ok) {
-                const data = await resp.json();
-                renderHashAuditUI(data.stats, data.audit_trail);
-            }
-        } catch (err) {
-            console.warn('Failed to fetch initial hash audit:', err);
-        }
-    }
-
-    function renderHashAuditUI(stats, auditTrail) {
-        if (!stats) return;
-        const total = stats.total_frames || (auditTrail ? auditTrail.length : 0);
-        const kept = stats.keyframes_kept || 0;
-        const skipped = stats.frames_skipped || 0;
-        const saved = stats.llm_compute_saved_pct != null ? stats.llm_compute_saved_pct : (total > 0 ? (skipped / total * 100).toFixed(1) : 0);
-        const method = (stats.method || 'dhash').toUpperCase();
-        const thold = stats.threshold != null ? stats.threshold : (thresholdRange?.value || 10);
-
-        if (kpiTotal) kpiTotal.textContent = total;
-        if (kpiKept) kpiKept.textContent = kept;
-        if (kpiSkipped) kpiSkipped.textContent = skipped;
-        if (kpiSaved) kpiSaved.textContent = `${saved}%`;
-
-        if (hashGuideSummary) {
-            hashGuideSummary.innerHTML = `
-                A 64-bit ${method} converts frames into 64 binary bits. 
-                <strong>Hamming Distance</strong> measures bitwise differences: 
-                <code>0</code> = identical duplicate, <code>64</code> = completely inverted image.
-                <br>
-                🎯 <strong>Live Evaluation Result (Threshold = ${thold}):</strong> Sampled <strong>${total} frames</strong>, kept <strong>${kept} keyframes</strong>, dropped <strong>${skipped} static frames (${saved}% compute saved)</strong>!
-            `;
-        }
-
-        if (devAuditTbody) {
-            if (!auditTrail || auditTrail.length === 0) {
-                devAuditTbody.innerHTML = `<tr><td colspan="6" class="placeholder-text" style="text-align:center; padding: 20px;">Click "Run Smart Frame Filter" to generate live dHash / pHash Hamming distance audit logs.</td></tr>`;
-                return;
-            }
-
-            devAuditTbody.innerHTML = auditTrail.map((item, idx) => {
-                const isKey = item.is_keyframe;
-                const badgeClass = isKey ? 'text-green font-bold' : 'text-dim';
-                const decisionText = isKey ? '🟢 KEEP (Motion Detected)' : '🔴 DROP (Duplicate/Static)';
-                const hex = item.hash_hex || '0000000000000000';
-                const dist = item.hamming_distance != null ? item.hamming_distance : (isKey ? thold : 0);
-                const motion = item.motion_pct != null ? `${item.motion_pct}%` : `${((dist / 64) * 100).toFixed(1)}%`;
-                const ts = item.timestamp || `00:${String(Math.floor((item.frame_idx || 0)/30/60)).padStart(2,'0')}:${String(Math.floor((item.frame_idx || 0)/30%60)).padStart(2,'0')}`;
-
-                return `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td style="font-family: monospace; font-weight: 600;">${escapeHtml(ts)}</td>
-                        <td style="font-family: monospace; font-size: 0.75rem; color: var(--accent-blue);">${escapeHtml(hex)}</td>
-                        <td><span class="${dist >= thold ? 'text-green font-bold' : 'text-dim'}">${dist} (Cut: ${thold})</span></td>
-                        <td>${motion}</td>
-                        <td class="${badgeClass}">${decisionText}</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-    }
-
-    if (runSmartFilterBtn) {
-        runSmartFilterBtn.addEventListener('click', async () => {
-            const videoPath = hashTargetVideo?.value.trim() || 'Video Footage/sample_cctv.mp4';
-            const method = hashAlgoSelect?.value || 'dhash';
-            const thold = parseInt(thresholdRange?.value, 10) || 10;
-            const interval = parseFloat(hashSampleInterval?.value) || 4.0;
-
-            try {
-                runSmartFilterBtn.disabled = true;
-                runSmartFilterBtn.innerHTML = `<span>Evaluating ${method.toUpperCase()}…</span>`;
-
-                const resp = await fetch('/api/run_hash_filter', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        video_path: videoPath,
-                        camera_id: 'CAM_01',
-                        sample_interval: interval,
-                        hash_method: method,
-                        threshold: thold,
-                        max_frames: 400,
-                    }),
-                });
-
-                if (resp.ok) {
-                    const data = await resp.json();
-                    renderHashAuditUI(data.filter_stats, data.audit_trail);
-                } else {
-                    const err = await resp.json();
-                    alert('Filter evaluation error: ' + (err.detail || 'Failed to run filter'));
-                }
-            } catch (err) {
-                alert('Connection error: ' + err.message);
-            } finally {
-                runSmartFilterBtn.disabled = false;
-                runSmartFilterBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Run Smart Frame Filter</span>`;
-            }
-        });
-    }
-
-    // ------------------------------------------------------------------
-    // Tab 4: RTSP & Footage Stream Manager & Multi-Camera Controls
+    // Tab 4: RTSP Live Stream Manager & Multi-Camera Stream Controls
     // ------------------------------------------------------------------
     const rtspStreamsList = document.getElementById('rtsp-streams-list');
-    const typeBtnAll = document.getElementById('type-btn-all');
-    const typeBtnFile = document.getElementById('type-btn-file');
-    const typeBtnRtsp = document.getElementById('type-btn-rtsp');
-    const typeBtnYt = document.getElementById('type-btn-yt');
-    const localVideosQuickChips = document.getElementById('local-videos-quick-chips');
-
+    const addRtspBtn = document.getElementById('add-rtsp-btn');
     const rtspCamId = document.getElementById('rtsp-cam-id');
     const rtspUrl = document.getElementById('rtsp-url');
-    const rtspUrlLabel = document.getElementById('rtsp-url-label');
-    const fileVideoUpload = document.getElementById('file-video-upload');
     const rtspInterval = document.getElementById('rtsp-interval');
-    const rtspDhashThreshold = document.getElementById('rtsp-dhash-threshold');
-    const addRtspBtn = document.getElementById('add-rtsp-btn');
-    const extractAndIndexBtn = document.getElementById('extract-and-index-btn');
 
-    function setIngestType(type) {
-        [typeBtnAll, typeBtnFile, typeBtnRtsp, typeBtnYt].forEach(btn => btn?.classList.remove('active'));
-
-        if (type === 'video_file') {
-            typeBtnFile?.classList.add('active');
-            if (rtspUrlLabel) rtspUrlLabel.textContent = 'Local Video Footage Path:';
-            if (rtspUrl && !rtspUrl.value) rtspUrl.value = 'Video Footage/sample_cctv.mp4';
-        } else if (type === 'rtsp_stream') {
-            typeBtnRtsp?.classList.add('active');
-            if (rtspUrlLabel) rtspUrlLabel.textContent = 'RTSP / Network Live Stream URL:';
-            if (rtspUrl && (!rtspUrl.value || rtspUrl.value.includes('.mp4'))) rtspUrl.value = 'rtsp://192.168.1.100:554/live';
-        } else if (type === 'youtube_stream') {
-            typeBtnYt?.classList.add('active');
-            if (rtspUrlLabel) rtspUrlLabel.textContent = 'YouTube Live Stream URL:';
-            if (rtspUrl && (!rtspUrl.value || rtspUrl.value.includes('.mp4'))) rtspUrl.value = 'https://www.youtube.com/watch?v=...';
-        } else {
-            typeBtnAll?.classList.add('active');
-            if (rtspUrlLabel) rtspUrlLabel.textContent = 'Stream URL (RTSP / RTMP / YouTube) or File Path:';
-        }
-    }
-
-    typeBtnAll?.addEventListener('click', () => setIngestType('all'));
-    typeBtnFile?.addEventListener('click', () => setIngestType('video_file'));
-    typeBtnRtsp?.addEventListener('click', () => setIngestType('rtsp_stream'));
-    typeBtnYt?.addEventListener('click', () => setIngestType('youtube_stream'));
-
-    async function fetchLocalVideos() {
-        if (!localVideosQuickChips) return;
-        try {
-            const resp = await fetch('/api/local_videos');
-            if (!resp.ok) return;
-            const data = await resp.json();
-            const videos = data.videos || [];
-
-            if (videos.length === 0) {
-                localVideosQuickChips.innerHTML = `<span style="font-size: 0.75rem; color: #94a3b8;">No video files found</span>`;
-                return;
-            }
-
-            localVideosQuickChips.innerHTML = videos.map(v => `
-                <button type="button" class="btn-secondary btn-sm local-video-chip" 
-                        data-path="${v.relative_path}" data-cam="CAM_01" 
-                        title="Click to select ${v.filename} (${v.duration_str}, ${v.size_mb} MB)"
-                        style="padding: 2px 8px; font-size: 0.75rem; border-radius: 12px; cursor: pointer;">
-                    📹 ${v.filename} <span style="opacity: 0.7;">(${v.duration_str})</span>
-                </button>
-            `).join('');
-
-            localVideosQuickChips.querySelectorAll('.local-video-chip').forEach(chip => {
-                chip.addEventListener('click', () => {
-                    const p = chip.getAttribute('data-path');
-                    if (rtspUrl) rtspUrl.value = p;
-                    if (hashTargetVideo) hashTargetVideo.value = p;
-                    if (rtspCamId && !rtspCamId.value) rtspCamId.value = 'CAM_01';
-                });
-            });
-        } catch (err) {
-            console.warn('Failed to fetch local videos:', err);
-        }
-    }
-
-    // Handle File Upload
-    fileVideoUpload?.addEventListener('change', async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            if (extractAndIndexBtn) {
-                extractAndIndexBtn.disabled = true;
-                extractAndIndexBtn.innerHTML = `<span>Uploading Video…</span>`;
-            }
-
-            const resp = await fetch('/api/upload_video', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (resp.ok) {
-                const data = await resp.json();
-                if (rtspUrl) rtspUrl.value = data.path;
-                if (hashTargetVideo) hashTargetVideo.value = data.path;
-                let cleanName = file.name.split('.')[0].toUpperCase().replace(/[^A-Z0-9]/g, '_');
-                if (rtspCamId) rtspCamId.value = cleanName.startsWith('CAM') ? cleanName : `CAM_${cleanName.slice(0, 8)}`;
-                fetchLocalVideos();
-            } else {
-                alert('Failed to upload video file.');
-            }
-        } catch (err) {
-            alert('Upload error: ' + err.message);
-        } finally {
-            if (extractAndIndexBtn) {
-                extractAndIndexBtn.disabled = false;
-                extractAndIndexBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Extract & Index (MobileCLIP ~3s)</span>`;
-            }
-        }
-    });
-
-    // Handle Fast Extraction & MobileCLIP Spatial Crops Indexing
-    extractAndIndexBtn?.addEventListener('click', async () => {
-        const camId = rtspCamId?.value.trim() || 'CAM_01';
-        const videoPath = rtspUrl?.value.trim() || 'Video Footage/sample_cctv.mp4';
-        const interval = parseFloat(rtspInterval?.value) || 4.0;
-        const threshold = parseInt(rtspDhashThreshold?.value, 10) || 10;
-
-        try {
-            extractAndIndexBtn.disabled = true;
-            extractAndIndexBtn.innerHTML = `<span>Extracting & Indexing MobileCLIP…</span>`;
-
-            const resp = await fetch('/api/process_video_smart', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    camera_id: camId,
-                    video_path: videoPath,
-                    sample_interval: interval,
-                    threshold: threshold,
-                    enable_hash_filter: true,
-                    hash_method: 'dhash',
-                    run_vlm_captioning: false,
-                }),
-            });
-
-            if (resp.ok) {
-                const data = await resp.json();
-                const kept = data.extracted_count || 0;
-                const skipped = data.skipped_count || 0;
-                const totalVecs = data.new_vector_count || 0;
-                const savedPct = (skipped / (kept + skipped) * 100).toFixed(1);
-
-                renderHashAuditUI(data.filter_stats, data.audit_trail);
-                alert(`Indexing Complete!\n- Extracted: ${kept} Keyframes\n- Dropped: ${skipped} duplicate static frames (${savedPct}% compute saved)\n- Total Multi-Scale Vectors: ${totalVecs}`);
-
-                fetchRtspStreamsStatus();
-                fetchCameraFeeds();
-                fetchCameraPills();
-                fetchEventsJson();
-                fetchVectorsDataset();
-                fetchHealthStatus();
-            } else {
-                const err = await resp.json();
-                alert('Indexing error: ' + (err.detail || 'Failed to process video'));
-            }
-        } catch (err) {
-            alert('Processing error: ' + err.message);
-        } finally {
-            extractAndIndexBtn.disabled = false;
-            extractAndIndexBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Extract & Index (MobileCLIP ~3s)</span>`;
-        }
-    });
-
-    // Handle RTSP / Live Stream Connect
     if (addRtspBtn) {
         addRtspBtn.addEventListener('click', async () => {
             const camId = rtspCamId.value.trim();
             const url = rtspUrl.value.trim();
             const interval = parseFloat(rtspInterval.value) || 5.0;
-            const threshold = parseInt(rtspDhashThreshold?.value, 10) || 10;
 
             if (!camId || !url) {
                 alert('Please enter both a Camera ID (e.g. CAM_NORTH) and Stream URL.');
@@ -779,11 +488,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         stream_url: url,
                         sample_interval: interval,
                         hash_method: "dhash",
-                        threshold: threshold,
+                        threshold: 10,
                     }),
                 });
 
                 if (resp.ok) {
+                    rtspCamId.value = '';
+                    rtspUrl.value = '';
                     fetchRtspStreamsStatus();
                     fetchCameraFeeds();
                     fetchCameraPills();
@@ -796,14 +507,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Stream connection error: ' + err.message);
             } finally {
                 addRtspBtn.disabled = false;
-                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Connect Live Stream</span>`;
+                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Start Async RTSP Capture</span>`;
             }
         });
     }
-
-    // Call fetchLocalVideos and fetchHashAudit on startup
-    fetchLocalVideos();
-    fetchHashAudit();
 
     async function fetchRtspStreamsStatus() {
         if (!rtspStreamsList) return;
@@ -1136,12 +843,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await resp.json();
                 const newEvents = data.events || [];
                 const countChanged = newEvents.length !== loadedJsonEvents.length;
-                
-                // If in background silent refresh mode and no new keyframes were added, do NOT re-render DOM to eliminate UI flickering
-                if (silent && !countChanged && loadedJsonEvents.length > 0) {
-                    return;
-                }
-
                 loadedJsonEvents = newEvents;
                 
                 // Update stats chips
@@ -1223,14 +924,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             } else {
                 jsonCardsContainer.innerHTML = filtered.map((item, idx) => {
-                    let rawImg = item.image_url || item.image_path || '';
-                    let cleanImg = String(rawImg).replace(/\\/g, '/');
-                    if (cleanImg.includes('data/extracted_frames/')) {
-                        cleanImg = 'data/extracted_frames/' + cleanImg.split('data/extracted_frames/').pop();
-                    } else if (cleanImg.includes('data/cameras/')) {
-                        cleanImg = 'data/cameras/' + cleanImg.split('data/cameras/').pop();
-                    }
-                    const imgUrl = cleanImg ? (cleanImg.startsWith('/') ? cleanImg : '/' + cleanImg) : '';
+                    const imgUrl = item.image_url || (item.image_path ? '/' + item.image_path.replace(/\\/g, '/') : '');
                     const secs = item.seconds ?? (function(ts) {
                         if (!ts) return 0;
                         const p = ts.split(':').map(Number);
@@ -1330,7 +1024,7 @@ document.addEventListener('DOMContentLoaded', () => {
             devStatusText.textContent = isDevModeActive ? 'ON' : 'OFF';
 
             if (isDevModeActive) {
-                fetchHashAudit();
+                fetchHashAuditLogs();
                 fetchEventsJson(false);
                 fetchRtspStreamsStatus();
                 checkHealth();

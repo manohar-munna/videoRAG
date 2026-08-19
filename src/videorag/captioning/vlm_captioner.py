@@ -24,17 +24,6 @@ _CCTV_CAPTION_PROMPT = (
     "Be direct, objective, and factual. Avoid meta-commentary."
 )
 
-_STRUCTURED_FORENSIC_PROMPT = (
-    "Perform a detailed forensic CCTV surveillance extraction on this keyframe.\n"
-    "Identify all specific subjects, equipment, objects, text/signs, vehicles, and activities.\n"
-    "Respond in this concise format:\n"
-    "Summary: <1-2 sentences describing the overall scene and activity>\n"
-    "Subjects: <list people, roles, clothing colors, actions>\n"
-    "Equipment & Objects: <list all visible equipment, tools, gear, bags, barriers, furniture, electronics>\n"
-    "Vehicles & Signs: <list vehicles with colors, readable signage, logos or on-screen text>\n"
-    "Tags: <comma-separated search keywords for all key visual objects, people, actions, and background elements>"
-)
-
 
 def _encode_image_base64(image_path: str, max_dim: int = 384) -> str:
     """Encode image file to base64 string with optimized resolution (max_dim=384) for fast VLM processing."""
@@ -184,84 +173,6 @@ class VLMCaptioner:
                 logger.info("Captioned %d / %d frames...", idx, len(extracted_frames))
 
         return records
-
-    def extract_structured_attributes(self, image_path: str) -> Dict[str, str]:
-        """Extract structured forensic attributes (summary, subjects, equipment, vehicles, signs, tags) from a keyframe using Qwen3-VL."""
-        if not Path(image_path).exists():
-            return {
-                "summary": "Frame image unavailable.",
-                "subjects": "",
-                "equipment": "",
-                "vehicles": "",
-                "signs": "",
-                "tags": "",
-                "searchable_text": "Frame image unavailable.",
-                "raw_text": "",
-            }
-
-        try:
-            b64_img = _encode_image_base64(image_path)
-            res = self._client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": _STRUCTURED_FORENSIC_PROMPT},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"},
-                            },
-                        ],
-                    }
-                ],
-                max_tokens=300,
-                temperature=0.1,
-            )
-            raw_text = res.choices[0].message.content or ""
-
-            summary, subjects, equipment, vehicles, signs, tags = "", "", "", "", "", ""
-            for line in raw_text.splitlines():
-                l = line.strip()
-                if l.lower().startswith("summary:"):
-                    summary = l.split(":", 1)[-1].strip()
-                elif l.lower().startswith("subjects:"):
-                    subjects = l.split(":", 1)[-1].strip()
-                elif l.lower().startswith("equipment & objects:") or l.lower().startswith("equipment:"):
-                    equipment = l.split(":", 1)[-1].strip()
-                elif l.lower().startswith("vehicles & signs:") or l.lower().startswith("vehicles:"):
-                    vehicles = l.split(":", 1)[-1].strip()
-                elif l.lower().startswith("signs:"):
-                    signs = l.split(":", 1)[-1].strip()
-                elif l.lower().startswith("tags:"):
-                    tags = l.split(":", 1)[-1].strip()
-
-            searchable_text = f"Summary: {summary} | Subjects: {subjects} | Equipment: {equipment} | Vehicles: {vehicles} {signs} | Tags: {tags}"
-            if not summary and not equipment:
-                searchable_text = raw_text.strip()
-
-            return {
-                "summary": summary or raw_text.strip(),
-                "subjects": subjects,
-                "equipment": equipment,
-                "vehicles": vehicles,
-                "signs": signs,
-                "tags": tags,
-                "searchable_text": searchable_text,
-                "raw_text": raw_text.strip(),
-            }
-        except Exception as exc:
-            logger.warning("Structured VLM extraction failed for %s: %s", image_path, exc)
-            return {
-                "summary": f"Keyframe observation at {Path(image_path).stem}.",
-                "subjects": "",
-                "equipment": "",
-                "vehicles": "",
-                "signs": "",
-                "tags": "",
-                "searchable_text": f"Keyframe observation at {Path(image_path).stem}.",
-                "raw_text": "",
-            }
 
     # ------------------------------------------------------------------
     # Multi-Frame Chronological Forensic Reasoning

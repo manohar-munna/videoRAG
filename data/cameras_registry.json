@@ -1,12 +1,22 @@
 {
-  "CAM_01": {
-    "camera_id": "CAM_01",
-    "name": "Camera CAM_01 (sample_cctv.mp4)",
-    "stream_url": "/video/sample_cctv.mp4",
-    "type": "video_file",
-    "sample_interval": 4.0,
+  "Cam_3000": {
+    "camera_id": "Cam_3000",
+    "name": "Camera Cam_3000",
+    "stream_url": "https://www.youtube.com/watch?v=zl1woMXGGmQ",
+    "type": "youtube_stream",
+    "sample_interval": 5.0,
     "hash_method": "dhash",
     "threshold": 10,
-    "status": "running"
+    "status": "paused"
+  },
+  "CAM_4000": {
+    "camera_id": "CAM_4000",
+    "name": "Camera CAM_4000",
+    "stream_url": "https://www.youtube.com/watch?v=EO_1LWqsCNE",
+    "type": "youtube_stream",
+    "sample_interval": 5.0,
+    "hash_method": "dhash",
+    "threshold": 10,
+    "status": "paused"
   }
 }

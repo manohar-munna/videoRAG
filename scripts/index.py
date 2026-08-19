@@ -151,30 +151,12 @@ def run_indexing(config_path: str, data_path: str) -> None:
                             meta["chunk_id"] = f"{c['chunk_id']}_{cr['crop_region']}"
                             meta["crop_region"] = cr["crop_region"]
                             meta["crop_box"] = cr["crop_box"]
-                            meta["vector_type"] = "visual"
                             meta["description"] = c["metadata"].get("description", "")
                             meta["image_path"] = img_p
                             metadata_list.append(meta)
                         img_embedded = True
                     except Exception as exc:
                         logger.warning("Error embedding image crops for %s: %s", local_img, exc)
-
-            # Tier-2: Dense VLM Semantic Vector
-            s_text = c["metadata"].get("searchable_text") or c.get("text") or c["metadata"].get("description", "")
-            if s_text and len(s_text.strip()) > 5:
-                try:
-                    v_text = embedder.embed_query(s_text)
-                    embeddings_list.append(v_text)
-                    meta_text = dict(c["metadata"])
-                    meta_text["text"] = s_text
-                    meta_text["chunk_id"] = f"{c['chunk_id']}_vlm_semantic"
-                    meta_text["crop_region"] = "vlm_semantic"
-                    meta_text["crop_box"] = (0.0, 0.0, 1.0, 1.0)
-                    meta_text["vector_type"] = "vlm_semantic"
-                    meta_text["image_path"] = img_p
-                    metadata_list.append(meta_text)
-                except Exception as exc:
-                    logger.warning("Error embedding VLM searchable text: %s", exc)
 
             if not img_embedded:
                 # Text embedding fallback
