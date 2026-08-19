@@ -416,26 +416,50 @@ def get_health():
 
 @app.get("/api/events")
 def get_events(camera: Optional[str] = None, detailed: bool = False):
-    """Return indexed CCTV dataset records (179 Visual Keyframes) or discovery JSON records."""
+    """Return indexed CCTV visual keyframes (126 Distinct Keyframes)."""
     records = []
+    seen_keys = set()
+    deduped_records = []
 
     # 1. Primary: Use in-memory FAISS Vector Store indexed keyframes if available
     store = PIPELINE.get("vector_store")
     if store and hasattr(store, "_metadata") and store._metadata:
         for idx, meta in enumerate(store._metadata):
             rec = dict(meta)
-            if "description" not in rec or not rec["description"]:
-                rec["description"] = f"Visual Keyframe #{idx + 1} at {rec.get('timestamp', '00:00:00')} in {rec.get('camera', 'CAM_01')} (Indexed with MobileCLIP-S2 512-D multimodal vector)."
-            records.append(rec)
+            img_raw = str(rec.get("image_path", "")).replace("\\", "/")
+            if "data/" in img_raw:
+                img_p = "data/" + img_raw.split("data/", 1)[-1].lstrip("/")
+            else:
+                img_p = img_raw
+            rec["image_path"] = img_p
+            k = (rec.get("camera", "CAM_01"), rec.get("timestamp", ""), img_p)
+            if k not in seen_keys:
+                seen_keys.add(k)
+                if "description" not in rec or not rec["description"]:
+                    rec["description"] = f"Visual Keyframe #{len(deduped_records) + 1} at {rec.get('timestamp', '00:00:00')} in {rec.get('camera', 'CAM_01')} (Indexed with MobileCLIP-S2 512-D multimodal vector)."
+                deduped_records.append(rec)
+        records = deduped_records
     else:
-        # Fallback: Read from index/cctv_index.meta.json or data/real_cctv_events.json
-        meta_path = _PROJECT_ROOT / "index" / "cctv_index.meta.json"
+        # Fallback: Read from data/real_cctv_events.json or index/cctv_index.meta.json
         data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-        target_path = meta_path if meta_path.exists() else data_path
+        meta_path = _PROJECT_ROOT / "index" / "cctv_index.meta.json"
+        target_path = data_path if data_path.exists() else meta_path
         if target_path.exists():
             try:
                 with open(target_path, "r", encoding="utf-8") as fh:
-                    records = json.load(fh)
+                    raw_records = json.load(fh)
+                    for r in raw_records:
+                        img_raw = str(r.get("image_path", "")).replace("\\", "/")
+                        if "data/" in img_raw:
+                            img_p = "data/" + img_raw.split("data/", 1)[-1].lstrip("/")
+                        else:
+                            img_p = img_raw
+                        r["image_path"] = img_p
+                        k = (r.get("camera", "CAM_01"), r.get("timestamp", ""), img_p)
+                        if k not in seen_keys:
+                            seen_keys.add(k)
+                            deduped_records.append(r)
+                records = deduped_records
             except Exception as exc:
                 logger.warning("Could not load %s: %s", target_path, exc)
                 records = []

@@ -364,7 +364,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `[${v.vector_sample.slice(0, 5).join(', ')}, …]`
                 : `[512-D float32]`;
 
-            const thumb = v.image_path || '/data/extracted_frames/placeholder.jpg';
+            let rawThumb = v.image_path || '';
+            if (rawThumb.includes('data/extracted_frames/')) {
+                rawThumb = 'data/extracted_frames/' + rawThumb.split('data/extracted_frames/').pop();
+            } else if (rawThumb.includes('data/cameras/')) {
+                rawThumb = 'data/cameras/' + rawThumb.split('data/cameras/').pop();
+            }
+            const thumb = rawThumb ? (rawThumb.startsWith('/') ? rawThumb : '/' + rawThumb) : '/ui/favicon.ico';
 
             return `
                 <div class="frame-vector-card" data-index="${v.index}" data-ts="${escapeHtml(v.timestamp)}" data-secs="${v.seconds || 0}" data-img="${escapeHtml(thumb)}">
@@ -1130,6 +1136,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await resp.json();
                 const newEvents = data.events || [];
                 const countChanged = newEvents.length !== loadedJsonEvents.length;
+                
+                // If in background silent refresh mode and no new keyframes were added, do NOT re-render DOM to eliminate UI flickering
+                if (silent && !countChanged && loadedJsonEvents.length > 0) {
+                    return;
+                }
+
                 loadedJsonEvents = newEvents;
                 
                 // Update stats chips
@@ -1209,9 +1221,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         </p>
                     </div>
                 `;
-            } else {
                 jsonCardsContainer.innerHTML = filtered.map((item, idx) => {
-                    const imgUrl = item.image_url || (item.image_path ? '/' + item.image_path.replace(/\\/g, '/') : '');
+                    let rawImg = item.image_url || item.image_path || '';
+                    let cleanImg = String(rawImg).replace(/\\/g, '/');
+                    if (cleanImg.includes('data/extracted_frames/')) {
+                        cleanImg = 'data/extracted_frames/' + cleanImg.split('data/extracted_frames/').pop();
+                    } else if (cleanImg.includes('data/cameras/')) {
+                        cleanImg = 'data/cameras/' + cleanImg.split('data/cameras/').pop();
+                    }
+                    const imgUrl = cleanImg ? (cleanImg.startsWith('/') ? cleanImg : '/' + cleanImg) : '';
                     const secs = item.seconds ?? (function(ts) {
                         if (!ts) return 0;
                         const p = ts.split(':').map(Number);
