@@ -110,6 +110,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let popoverTimeout = null;
     let allLazyVectors = [];
 
+    function formatImageUrl(rawPath) {
+        if (!rawPath) return '';
+        let p = String(rawPath).replace(/\\/g, '/');
+        if (p.startsWith('http://') || p.startsWith('https://')) return p;
+        if (p.includes('/data/')) {
+            return '/data/' + p.split('/data/')[1].replace(/^\/+/, '');
+        } else if (p.includes('data/')) {
+            return '/data/' + p.split('data/')[1].replace(/^\/+/, '');
+        } else if (p.includes('extracted_frames/')) {
+            return '/data/extracted_frames/' + p.split('extracted_frames/')[1].replace(/^\/+/, '');
+        } else if (p.endsWith('.jpg') || p.endsWith('.png') || p.endsWith('.jpeg')) {
+            const fn = p.split('/').pop();
+            return '/data/extracted_frames/' + fn;
+        }
+        return p;
+    }
+
     // ------------------------------------------------------------------
     // Metric Explanations Dictionary for (i) Buttons
     // ------------------------------------------------------------------
@@ -298,6 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchLazyVectors();
             } else if (targetTabId === 'tab-json') {
                 fetchEventsJson();
+            } else if (targetTabId === 'tab-hash') {
+                fetchHashAudit();
             } else if (targetTabId === 'tab-rtsp') {
                 fetchRtspStreamsStatus();
                 if (!rtspPollInterval) {
@@ -364,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `[${v.vector_sample.slice(0, 5).join(', ')}, …]`
                 : `[512-D float32]`;
 
-            const thumb = v.image_path || '/data/extracted_frames/placeholder.jpg';
+            const thumb = formatImageUrl(v.image_path) || '/data/extracted_frames/placeholder.jpg';
 
             return `
                 <div class="frame-vector-card" data-index="${v.index}" data-ts="${escapeHtml(v.timestamp)}" data-secs="${v.seconds || 0}" data-img="${escapeHtml(thumb)}">
@@ -457,22 +476,144 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ------------------------------------------------------------------
+    // Tab 2: Dynamic dHash Edge Gate Compute Saved Telemetry
+    // ------------------------------------------------------------------
+    async function fetchHashAudit() {
+        try {
+            const resp = await fetch('/api/hash_audit');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const stats = data.stats || {};
+            const pctSaved = data.compute_saved_pct !== undefined ? data.compute_saved_pct : (stats.compute_saved_pct || 0);
+
+            // Dynamically update the tab header title
+            const tabHashLabel = document.getElementById('tab-hash-label');
+            if (tabHashLabel) {
+                tabHashLabel.textContent = `dHash Edge Gate (${pctSaved}% Saved)`;
+            }
+
+            // Update KPI cards in tab-hash
+            if (kpiTotal && stats.total_sampled !== undefined) kpiTotal.textContent = stats.total_sampled;
+            if (kpiKept && stats.frames_kept !== undefined) kpiKept.textContent = stats.frames_kept;
+            if (kpiSkipped && stats.frames_skipped !== undefined) kpiSkipped.textContent = stats.frames_skipped;
+            if (kpiSaved) kpiSaved.textContent = `${pctSaved}%`;
+
+            // Render audit trail table if available
+            if (devAuditTbody && data.audit_trail && data.audit_trail.length > 0) {
+                devAuditTbody.innerHTML = data.audit_trail.slice(-50).reverse().map(row => `
+                    <tr>
+                        <td>${escapeHtml(row.timestamp || row.time || '--')}</td>
+                        <td><code>${escapeHtml(row.hash_hex || row.hash || '--')}</code></td>
+                        <td>${row.hamming_dist !== undefined ? row.hamming_dist : '--'}</td>
+                        <td><span class="badge ${row.status === 'kept' || row.action === 'kept' ? 'badge-live' : 'badge-recorded'}">${escapeHtml(row.status || row.action || 'processed')}</span></td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            console.warn('Failed to fetch hash audit:', err);
+        }
+    }
+
+    if (runSmartFilterBtn) {
+        runSmartFilterBtn.addEventListener('click', async () => {
+            const algo = document.getElementById('hash-algo-select')?.value || 'dhash';
+            const thresh = parseInt(document.getElementById('threshold-range')?.value || 8, 10);
+            runSmartFilterBtn.disabled = true;
+            runSmartFilterBtn.innerHTML = `<span>Filtering…</span>`;
+            try {
+                const resp = await fetch('/api/process_video_smart', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        hash_method: algo,
+                        threshold: thresh,
+                        enable_hash_filter: true,
+                    })
+                });
+                if (resp.ok) {
+                    await fetchHashAudit();
+                    fetchEventsJson();
+                    if (typeof fetchLazyVectors === 'function') fetchLazyVectors();
+                }
+            } catch (e) {
+                console.error('Smart filter error:', e);
+            } finally {
+                runSmartFilterBtn.disabled = false;
+                runSmartFilterBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Run Smart Frame Filter</span>`;
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
     // Tab 4: RTSP Live Stream Manager & Multi-Camera Stream Controls
     // ------------------------------------------------------------------
     const rtspStreamsList = document.getElementById('rtsp-streams-list');
     const addRtspBtn = document.getElementById('add-rtsp-btn');
     const rtspCamId = document.getElementById('rtsp-cam-id');
     const rtspUrl = document.getElementById('rtsp-url');
+    const rtspLocalFile = document.getElementById('rtsp-local-file');
+    const rtspFileInput = document.getElementById('rtsp-file-input');
+    const rtspBrowseBtn = document.getElementById('rtsp-browse-btn');
+    const rtspSampleCctvBtn = document.getElementById('rtsp-sample-cctv-btn');
     const rtspInterval = document.getElementById('rtsp-interval');
+
+    if (rtspSampleCctvBtn) {
+        rtspSampleCctvBtn.addEventListener('click', () => {
+            if (rtspCamId && !rtspCamId.value) rtspCamId.value = 'CAM_01';
+            if (rtspLocalFile) rtspLocalFile.value = 'Video Footage/sample_cctv.mp4';
+        });
+    }
+
+    if (rtspBrowseBtn && rtspFileInput) {
+        rtspBrowseBtn.addEventListener('click', () => {
+            rtspFileInput.click();
+        });
+
+        rtspFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            rtspBrowseBtn.disabled = true;
+            rtspBrowseBtn.innerHTML = `<span>⏳ Uploading…</span>`;
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const resp = await fetch('/api/upload_video', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (rtspLocalFile) rtspLocalFile.value = data.video_path || file.name;
+                    if (rtspCamId && !rtspCamId.value) rtspCamId.value = data.suggested_camera_id || 'CAM_UPLOAD';
+                    if (rtspUrl) rtspUrl.value = '';
+                } else {
+                    const err = await resp.json();
+                    alert('Upload failed: ' + (err.detail || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Upload error: ' + err.message);
+            } finally {
+                rtspBrowseBtn.disabled = false;
+                rtspBrowseBtn.innerHTML = `📂 Choose File`;
+            }
+        });
+    }
 
     if (addRtspBtn) {
         addRtspBtn.addEventListener('click', async () => {
             const camId = rtspCamId.value.trim();
-            const url = rtspUrl.value.trim();
+            const url = rtspUrl ? rtspUrl.value.trim() : '';
+            const localFile = rtspLocalFile ? rtspLocalFile.value.trim() : '';
+            const chosenSource = localFile || url;
+            const isLocal = !!localFile;
             const interval = parseFloat(rtspInterval.value) || 5.0;
 
-            if (!camId || !url) {
-                alert('Please enter both a Camera ID (e.g. CAM_NORTH) and Stream URL.');
+            if (!camId || !chosenSource) {
+                alert('Please enter a Camera ID and either a Stream URL or Local Video File path.');
                 return;
             }
 
@@ -485,7 +626,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         camera_id: camId,
-                        stream_url: url,
+                        stream_url: chosenSource,
+                        video_path: isLocal ? localFile : null,
+                        feed_type: isLocal ? "video_file" : "rtsp_stream",
                         sample_interval: interval,
                         hash_method: "dhash",
                         threshold: 10,
@@ -493,12 +636,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (resp.ok) {
-                    rtspCamId.value = '';
-                    rtspUrl.value = '';
+                    if (rtspCamId) rtspCamId.value = '';
+                    if (rtspUrl) rtspUrl.value = '';
+                    if (rtspLocalFile) rtspLocalFile.value = '';
                     fetchRtspStreamsStatus();
                     fetchCameraFeeds();
                     fetchCameraPills();
                     fetchEventsJson();
+                    fetchHashAudit();
                 } else {
                     const err = await resp.json();
                     alert('Failed to start stream: ' + (err.detail || 'Unknown error'));
@@ -507,7 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Stream connection error: ' + err.message);
             } finally {
                 addRtspBtn.disabled = false;
-                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Start Async RTSP Capture</span>`;
+                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Start Ingestion & Index</span>`;
             }
         });
     }
@@ -519,6 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resp.ok) {
                 const data = await resp.json();
                 renderRtspStreams(data.active_streams || []);
+                fetchHashAudit();
             }
         } catch (err) {
             console.warn('Failed to fetch RTSP streams status:', err);
@@ -527,7 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderRtspStreams(streams) {
         if (!streams || streams.length === 0) {
-            rtspStreamsList.innerHTML = `<div class="empty-state" style="padding: 20px;"><p class="placeholder-text">No active camera streams running. Enter a stream URL above to launch multi-threaded capture.</p></div>`;
+            rtspStreamsList.innerHTML = `<div class="empty-state" style="padding: 20px;"><p class="placeholder-text">No active camera streams running. Enter a stream URL or local video above to launch multi-threaded capture.</p></div>`;
             return;
         }
 
@@ -565,7 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="feed-badge ${isRunning ? 'live' : ''}">${statusBadge}</span>
                         </div>
                     </div>
-                    <div class="stream-url-tag">URL: ${escapeHtml(s.stream_url)}</div>
+                    <div class="stream-url-tag">Source: ${escapeHtml(s.stream_url)}</div>
 
                     <!-- YouTube-Style Play & Extraction Progress Bar -->
                     <div class="cctv-yt-progress-container ${isLive ? 'live-stream-track' : ''}">
@@ -603,13 +749,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>
                         ${isPaused ? `
                             <button class="btn-stream-action btn-resume-stream resume-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Resume stream extraction">
-                                ▶️ Resume Extraction
+                                ▶️ Resume
                             </button>
                         ` : `
                             <button class="btn-stream-action btn-pause-stream pause-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Pause stream extraction">
-                                ⏸️ Pause Extraction
+                                ⏸️ Pause
                             </button>
                         `}
+                        <button class="btn-stream-action btn-reindex-stream reindex-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Clear previous vectors & extract/embed fresh MobileCLIP-S2 spatial crops from scratch">
+                            🔄 Re-Index Clip
+                        </button>
                         <button class="btn-stream-action btn-remove-stream remove-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Remove camera from registry">
                             🗑️ Remove
                         </button>
@@ -643,6 +792,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 fetchRtspStreamsStatus();
                 fetchCameraFeeds();
+            });
+        });
+
+        // Re-Index from Scratch button handler
+        rtspStreamsList.querySelectorAll('.reindex-stream-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const camId = btn.dataset.cam;
+                const ok = confirm(`Re-index camera '${camId}' from scratch?\n\nThis will purge existing extracted frames and vector embeddings for this camera, and start fresh MobileCLIP-S2 keyframe indexing.`);
+                if (!ok) return;
+
+                btn.disabled = true;
+                btn.innerHTML = `<span>⏳ Re-indexing…</span>`;
+
+                try {
+                    const resp = await fetch('/api/streams/reindex', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ camera_id: camId })
+                    });
+                    if (resp.ok) {
+                        const resData = await resp.json();
+                        alert(`✅ ${resData.message || 'Camera re-indexed successfully!'}`);
+                        fetchRtspStreamsStatus();
+                        fetchCameraFeeds();
+                        fetchEventsJson();
+                        if (typeof fetchLazyVectors === 'function') fetchLazyVectors();
+                        if (typeof fetchHashAudit === 'function') fetchHashAudit();
+                    } else {
+                        const err = await resp.json();
+                        alert('Failed to re-index: ' + (err.detail || 'Unknown error'));
+                    }
+                } catch (err) {
+                    alert('Re-indexing error: ' + err.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `🔄 Re-Index Clip`;
+                }
             });
         });
 
@@ -722,10 +908,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const vectorCountBadge = document.getElementById('vector-count-badge');
                 if (vectorCountBadge) {
-                    vectorCountBadge.textContent = `${data.vector_count || 179} VECTORS`;
+                    vectorCountBadge.textContent = `${data.vector_count || 0} VECTORS`;
                 }
                 if (statVectors) {
-                    statVectors.textContent = `${data.vector_count || 179} Vectors`;
+                    statVectors.textContent = `${data.vector_count || 0} Vectors`;
+                }
+                const archVectorTag = document.getElementById('arch-vector-store-tag');
+                if (archVectorTag) {
+                    archVectorTag.textContent = `Vector Store: FAISS (${data.vector_count || 0} Vectors)`;
                 }
             }
         } catch (err) {
@@ -733,6 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     checkHealth();
+    fetchHashAudit();
 
     async function fetchCameraPills() {
         if (!cameraFilterContainer) return;
@@ -853,6 +1044,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     jsonStatSize.textContent = `0.0s LLM Wait`;
                 }
 
+                const tabJsonLabel = document.getElementById('tab-json-label');
+                if (tabJsonLabel) {
+                    tabJsonLabel.textContent = `Visual Keyframes Dataset (${data.total_count || loadedJsonEvents.length} Frames)`;
+                }
+
                 // Render camera filter pills for JSON tab
                 renderJsonCameraFilters(data.cameras || ['CAM_01']);
                 renderJsonExplorer();
@@ -924,7 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             } else {
                 jsonCardsContainer.innerHTML = filtered.map((item, idx) => {
-                    const imgUrl = item.image_url || (item.image_path ? '/' + item.image_path.replace(/\\/g, '/') : '');
+                    const imgUrl = formatImageUrl(item.image_url || item.image_path);
                     const secs = item.seconds ?? (function(ts) {
                         if (!ts) return 0;
                         const p = ts.split(':').map(Number);
@@ -1024,7 +1220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             devStatusText.textContent = isDevModeActive ? 'ON' : 'OFF';
 
             if (isDevModeActive) {
-                fetchHashAuditLogs();
+                fetchHashAudit();
                 fetchEventsJson(false);
                 fetchRtspStreamsStatus();
                 checkHealth();
@@ -2015,10 +2211,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="storyboard-strip">
                         ${data.storyboard.map((f, i) => {
                             const secVal = parseTsToSeconds(f.timestamp, f.seconds);
+                            const fImg = formatImageUrl(f.image_path);
                             return `
-                            <div class="storyboard-card ${f.is_anchor ? 'anchor-frame' : ''}" data-seconds="${secVal}" data-timestamp="${escapeHtml(f.timestamp)}" data-epoch="${f.epoch_time || ''}" data-image="${escapeHtml(f.image_path || '')}" data-camera="${escapeHtml(f.camera || '')}" title="${f.is_anchor ? 'Target Match Moment' : 'Surrounding Context Frame'} @ ${escapeHtml(f.timestamp)}">
+                            <div class="storyboard-card ${f.is_anchor ? 'anchor-frame' : ''}" data-seconds="${secVal}" data-timestamp="${escapeHtml(f.timestamp)}" data-epoch="${f.epoch_time || ''}" data-image="${escapeHtml(fImg)}" data-camera="${escapeHtml(f.camera || '')}" title="${f.is_anchor ? 'Target Match Moment' : 'Surrounding Context Frame'} @ ${escapeHtml(f.timestamp)}">
                                 <div class="storyboard-thumb-wrap">
-                                    ${f.image_path ? `<img src="${escapeHtml(f.image_path)}" class="storyboard-thumb" alt="Frame ${i+1}" onerror="this.style.display='none';">` : ''}
+                                    ${fImg ? `<img src="${escapeHtml(fImg)}" class="storyboard-thumb" alt="Frame ${i+1}" onerror="this.style.display='none';">` : ''}
                                     ${f.is_anchor ? `<span class="anchor-badge">TARGET</span>` : ''}
                                 </div>
                                 <div class="storyboard-meta">
@@ -2094,8 +2291,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         evidenceList.innerHTML = results.map((item) => {
             const secVal = parseTsToSeconds(item.timestamp, item.seconds);
+            const itemImg = formatImageUrl(item.image_path);
             return `
-            <div class="evidence-item" data-seconds="${secVal}" data-timestamp="${item.timestamp}" data-epoch="${item.epoch_time || ''}" data-image="${escapeHtml(item.image_path || '')}" data-camera="${escapeHtml(item.camera)}" data-feed-type="${escapeHtml(item.feed_type || '')}">
+            <div class="evidence-item" data-seconds="${secVal}" data-timestamp="${item.timestamp}" data-epoch="${item.epoch_time || ''}" data-image="${escapeHtml(itemImg)}" data-camera="${escapeHtml(item.camera)}" data-feed-type="${escapeHtml(item.feed_type || '')}">
                 <div class="evidence-meta">
                     <div class="ev-header">
                         <span class="ev-rank">#${item.rank}</span>

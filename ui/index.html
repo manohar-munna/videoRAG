@@ -78,7 +78,7 @@
                 <div class="arch-badge-strip">
                     <span class="arch-tag arch-active">⚡ Active Pipeline: Lazy Multi-Frame VLM</span>
                     <span class="arch-tag">Embedder: Apple MobileCLIP-S2 (512-D)</span>
-                    <span class="arch-tag">Vector Store: FAISS (179 Keyframes)</span>
+                    <span class="arch-tag" id="arch-vector-store-tag">Vector Store: FAISS (512-D)</span>
                     <span class="arch-tag">Forensic VLM: Qwen3-VL 4B (GPU)</span>
                 </div>
 
@@ -92,12 +92,12 @@
                         Vector & Execution Trace
                         <button class="info-btn tab-info" data-info="vector_trace" title="What is Vector Execution Trace?">i</button>
                     </button>
-                    <button class="dev-tab-btn" data-tab="tab-hash">
-                        dHash Edge Gate (33.9% Saved)
+                    <button class="dev-tab-btn" data-tab="tab-hash" id="tab-btn-hash">
+                        <span id="tab-hash-label">dHash Edge Gate (Compute Saved)</span>
                         <button class="info-btn tab-info" data-info="dhash_phash" title="What is dHash / pHash?">i</button>
                     </button>
                     <button class="dev-tab-btn" data-tab="tab-json">
-                        Visual Keyframes Dataset (179 Frames)
+                        <span id="tab-json-label">Visual Keyframes Dataset</span>
                         <button class="info-btn tab-info" data-info="json_explorer" title="What is the Keyframes Dataset?">i</button>
                     </button>
                     <button class="dev-tab-btn" data-tab="tab-rtsp">
@@ -508,28 +508,42 @@
 
             <!-- TAB 4: RTSP Live Stream Manager -->
             <div class="dev-tab-content" id="tab-rtsp" style="display: none;">
-                <div class="rtsp-form-bar">
+                <div class="rtsp-form-bar" style="flex-wrap: wrap; gap: 10px; align-items: flex-end;">
                     <div class="control-group">
                         <label>Camera ID:</label>
-                        <input type="text" id="rtsp-cam-id" placeholder="CAM_NORTH_RTSP" class="dev-input" style="width: 140px;">
+                        <input type="text" id="rtsp-cam-id" placeholder="CAM_02" class="dev-input" style="width: 120px;">
                     </div>
 
-                    <div class="control-group" style="flex: 1;">
-                        <label>Stream URL (RTSP / RTMP / File):</label>
-                        <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live or Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
+                    <div class="control-group" style="flex: 1; min-width: 220px;">
+                        <label>Stream URL (RTSP / RTMP / YouTube):</label>
+                        <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live or https://..." class="dev-input" style="width: 100%;">
+                    </div>
+
+                    <div class="control-group" style="flex: 1; min-width: 280px;">
+                        <label>Local Video File (MP4 / AVI / MKV):</label>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="file" id="rtsp-file-input" accept="video/mp4,video/x-matroska,video/quicktime,video/avi,video/*" style="display: none;">
+                            <input type="text" id="rtsp-local-file" placeholder="Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
+                            <button type="button" id="rtsp-browse-btn" class="btn-secondary btn-sm" title="Select a video file from your computer" style="white-space: nowrap; font-size: 0.72rem; padding: 4px 8px;">
+                                📂 Choose File
+                            </button>
+                            <button type="button" id="rtsp-sample-cctv-btn" class="btn-secondary btn-sm" title="Quick fill sample_cctv.mp4" style="white-space: nowrap; font-size: 0.72rem; padding: 4px 8px;">
+                                📁 Sample CCTV
+                            </button>
+                        </div>
                     </div>
 
                     <div class="control-group">
                         <label>Interval (s):</label>
-                        <input type="number" id="rtsp-interval" value="5.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 70px;">
+                        <input type="number" id="rtsp-interval" value="5.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 65px;">
                     </div>
 
-                    <button id="add-rtsp-btn" class="btn-primary btn-sm">
+                    <button id="add-rtsp-btn" class="btn-primary btn-sm" style="height: 34px;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                         </svg>
-                        <span>Start Async RTSP Capture</span>
+                        <span>Start Ingestion & Index</span>
                     </button>
                 </div>
 

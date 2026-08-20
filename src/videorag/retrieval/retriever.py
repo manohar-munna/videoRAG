@@ -31,34 +31,94 @@ def _parse_ts_to_seconds(val: Any) -> float:
         return 0.0
 
 
+def _normalize_query(query: str) -> str:
+    """Strip conversational and counting wrappers to extract the core visual object/action."""
+    q = query.strip().lower()
+    # Remove punctuation
+    for ch in ["?", "!", ".", ",", ":", ";", "\"", "'"]:
+        q = q.replace(ch, " ")
+    
+    # Strip common conversational question prefixes/suffixes
+    meta_phrases = [
+        "number of", "how many", "count of", "total number of", "total count of",
+        "visible in the video", "in the video", "in the footage", "in the cctv",
+        "in the scene", "in the frame", "across the video", "throughout the video",
+        "can you see", "is there a", "are there any", "show me", "find me",
+        "tell me if", "detect if", "look for", "search for", "where is", "where are",
+    ]
+    for p in meta_phrases:
+        q = q.replace(p, " ")
+    
+    cleaned = " ".join(q.split())
+    return cleaned if len(cleaned) > 2 else query.strip()
+
+
 def _expand_query(query: str) -> List[str]:
     """Generate focused multimodal query expansions for surveillance retrieval."""
-    q_low = query.strip().lower()
+    core_q = _normalize_query(query)
+    q_low = f"{query.strip().lower()} {core_q}"
     expansions = [query.strip()]
+    if core_q != query.strip() and len(core_q) > 2:
+        expansions.append(core_q)
 
-    if any(k in q_low for k in ["camera crew", "filming", "film crew", "film set", "production crew"]):
+    # Vehicles / Trucks / Cars
+    if any(k in q_low for k in ["vehicle", "vehicles", "car", "cars", "truck", "trucks", "pickup", "van", "vans", "suv", "automobile", "traffic"]):
         expansions.extend([
-            "film production crew and cameras",
-            "camera operator on crane or tracking dolly cart",
-            "film set with movie cameras and boom microphone",
-            "video production equipment in park",
+            "white pickup truck parked near yellow caution tape",
+            "automobiles, cars, pickup trucks, and motor vehicles in surveillance frame",
+            "parked cars, utility vehicles, or driving traffic",
+            "dark colored vehicle or SUV in background",
         ])
-    elif any(k in q_low for k in ["pink", "pink cloth", "pink dress", "pink shirt"]):
+
+    # Camera Crew / Filming / Production
+    if any(k in q_low for k in ["camera crew", "filming", "film crew", "film set", "production crew", "movie", "cinema", "crane"]):
+        expansions.extend([
+            "film production crew with cinema cameras, tripods, and boom mics",
+            "camera operator on crane or tracking dolly cart",
+            "film set with movie cameras and video production equipment",
+            "video production crew working in park",
+        ])
+
+    # Pink Clothing / Apparel
+    if any(k in q_low for k in ["pink", "pink cloth", "pink dress", "pink shirt", "pink clothing", "pink top"]):
         expansions.extend([
             "person wearing bright pink clothing",
             "people in pink top or dress",
+            "individuals dressed in pink garments",
         ])
-    elif any(k in q_low for k in ["police", "security", "guard", "officer"]):
+
+    # Pedestrians / People / Crowd
+    if any(k in q_low for k in ["pedestrian", "pedestrians", "person", "people", "crowd", "walking", "gathering"]):
         expansions.extend([
-            "uniformed security personnel or police officer",
-            "law enforcement officer in uniform",
+            "pedestrians and people walking in public area",
+            "crowd of people standing outdoors",
+            "group of people walking along path",
         ])
-    elif any(k in q_low for k in ["truck", "pickup", "van"]):
+
+    # Police / Security / Restraints / Caution Tape
+    if any(k in q_low for k in ["police", "security", "guard", "officer", "caution tape", "restraint", "barrier", "tape"]):
         expansions.extend([
-            "white pickup truck parked near yellow caution tape",
-            "utility truck or vehicle",
+            "uniformed security guard or police officer",
+            "yellow caution tape and perimeter barrier",
+            "law enforcement personnel near vehicle",
         ])
-    return expansions
+
+    # Unattended Bags / Backpacks
+    if any(k in q_low for k in ["bag", "backpack", "unattended", "package", "luggage", "suitcase"]):
+        expansions.extend([
+            "unattended backpack or bag on ground",
+            "luggage or package sitting unattended",
+        ])
+
+    # Deduplicate while preserving order
+    seen = set()
+    unique_expansions = []
+    for exp in expansions:
+        if exp and exp.lower() not in seen:
+            seen.add(exp.lower())
+            unique_expansions.append(exp)
+
+    return unique_expansions
 
 
 class CCTVRetriever:
@@ -187,27 +247,42 @@ class CCTVRetriever:
         with self._store._lock:
             all_meta: List[dict] = [dict(m) for m in self._store._metadata]
 
-        camera_index: Dict[str, List[dict]] = {}
-        seen_per_cam: Dict[str, set] = {}
+        raw_camera_index: Dict[str, List[dict]] = {}
+        seen_keys: Dict[str, set] = {}
 
         for entry in all_meta:
             cam = entry.get("camera", "UNKNOWN")
+            # Only include primary full-frame keyframes in the chronological timeline
+            crop_reg = entry.get("crop_region", "full_frame")
+            if crop_reg not in ("full_frame", "global", None, ""):
+                continue
+
             ts = entry.get("timestamp") or entry.get("start_timestamp", "")
             img_p = entry.get("image_path", "")
             k = (cam, ts, img_p)
 
-            seen_per_cam.setdefault(cam, set())
-            if k not in seen_per_cam[cam]:
-                seen_per_cam[cam].add(k)
-                camera_index.setdefault(cam, []).append(entry)
+            seen_keys.setdefault(cam, set())
+            if k not in seen_keys[cam]:
+                seen_keys[cam].add(k)
+                raw_camera_index.setdefault(cam, []).append(entry)
 
-        # Sort each camera's records chronologically by epoch_time -> seconds -> timestamp
-        for cam, entries in camera_index.items():
+        # Sort each camera's records chronologically and enforce delta-t >= 2.0s spacing
+        camera_index: Dict[str, List[dict]] = {}
+        for cam, entries in raw_camera_index.items():
             entries.sort(key=lambda m: (
                 float(m.get("epoch_time") or 0.0),
                 _parse_ts_to_seconds(m.get("seconds") or m.get("timestamp") or m.get("start_timestamp")),
                 str(m.get("timestamp") or m.get("start_timestamp") or "")
             ))
+
+            clean_timeline: List[dict] = []
+            last_sec = -999.0
+            for item in entries:
+                sec = _parse_ts_to_seconds(item.get("seconds") or item.get("timestamp") or item.get("start_timestamp"))
+                if abs(sec - last_sec) >= 2.0:
+                    clean_timeline.append(item)
+                    last_sec = sec
+            camera_index[cam] = clean_timeline
 
         episodes: List[dict] = []
         seen_anchor_keys = set()
@@ -248,9 +323,12 @@ class CCTVRetriever:
                 start_ts = anchor_ts
                 end_ts = anchor_ts
             else:
-                # Slice the temporal context window
+                # Slice the temporal context window ensuring full 5 frames when available
+                target_count = min(len(cam_entries), 2 * context_window + 1)
                 start_idx = max(0, anchor_pos - context_window)
-                end_idx = min(len(cam_entries), anchor_pos + context_window + 1)
+                end_idx = min(len(cam_entries), start_idx + target_count)
+                if end_idx - start_idx < target_count:
+                    start_idx = max(0, end_idx - target_count)
                 window_slice = cam_entries[start_idx:end_idx]
 
                 storyboard_frames = []

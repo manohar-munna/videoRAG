@@ -271,8 +271,9 @@ class SmartProcessRequest(BaseModel):
 
 class AddStreamRequest(BaseModel):
     camera_id: str
-    feed_type: str = "youtube_stream"  # 'youtube_stream' | 'rtsp_stream' | 'video_file'
-    stream_url: str
+    feed_type: Optional[str] = None  # 'youtube_stream' | 'rtsp_stream' | 'video_file'
+    stream_url: Optional[str] = None
+    video_path: Optional[str] = None
     name: Optional[str] = None
     location: Optional[str] = "Perimeter Gate"
     sample_interval: Optional[float] = 5.0
@@ -302,6 +303,8 @@ DEV_INSPECTOR_STATE = {
     },
     "audit_trail": [],
 }
+
+LATEST_HASH_AUDIT: Dict[str, Any] = {}
 
 
 def init_pipeline(config_path: str = "config/config.yaml") -> None:
@@ -346,14 +349,18 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
             store = FAISSVectorStore(dim=embedder.dimension)
     else:
         logger.warning("FAISS index not found at %s. Creating empty %d-D store.", idx_path, embedder.dimension)
+        store = FAISSVectorStore(dim=embedder.dimension)
 
     retriever = CCTVRetriever(vector_store=store, embedder=embedder)
 
-    try:
-        reranker = CrossEncoderReranker()
-        logger.info("Cross-encoder reranker loaded.")
-    except Exception as exc:
-        logger.warning("Cross-encoder failed (%s), using score fallback.", exc)
+    if cfg_ret.get("use_reranker", False):
+        try:
+            reranker = CrossEncoderReranker()
+            logger.info("Cross-encoder reranker loaded.")
+        except Exception as exc:
+            logger.warning("Cross-encoder failed (%s), using score fallback.", exc)
+            reranker = ScoreReranker()
+    else:
         reranker = ScoreReranker()
 
     captioner = VLMCaptioner(
@@ -413,49 +420,59 @@ def get_health():
 
 @app.get("/api/events")
 def get_events(camera: Optional[str] = None, detailed: bool = False):
-    """Return indexed CCTV dataset records (179 Visual Keyframes) or discovery JSON records."""
+    """Return indexed CCTV dataset records without spatial crop duplicates."""
+    data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
     records = []
 
-    # 1. Primary: Use in-memory FAISS Vector Store indexed keyframes if available
-    store = PIPELINE.get("vector_store")
-    if store and hasattr(store, "_metadata") and store._metadata:
-        for idx, meta in enumerate(store._metadata):
-            rec = dict(meta)
-            if "description" not in rec or not rec["description"]:
-                rec["description"] = f"Visual Keyframe #{idx + 1} at {rec.get('timestamp', '00:00:00')} in {rec.get('camera', 'CAM_01')} (Indexed with MobileCLIP-S2 512-D multimodal vector)."
-            records.append(rec)
-    else:
-        # Fallback: Read from index/cctv_index.meta.json or data/real_cctv_events.json
-        meta_path = _PROJECT_ROOT / "index" / "cctv_index.meta.json"
-        data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-        target_path = meta_path if meta_path.exists() else data_path
-        if target_path.exists():
-            try:
-                with open(target_path, "r", encoding="utf-8") as fh:
-                    records = json.load(fh)
-            except Exception as exc:
-                logger.warning("Could not load %s: %s", target_path, exc)
-                records = []
+    if data_path.exists():
+        try:
+            with open(data_path, "r", encoding="utf-8") as fh:
+                raw_records = json.load(fh)
+                # Deduplicate by (camera, timestamp) if any duplicates exist
+                seen = set()
+                for r in raw_records:
+                    key = (r.get("camera", "CAM_01"), r.get("timestamp", "00:00:00"))
+                    if key not in seen:
+                        seen.add(key)
+                        records.append(r)
+        except Exception as exc:
+            logger.warning("Could not load %s: %s", data_path, exc)
+            records = []
 
-    # 2. Filter by camera if requested
+    if not records:
+        # Fallback: Deduplicate from in-memory FAISS Vector Store metadata
+        store = PIPELINE.get("vector_store")
+        if store and hasattr(store, "_metadata") and store._metadata:
+            seen_frames = set()
+            for idx, meta in enumerate(store._metadata):
+                crop_reg = meta.get("crop_region", "full_frame")
+                if crop_reg in ("full_frame", "global", None, ""):
+                    frame_key = (meta.get("camera"), meta.get("timestamp"))
+                    if frame_key not in seen_frames:
+                        seen_frames.add(frame_key)
+                        rec = dict(meta)
+                        if "description" not in rec or not rec["description"]:
+                            rec["description"] = f"Visual Keyframe at {rec.get('timestamp', '00:00:00')} in {rec.get('camera', 'CAM_01')}."
+                        records.append(rec)
+
+    # Filter by camera if requested
     if camera:
         filtered = [r for r in records if r.get("camera", "").upper() == camera.upper()]
     else:
         filtered = records
 
-    # 3. Return detailed dataset telemetry if requested
+    # Return detailed dataset telemetry if requested
     if detailed:
         all_cams = sorted(list(set(r.get("camera", "") for r in records if r.get("camera"))))
         if not all_cams:
             all_cams = ["CAM_01"]
-        meta_file = _PROJECT_ROOT / "index" / "cctv_index.meta.json"
-        file_size = meta_file.stat().st_size if meta_file.exists() else 0
+        file_size = data_path.stat().st_size if data_path.exists() else 0
         return {
             "total_count": len(records),
             "filtered_count": len(filtered),
             "cameras": all_cams,
             "file_size_bytes": file_size,
-            "dataset_path": "index/cctv_index.meta.json (179 Keyframes)",
+            "dataset_path": "data/real_cctv_events.json",
             "events": filtered,
         }
 
@@ -504,12 +521,41 @@ def search_cctv(req: SearchRequest):
             )
             PIPELINE["captioner"] = captioner
 
-        logger.info("[Search] Running multi-frame forensic reasoning on top episode (%s, %s)...",
-                    top_episode.get("camera"), top_episode.get("time_range"))
-        answer = captioner.reason_over_episode(req.query, top_episode)
+        # Check if the query is asking for a video-wide count, total, or overall summary
+        q_low = req.query.lower()
+        is_global_query = any(w in q_low for w in [
+            "total", "all vehicles", "number of vehicles", "how many", "count of",
+            "throughout", "across the video", "in the video footage", "in the entire",
+            "all cars", "all people", "summary of", "every vehicle"
+        ])
+
+        if is_global_query and len(episodes) > 1:
+            logger.info("[Search] Running video-wide cross-moment forensic synthesis across %d candidate episodes...", len(episodes))
+            answer = captioner.reason_video_wide_synthesis(req.query, episodes)
+        else:
+            logger.info("[Search] Running multi-frame forensic reasoning on top episode (%s, %s)...",
+                        top_episode.get("camera"), top_episode.get("time_range"))
+            answer = captioner.reason_over_episode(req.query, top_episode)
+
+        # Check if VLM confirmed a specific frame timestamp (e.g. [CONFIRMED_AT: 00:11:52] or "satisfied at timestamp 00:11:52")
+        confirmed_ts = None
+        import re
+        m_conf = re.search(r"\[CONFIRMED_AT:\s*([0-9]{2}:[0-9]{2}:[0-9]{2})\]", answer, re.IGNORECASE)
+        if m_conf:
+            confirmed_ts = m_conf.group(1)
+        else:
+            m_alt = re.search(r"(?:satisfied|visible|detected|observed)\s+at\s+(?:timestamp\s+)?([0-9]{2}:[0-9]{2}:[0-9]{2})", answer, re.IGNORECASE)
+            if m_alt:
+                confirmed_ts = m_alt.group(1)
+
+        raw_frames = top_episode.get("frames", [])
+        if confirmed_ts and any(f.get("timestamp") == confirmed_ts for f in raw_frames):
+            for f in raw_frames:
+                f["is_anchor"] = (f.get("timestamp") == confirmed_ts)
+            top_episode["anchor_timestamp"] = confirmed_ts
 
         # Build chronological storyboard for the top episode
-        for f in top_episode.get("frames", []):
+        for f in raw_frames:
             img_p = f.get("image_path", "")
             if img_p:
                 clean_img = img_p.replace("\\", "/")
@@ -665,7 +711,7 @@ def get_lazy_vlm_vectors(camera: Optional[str] = None, limit: int = 250):
 
             crop_reg = meta.get("crop_region", "global")
             # Display unique primary keyframes in the visual gallery
-            if crop_reg not in ("global", None, ""):
+            if crop_reg not in ("global", "full_frame", None, ""):
                 continue
 
             img_p = meta.get("image_path", "")
@@ -763,21 +809,101 @@ def process_video_smart(req: SmartProcessRequest):
 
 @app.get("/api/hash_audit")
 def get_hash_audit():
-    """Return the latest frame hashing audit log for Developer Mode UI inspection."""
-    return LATEST_HASH_AUDIT
+    """Return real-time frame hashing audit stats calculated dynamically across all streams and extraction runs."""
+    total_sampled = 0
+    total_kept = 0
+    total_skipped = 0
+    all_audits = []
+
+    # 1. Aggregate from all active stream captures
+    for cam_id, stream in STREAM_MANAGER.streams.items():
+        st = stream.get_status()
+        s_kept = st.get("keyframes_kept", 0)
+        s_skipped = st.get("frames_skipped", 0)
+        total_kept += s_kept
+        total_skipped += s_skipped
+        total_sampled += (s_kept + s_skipped)
+        if hasattr(stream, "audit_trail"):
+            all_audits.extend(stream.audit_trail[-50:])
+
+    # 2. Add batch extractor audit if available
+    batch_stats = LATEST_HASH_AUDIT.get("stats", {})
+    if batch_stats:
+        b_kept = batch_stats.get("frames_kept", 0)
+        b_skipped = batch_stats.get("frames_skipped", 0)
+        b_sampled = batch_stats.get("total_sampled", 0)
+        total_kept += b_kept
+        total_skipped += b_skipped
+        total_sampled += b_sampled
+        all_audits.extend(LATEST_HASH_AUDIT.get("audit_trail", [])[-50:])
+
+    pct_saved = round((total_skipped / total_sampled * 100.0), 1) if total_sampled > 0 else 0.0
+
+    return {
+        "stats": {
+            "total_sampled": total_sampled,
+            "frames_kept": total_kept,
+            "frames_skipped": total_skipped,
+            "compute_saved_pct": pct_saved,
+            "llm_compute_saved_pct": pct_saved,
+        },
+        "compute_saved_pct": pct_saved,
+        "audit_trail": all_audits[-100:],
+    }
 
 
 @app.post("/api/streams/add")
 def add_camera_stream(req: AddStreamRequest):
-    """Add and start an async multi-threaded RTSP camera stream channel."""
+    """Add and start an async multi-threaded RTSP camera stream channel or local video file."""
+    source_url = req.video_path or req.stream_url or ""
+    if not source_url:
+        raise HTTPException(status_code=400, detail="Must specify stream_url or video_path.")
+
+    # If local relative video path provided, check project root
+    local_path = Path(source_url)
+    if not local_path.is_absolute() and (_PROJECT_ROOT / source_url).exists():
+        source_url = str(_PROJECT_ROOT / source_url)
+
     stream = STREAM_MANAGER.add_camera(
         camera_id=req.camera_id,
-        stream_url=req.stream_url,
+        stream_url=source_url,
+        name=req.name,
         sample_interval=req.sample_interval or 5.0,
         hash_method=req.hash_method or "dhash",
         threshold=req.threshold or 10,
     )
     return {"status": "started", "camera_id": req.camera_id, "stream_info": stream.get_status()}
+
+
+@app.post("/api/upload_video")
+async def upload_video_file(file: UploadFile = File(...)):
+    """Upload a local video file from user's computer and save to data/uploads directory."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file selected.")
+
+    uploads_dir = _PROJECT_ROOT / "data" / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    dest_path = uploads_dir / file.filename
+    try:
+        with open(dest_path, "wb") as buffer:
+            while chunk := await file.read(1024 * 1024):  # 1MB chunks
+                buffer.write(chunk)
+    except Exception as exc:
+        logger.error("[Upload] Failed to save video file: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to save video: {exc}")
+
+    rel_path = f"data/uploads/{file.filename}"
+    clean_cam_id = "CAM_" + Path(file.filename).stem.upper().replace(" ", "_").replace("-", "_")
+
+    return {
+        "status": "uploaded",
+        "filename": file.filename,
+        "video_path": rel_path,
+        "absolute_path": str(dest_path),
+        "suggested_camera_id": clean_cam_id,
+        "message": f"File '{file.filename}' uploaded successfully.",
+    }
 
 
 @app.get("/api/streams/status")
@@ -811,6 +937,121 @@ def remove_camera_stream(req: RemoveStreamRequest):
     _clear_camera_queue(req.camera_id)
     success = STREAM_MANAGER.remove_camera(req.camera_id)
     return {"status": "removed", "camera_id": req.camera_id}
+
+
+@app.post("/api/streams/reindex")
+def reindex_camera_stream(req: StreamControlRequest):
+    """
+    Completely re-index a camera stream or local video from scratch:
+    1. Removes all previous extracted frame files for this camera.
+    2. Clears this camera's events JSON and purges camera records from master events JSON.
+    3. Purges all FAISS vector embeddings for this camera from memory and disk.
+    4. Re-starts keyframe extraction with EdgeFrameFilter and computes fresh MobileCLIP-S2 spatial crops.
+    5. Saves updated FAISS index to disk and reloads pipeline in memory.
+    """
+    cam_id = req.camera_id
+    logger.info("[Re-Index] Starting complete scratch re-indexing for camera '%s'...", cam_id)
+
+    # 1. Clear any pending queues
+    _clear_camera_queue(cam_id)
+
+    # 2. Delete extracted frames on disk for this camera
+    cam_frames_dir = _PROJECT_ROOT / "data" / "cameras" / cam_id / "extracted_frames"
+    if cam_frames_dir.exists():
+        for f in cam_frames_dir.glob("*.jpg"):
+            try:
+                f.unlink()
+            except Exception:
+                pass
+
+    # Also clean matching frames in data/extracted_frames
+    for f in (_PROJECT_ROOT / "data" / "extracted_frames").glob(f"{cam_id}_*.jpg"):
+        try:
+            f.unlink()
+        except Exception:
+            pass
+
+    # 3. Clear per-camera events.json
+    cam_json = _PROJECT_ROOT / "data" / "cameras" / cam_id / "events.json"
+    if cam_json.exists():
+        try:
+            cam_json.unlink()
+        except Exception:
+            pass
+
+    # 4. Purge this camera from master real_cctv_events.json
+    master_json = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+    if master_json.exists():
+        try:
+            with open(master_json, "r", encoding="utf-8") as fh:
+                all_ev = json.load(fh)
+            filtered_ev = [r for r in all_ev if r.get("camera") != cam_id]
+            with open(master_json, "w", encoding="utf-8") as fh:
+                json.dump(filtered_ev, fh, indent=2, ensure_ascii=False)
+        except Exception as exc:
+            logger.warning("[Re-Index] Error filtering master events: %s", exc)
+
+    # 5. Purge vectors from in-memory FAISS store and disk
+    store = PIPELINE.get("vector_store")
+    embedder = PIPELINE.get("embedder")
+    if store and hasattr(store, "_metadata") and store._metadata:
+        with store._lock:
+            remaining_meta = []
+            remaining_vectors = []
+            for i, meta in enumerate(store._metadata):
+                if meta.get("camera") != cam_id:
+                    remaining_meta.append(meta)
+                    try:
+                        vec = store._index.reconstruct(i)
+                        remaining_vectors.append(vec)
+                    except Exception:
+                        pass
+
+            dim = embedder.dimension if embedder else 512
+            new_store = FAISSVectorStore(dim=dim)
+            if remaining_vectors:
+                import numpy as np
+                vec_arr = np.ascontiguousarray(np.vstack(remaining_vectors), dtype=np.float32)
+                new_store.add(vec_arr, remaining_meta)
+
+            PIPELINE["vector_store"] = new_store
+            if PIPELINE.get("retriever"):
+                PIPELINE["retriever"]._store = new_store
+
+            idx_path = _PROJECT_ROOT / "index" / "cctv_index"
+            new_store.save(str(idx_path))
+            logger.info("[Re-Index] Cleaned old vectors for '%s'. Remaining vector store size: %d", cam_id, new_store.size)
+
+    # 6. Re-launch fresh stream capture / extraction if stream exists in manager
+    if cam_id in STREAM_MANAGER.streams:
+        old_stream = STREAM_MANAGER.streams[cam_id]
+        s_url = old_stream.stream_url
+        s_interval = old_stream.sample_interval
+        s_method = old_stream.hash_filter.method
+        s_thresh = old_stream.hash_filter.threshold
+
+        old_stream.stop()
+        new_stream = STREAM_MANAGER.add_camera(
+            camera_id=cam_id,
+            stream_url=s_url,
+            sample_interval=s_interval,
+            hash_method=s_method,
+            threshold=s_thresh,
+            start_immediately=True,
+        )
+        return {
+            "status": "reindexed",
+            "camera_id": cam_id,
+            "message": f"Camera '{cam_id}' completely reset and restarted fresh MobileCLIP-S2 ingestion.",
+            "current_vector_count": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
+        }
+
+    return {
+        "status": "cleared",
+        "camera_id": cam_id,
+        "message": f"Camera '{cam_id}' data purged from vector index.",
+        "current_vector_count": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
+    }
 
 
 @app.post("/api/streams/index_now")
@@ -1016,6 +1257,18 @@ def shutdown_server():
 data_dir = _PROJECT_ROOT / "data"
 data_dir.mkdir(exist_ok=True)
 app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
+
+extracted_frames_dir = data_dir / "extracted_frames"
+extracted_frames_dir.mkdir(exist_ok=True)
+app.mount("/extracted_frames", StaticFiles(directory=str(extracted_frames_dir)), name="extracted_frames")
+
+# Add a fallback route for raw frame image filenames requested at root (e.g. /CAM_01_00_00_04_120.jpg)
+@app.get("/{filename}.jpg", include_in_schema=False)
+def serve_root_jpg(filename: str):
+    target = extracted_frames_dir / f"{filename}.jpg"
+    if target.exists():
+        return FileResponse(str(target))
+    raise HTTPException(status_code=404, detail="Frame not found")
 
 # Mount UI static files
 ui_dir = _PROJECT_ROOT / "ui"
