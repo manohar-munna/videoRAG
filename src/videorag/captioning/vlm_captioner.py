@@ -279,14 +279,15 @@ class VLMCaptioner:
                 {
                     "type": "text",
                     "text": (
-                        f"You are a Senior CCTV Forensic Intelligence Specialist analyzing multi-moment surveillance evidence across the video footage from Camera '{cam_id}'.\n"
-                        f"Target Query: \"{query}\"\n"
-                        f"Candidate Surveillance Moments: {len(selected_frames)}\n\n"
-                        "Forensic Analysis Protocol:\n"
-                        "1. [MOMENT OBSERVATIONS]: For each moment below, concisely note the key visual subjects, vehicle types/colors, positioning, and status.\n"
-                        "2. [CROSS-TIMELINE DE-DUPLICATION]: Cross-examine sightings across moments to differentiate distinct vs. continuous/stationary entities.\n"
-                        "3. [EXECUTIVE VERDICT]: Explicitly answer \"{query}\" with the exact count of unique entities observed and confirm matching timestamps using '[CONFIRMED_AT: HH:MM:SS]'.\n"
-                        "Be concise, objective, and strictly fact-based on visible evidence."
+                        f"You are a Senior CCTV Forensic Intelligence Specialist analyzing surveillance footage from Camera '{cam_id}'.\n"
+                        f"Target Investigation Query: \"{query}\"\n"
+                        f"Number of Candidate Timeline Moments: {len(selected_frames)}\n\n"
+                        "Forensic Intelligence Protocol:\n"
+                        "1. [MOMENT OBSERVATIONS]: For each surveillance moment, describe the scene in granular detail: note specific individuals, their clothing colors (shirts, jackets, caps, helmets), vehicles (make, color, branding, license plates), objects (restraint tape, gear), their exact spatial position in frame, and actions.\n"
+                        "2. [CROSS-TIMELINE DE-DUPLICATION]: Thoroughly compare sightings across moments to confirm whether sightings represent the same continuous entity moving through time or distinct separate entities.\n"
+                        "3. [EXECUTIVE VERDICT]: State a complete, articulate tactical conclusion in professional security prose answering the query. State the exact tally of unique entities matching the query.\n"
+                        "4. [CONFIRMED TIMESTAMP]: Tag the key matching timestamps using '[CONFIRMED_AT: HH:MM:SS]'.\n"
+                        "Be rigorous, precise, and articulate."
                     ),
                 }
             ]
@@ -339,7 +340,7 @@ class VLMCaptioner:
                     res = self._client.chat.completions.create(
                         model=self.model,
                         messages=[{"role": "user", "content": content_blocks}],
-                        max_tokens=420,
+                        max_tokens=650,
                         temperature=0.2,
                     )
                     answer = res.choices[0].message.content or ""
@@ -369,14 +370,14 @@ class VLMCaptioner:
                     "type": "text",
                     "text": (
                         f"You are a Senior CCTV Forensic Intelligence Specialist reviewing chronological surveillance frames from Camera '{cam_id}'.\n"
-                        f"Target Query: \"{query}\"\n"
+                        f"Target Investigation Query: \"{query}\"\n"
                         f"Sequence Time Range: {time_range}\n\n"
-                        "Forensic Analysis Protocol:\n"
-                        "1. [FRAME OBSERVATIONS]: Examine each frame sequentially (Frame 1, Frame 2, Frame 3, etc.) and state factual observations for each timestamp, noting if the queried subject is visible or absent.\n"
-                        "2. [FORENSIC SYNTHESIS]: Provide a concise verdict determining if the query is satisfied across the sequence, citing all confirmed timestamps.\n"
-                        "3. [CONFIRMED TIMESTAMP]: Include '[CONFIRMED_AT: HH:MM:SS]' for the primary confirmed timestamp in your summary.\n"
-                        "4. [ENTITY TALLY]: If the query asks for counts or quantities, explicitly state the exact count of unique subjects.\n"
-                        "Be concise, objective, and strictly fact-based on visible evidence."
+                        "Forensic Intelligence Protocol:\n"
+                        "1. [FRAME OBSERVATIONS]: Examine each frame sequentially (Frame 1, Frame 2). Detail visible subjects: clothing colors (shirts, jackets, caps, hats), vehicles, equipment, exact spatial location in scene, and changes over time.\n"
+                        "2. [FORENSIC SYNTHESIS]: Provide a comprehensive, articulate security analysis determining if and how the query is satisfied, explaining visible evidence and context.\n"
+                        "3. [CONFIRMED TIMESTAMP]: Tag the key matching timestamps using '[CONFIRMED_AT: HH:MM:SS]'.\n"
+                        "4. [ENTITY TALLY]: State the exact count of unique entities matching the query.\n"
+                        "Be detailed, precise, and articulate."
                     ),
                 }
             ]

@@ -537,7 +537,7 @@ def search_cctv(req: SearchRequest):
                         top_episode.get("camera"), top_episode.get("time_range"))
             answer = captioner.reason_over_episode(req.query, top_episode)
 
-        # Check if VLM confirmed a specific frame timestamp (e.g. [CONFIRMED_AT: 00:11:52] or "satisfied at timestamp 00:11:52")
+        # Check if VLM confirmed a specific frame timestamp (e.g. [CONFIRMED_AT: 00:09:10] or "satisfied at timestamp 00:09:10")
         confirmed_ts = None
         import re
         m_conf = re.search(r"\[CONFIRMED_AT:\s*([0-9]{2}:[0-9]{2}:[0-9]{2})\]", answer, re.IGNORECASE)
@@ -548,20 +548,42 @@ def search_cctv(req: SearchRequest):
             if m_alt:
                 confirmed_ts = m_alt.group(1)
 
-        raw_frames = top_episode.get("frames", [])
-        if confirmed_ts and any(f.get("timestamp") == confirmed_ts for f in raw_frames):
-            for f in raw_frames:
-                f["is_anchor"] = (f.get("timestamp") == confirmed_ts)
-            top_episode["anchor_timestamp"] = confirmed_ts
+        # If a confirmed timestamp belongs to another retrieved candidate episode, promote that episode to top
+        if confirmed_ts:
+            matching_ep = None
+            for ep in episodes:
+                if any(f.get("timestamp") == confirmed_ts for f in ep.get("frames", [])):
+                    matching_ep = ep
+                    break
+            if matching_ep and matching_ep != top_episode:
+                top_episode = matching_ep
 
-        # Build chronological storyboard for the top episode
-        for f in raw_frames:
+        # Build chronological storyboard
+        if is_global_query:
+            # For video-wide queries: Collect anchor keyframes across distinct surveillance moments
+            storyboard_frames = []
+            seen_ts = set()
+            for ep in episodes[:5]:
+                for f in ep.get("frames", []):
+                    f_ts = f.get("timestamp")
+                    if f.get("is_anchor") or f_ts == confirmed_ts or (f_ts not in seen_ts and len(storyboard_frames) < 5):
+                        if f_ts not in seen_ts:
+                            seen_ts.add(f_ts)
+                            storyboard_frames.append(f)
+                            break
+            # Sort storyboard chronologically
+            storyboard_frames.sort(key=lambda x: _parse_ts_to_seconds(x.get("seconds") or x.get("timestamp", "00:00:00")))
+        else:
+            storyboard_frames = list(top_episode.get("frames", []))
+
+        for f in storyboard_frames:
+            f_ts = f.get("timestamp", "00:00:00")
+            is_anchor = (f_ts == confirmed_ts) if confirmed_ts else f.get("is_anchor", False)
             img_p = f.get("image_path", "")
             if img_p:
                 clean_img = img_p.replace("\\", "/")
                 if "data/" in clean_img:
                     img_p = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
-            f_ts = f.get("timestamp", "00:00:00")
             f_sec = _parse_ts_to_seconds(f.get("seconds") or f_ts)
             storyboard.append({
                 "camera": top_episode.get("camera", "CAM_01"),
@@ -569,7 +591,7 @@ def search_cctv(req: SearchRequest):
                 "timestamp": f_ts,
                 "seconds": f_sec,
                 "epoch_time": f.get("epoch_time"),
-                "is_anchor": f.get("is_anchor", False),
+                "is_anchor": is_anchor,
                 "score": round(float(f.get("score", 0.0)), 4),
             })
     else:
