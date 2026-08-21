@@ -239,15 +239,15 @@
                         <div class="stage-box" id="hw-stage-1">
                             <div class="stage-top">
                                 <span class="stage-num">PROCESSOR</span>
-                                <span class="stage-badge" id="hw-cpu-badge" style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">91% PEAK</span>
+                                <span class="stage-badge" id="hw-cpu-badge" style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">99% PEAK</span>
                             </div>
                             <h5 class="stage-title">CPU Load (i7-13700HX)</h5>
                             <div class="stage-tech">16 Cores / 24 Threads</div>
                             <div class="stage-stat-row">
-                                <span class="stat-lbl">Utilization:</span>
-                                <strong class="stat-val text-red" id="hw-cpu-val">91.0%</strong>
+                                <span class="stat-lbl">Peak Load:</span>
+                                <strong class="stat-val text-red" id="hw-cpu-val">99.0%</strong>
                             </div>
-                            <div class="stage-sub" id="hw-cpu-sub">Unpinned 24-Thread Contention</div>
+                            <div class="stage-sub" id="hw-cpu-sub" style="color: #cbd5e1; font-weight: 500;">Avg CPU: 63.3% (24-Thread Contention)</div>
                         </div>
 
                         <div class="stage-connector">
@@ -258,15 +258,15 @@
                         <div class="stage-box" id="hw-stage-2">
                             <div class="stage-top">
                                 <span class="stage-num">SYSTEM RAM</span>
-                                <span class="stage-badge" id="hw-ram-badge" style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">85% LOAD</span>
+                                <span class="stage-badge" id="hw-ram-badge" style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">99% LOAD</span>
                             </div>
-                            <h5 class="stage-title">RAM Usage (16 GB)</h5>
+                            <h5 class="stage-title">RAM Memory (16 GB)</h5>
                             <div class="stage-tech">15.72 GB Total Physical Memory</div>
                             <div class="stage-stat-row">
-                                <span class="stat-lbl">Allocated:</span>
-                                <strong class="stat-val text-red" id="hw-ram-val">13.3 / 15.7 GB</strong>
+                                <span class="stat-lbl">Peak Used:</span>
+                                <strong class="stat-val text-red" id="hw-ram-val">15.56 / 15.72 GB</strong>
                             </div>
-                            <div class="stage-sub" id="hw-ram-sub">2.4 GB Free Physical RAM</div>
+                            <div class="stage-sub" id="hw-ram-sub">Avg RAM: 15.37 GB (98% Saturated)</div>
                         </div>
 
                         <div class="stage-connector">
@@ -277,15 +277,15 @@
                         <div class="stage-box" id="hw-stage-3">
                             <div class="stage-top">
                                 <span class="stage-num">VRAM POOL</span>
-                                <span class="stage-badge" id="hw-vram-badge" style="background:rgba(245, 158, 11, 0.2); color:#fbbf24; border:1px solid rgba(245, 158, 11, 0.4);">12% UTILIZED</span>
+                                <span class="stage-badge" id="hw-vram-badge" style="background:rgba(245, 158, 11, 0.2); color:#fbbf24; border:1px solid rgba(245, 158, 11, 0.4);">13% UTILIZED</span>
                             </div>
                             <h5 class="stage-title">GPU VRAM (RTX 4050)</h5>
                             <div class="stage-tech">6,141 MB Dedicated GDDR6</div>
                             <div class="stage-stat-row">
                                 <span class="stat-lbl">Allocated:</span>
-                                <strong class="stat-val text-orange" id="hw-vram-val">760 / 6,141 MB</strong>
+                                <strong class="stat-val text-orange" id="hw-vram-val">794 / 6,141 MB</strong>
                             </div>
-                            <div class="stage-sub" id="hw-vram-sub">88% GPU VRAM Idle (5.4 GB Free)</div>
+                            <div class="stage-sub" id="hw-vram-sub">87% GPU VRAM Idle (5.3 GB Free)</div>
                         </div>
 
                         <div class="stage-connector">
@@ -296,15 +296,15 @@
                         <div class="stage-box" id="hw-stage-4">
                             <div class="stage-top">
                                 <span class="stage-num">INFERENCE TIME</span>
-                                <span class="stage-badge" id="hw-vlm-badge" style="background:rgba(168, 85, 247, 0.2); color:#c084fc; border:1px solid rgba(168, 85, 247, 0.4);">80.5s LATENCY</span>
+                                <span class="stage-badge" id="hw-vlm-badge" style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">120s+ BOTTLENECK</span>
                             </div>
                             <h5 class="stage-title">Qwen3-VL & Sensors</h5>
-                            <div class="stage-tech" id="hw-thermals-sub">RTX 4050 · 57°C · 28.8W</div>
+                            <div class="stage-tech" id="hw-thermals-sub">RTX 4050 · 62°C · 3.0W</div>
                             <div class="stage-stat-row">
                                 <span class="stat-lbl">Inference:</span>
-                                <strong class="stat-val text-purple" id="hw-vlm-time-val">80.5s</strong>
+                                <strong class="stat-val text-purple" id="hw-vlm-time-val">120s+</strong>
                             </div>
-                            <div class="stage-sub" id="hw-thermals-val">Sensor: 57°C · 28.8W</div>
+                            <div class="stage-sub" id="hw-thermals-val">Sensor: 62°C · 3.0W (GPU Idle)</div>
                         </div>
                     </div>
 
@@ -312,19 +312,19 @@
                     <div class="lazy-telemetry-bar">
                         <div class="telemetry-item">
                             <span class="telemetry-lbl">CPU Target:</span>
-                            <strong class="telemetry-val text-green">&lt; 5.0% Load (P-Core Pinning)</strong>
+                            <strong class="telemetry-val text-green">&lt; 5.0% Load (via Tensor Cores)</strong>
                         </div>
                         <div class="telemetry-item">
                             <span class="telemetry-lbl">VRAM Target:</span>
-                            <strong class="telemetry-val text-blue">~3,800 MB (100% GPU Offload)</strong>
+                            <strong class="telemetry-val text-blue">~3,800 MB (Full Model in GPU)</strong>
+                        </div>
+                        <div class="telemetry-item">
+                            <span class="telemetry-lbl">RAM Target:</span>
+                            <strong class="telemetry-val text-green">&lt; 8.0 GB (No CPU Vision Overflow)</strong>
                         </div>
                         <div class="telemetry-item">
                             <span class="telemetry-lbl">Speed Target:</span>
                             <strong class="telemetry-val text-purple">&lt; 10.0s (Flash Attention)</strong>
-                        </div>
-                        <div class="telemetry-item">
-                            <span class="telemetry-lbl">Live Polling:</span>
-                            <strong class="telemetry-val text-green" id="hw-poll-status">Active (Live Sensors)</strong>
                         </div>
                     </div>
                 </div>

@@ -967,27 +967,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 1. CPU
                 const cpuVal = document.getElementById('hw-cpu-val');
                 const cpuBadge = document.getElementById('hw-cpu-badge');
-                const cpuPeak = m.cpu_usage_peak_pct || 91.0;
+                const cpuSub = document.getElementById('hw-cpu-sub');
+                const cpuPeak = m.cpu_usage_peak_pct || 99.0;
+                const cpuAvg = m.cpu_usage_avg_pct || 63.3;
                 if (cpuVal) cpuVal.textContent = `${cpuPeak}%`;
                 if (cpuBadge) cpuBadge.textContent = `${Math.round(cpuPeak)}% PEAK`;
+                if (cpuSub) cpuSub.textContent = `Avg CPU: ${cpuAvg}% (24-Thread Contention)`;
 
                 // 2. System RAM (16 GB)
                 const ramVal = document.getElementById('hw-ram-val');
                 const ramBadge = document.getElementById('hw-ram-badge');
                 const ramSub = document.getElementById('hw-ram-sub');
-                const ramUsed = data.ram_used_gb || m.ram_used_peak_gb || 13.3;
+                const ramPeak = m.ram_used_peak_gb || 15.56;
+                const ramAvg = m.ram_used_avg_gb || 15.37;
                 const ramTot = data.ram_total_gb || m.ram_total_gb || 15.72;
-                const ramPct = data.ram_usage_pct || m.ram_usage_peak_pct || 85.0;
-                const ramFree = data.ram_free_gb || Math.max(0, (ramTot - ramUsed)).toFixed(1);
-                if (ramVal) ramVal.textContent = `${ramUsed} / ${ramTot} GB`;
+                const ramPct = m.ram_usage_peak_pct || 99.0;
+                if (ramVal) ramVal.textContent = `${ramPeak} / ${ramTot} GB`;
                 if (ramBadge) ramBadge.textContent = `${Math.round(ramPct)}% LOAD`;
-                if (ramSub) ramSub.textContent = `${ramFree} GB Free Physical Memory`;
+                if (ramSub) ramSub.textContent = `Avg RAM: ${ramAvg} GB (${Math.round(ramPct)}% Saturated)`;
 
                 // 3. GPU VRAM
                 const vramVal = document.getElementById('hw-vram-val');
                 const vramBadge = document.getElementById('hw-vram-badge');
                 const vramSub = document.getElementById('hw-vram-sub');
-                const usedMb = data.gpu_vram_used_mb || m.gpu_vram_peak_mb || 760;
+                const usedMb = data.gpu_vram_used_mb || m.gpu_vram_peak_mb || 794;
                 const totalMb = data.gpu_vram_total_mb || 6141;
                 const pctVram = ((usedMb / totalMb) * 100).toFixed(1);
                 if (vramVal) vramVal.textContent = `${usedMb} / ${totalMb} MB`;
@@ -999,13 +1002,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const vlmBadge = document.getElementById('hw-vlm-badge');
                 const thermalsVal = document.getElementById('hw-thermals-val');
                 const thermalsSub = document.getElementById('hw-thermals-sub');
-                const vlmSecs = t.vlm_reasoning_seconds || t.total_latency_seconds || 80.5;
-                const curTemp = data.gpu_temp_c || m.gpu_temp_peak_c || 57;
-                const curPow = data.gpu_power_w || m.gpu_power_avg_w || 28.8;
+                const vlmSecs = t.vlm_reasoning_seconds || t.total_latency_seconds || 120.0;
+                const curTemp = data.gpu_temp_c || m.gpu_temp_peak_c || 62;
+                const curPow = data.gpu_power_w || m.gpu_power_avg_w || 3.0;
                 
-                if (vlmTimeVal) vlmTimeVal.textContent = `${vlmSecs}s`;
-                if (vlmBadge) vlmBadge.textContent = `${vlmSecs}s LATENCY`;
-                if (thermalsVal) thermalsVal.textContent = `Sensor: ${curTemp}°C · ${curPow}W`;
+                if (vlmTimeVal) vlmTimeVal.textContent = vlmSecs >= 120 ? '120s+' : `${vlmSecs}s`;
+                if (vlmBadge) vlmBadge.textContent = vlmSecs >= 120 ? '120s+ BOTTLENECK' : `${vlmSecs}s LATENCY`;
+                if (thermalsVal) thermalsVal.textContent = `Sensor: ${curTemp}°C · ${curPow}W (GPU Idle)`;
                 if (thermalsSub) thermalsSub.textContent = `${data.gpu_name ? data.gpu_name.replace('NVIDIA ', '') : 'RTX 4050'} · ${curTemp}°C · ${curPow}W`;
             }
 
