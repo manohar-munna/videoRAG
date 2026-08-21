@@ -25,8 +25,25 @@ _CCTV_CAPTION_PROMPT = (
 )
 
 
-def _encode_image_base64(image_path: str, max_dim: int = 384) -> str:
-    """Encode image file to base64 string with optimized resolution (max_dim=384) for fast VLM processing."""
+def _encode_image_base64(image_path: str, max_dim: int = 768) -> str:
+    """Encode image file to base64 string with Lanczos detail-preserving resolution (max_dim=768) for sharp small-object detection."""
+    try:
+        from PIL import Image
+        import io
+        with Image.open(str(image_path)) as img:
+            img = img.convert("RGB")
+            w, h = img.size
+            if max(w, h) > max_dim:
+                scale = max_dim / max(w, h)
+                new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
+                img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85, optimize=True)
+            return base64.b64encode(buf.getvalue()).decode("utf-8")
+    except Exception:
+        pass
+
     try:
         import cv2
         img = cv2.imread(str(image_path))
@@ -35,7 +52,7 @@ def _encode_image_base64(image_path: str, max_dim: int = 384) -> str:
             if max(h, w) > max_dim:
                 scale = max_dim / max(h, w)
                 img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-            _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
             return base64.b64encode(buf).decode("utf-8")
     except Exception:
         pass
@@ -258,15 +275,14 @@ class VLMCaptioner:
                 {
                     "type": "text",
                     "text": (
-                        f"You are an expert CCTV Forensic Intelligence Analyst synthesizing surveillance observations across the entire video footage from Camera '{cam_id}'.\n"
+                        f"You are a Senior CCTV Forensic Intelligence Specialist analyzing multi-moment surveillance evidence across the video footage from Camera '{cam_id}'.\n"
                         f"Target Query: \"{query}\"\n"
-                        f"Distinct candidate surveillance moments inspected: {len(selected_frames)}\n\n"
-                        "Instructions:\n"
-                        "1. For each chronological moment shown below, state your factual visual observations and note any matching subjects, vehicles, or activities.\n"
-                        "2. In your final summary, provide a comprehensive video-wide intelligence report answering the user's query ('{query}') across the entire footage.\n"
-                        "3. If the query asks for a count, total, or list (e.g. 'total number of vehicles', 'how many people'), explicitly list and tally all unique items identified across all observed moments.\n"
-                        "4. Include '[CONFIRMED_AT: HH:MM:SS]' for the primary confirmed timestamp in your summary.\n"
-                        "Important Rule: Factual observations only based on visible evidence."
+                        f"Candidate Surveillance Moments: {len(selected_frames)}\n\n"
+                        "Forensic Analysis Protocol:\n"
+                        "1. [MOMENT OBSERVATIONS]: For each moment below, concisely note the key visual subjects, vehicle types/colors, positioning, and status.\n"
+                        "2. [CROSS-TIMELINE DE-DUPLICATION]: Cross-examine sightings across moments to differentiate distinct vs. continuous/stationary entities.\n"
+                        "3. [EXECUTIVE VERDICT]: Explicitly answer \"{query}\" with the exact count of unique entities observed and confirm matching timestamps using '[CONFIRMED_AT: HH:MM:SS]'.\n"
+                        "Be concise, objective, and strictly fact-based on visible evidence."
                     ),
                 }
             ]
@@ -319,7 +335,7 @@ class VLMCaptioner:
                     res = self._client.chat.completions.create(
                         model=self.model,
                         messages=[{"role": "user", "content": content_blocks}],
-                        max_tokens=1024,
+                        max_tokens=420,
                         temperature=0.2,
                     )
                     answer = res.choices[0].message.content or ""
@@ -348,16 +364,15 @@ class VLMCaptioner:
                 {
                     "type": "text",
                     "text": (
-                        f"You are an expert CCTV Forensic Intelligence Analyst reviewing chronological surveillance frames from Camera '{cam_id}'.\n"
+                        f"You are a Senior CCTV Forensic Intelligence Specialist reviewing chronological surveillance frames from Camera '{cam_id}'.\n"
                         f"Target Query: \"{query}\"\n"
                         f"Sequence Time Range: {time_range}\n\n"
-                        "Instructions:\n"
-                        "1. First, examine each frame sequentially (Frame 1, Frame 2, Frame 3, etc.) and state your factual observations for each timestamp.\n"
-                        "2. In each frame's description, specifically indicate whether the queried subject or activity is visible or absent.\n"
-                        "3. Conclude with a clear summary determining whether the query is satisfied across the sequence, citing all matching timestamps.\n"
-                        "4. If the subject is confirmed in any frame, include '[CONFIRMED_AT: HH:MM:SS]' for the best matching frame timestamp in your summary.\n"
-                        "5. If the query asks for a count or quantity (e.g. 'number of vehicles', 'how many people'), explicitly tally and state the exact count of unique subjects observed in the confirmed frames in your summary.\n"
-                        "Important Rule: Do NOT make a blanket negative statement at the opening. Examine all frames first before concluding."
+                        "Forensic Analysis Protocol:\n"
+                        "1. [FRAME OBSERVATIONS]: Examine each frame sequentially (Frame 1, Frame 2, Frame 3, etc.) and state factual observations for each timestamp, noting if the queried subject is visible or absent.\n"
+                        "2. [FORENSIC SYNTHESIS]: Provide a concise verdict determining if the query is satisfied across the sequence, citing all confirmed timestamps.\n"
+                        "3. [CONFIRMED TIMESTAMP]: Include '[CONFIRMED_AT: HH:MM:SS]' for the primary confirmed timestamp in your summary.\n"
+                        "4. [ENTITY TALLY]: If the query asks for counts or quantities, explicitly state the exact count of unique subjects.\n"
+                        "Be concise, objective, and strictly fact-based on visible evidence."
                     ),
                 }
             ]
@@ -413,7 +428,7 @@ class VLMCaptioner:
                     res = self._client.chat.completions.create(
                         model=self.model,
                         messages=[{"role": "user", "content": content_blocks}],
-                        max_tokens=1024,
+                        max_tokens=420,
                         temperature=0.2,
                     )
                     answer = res.choices[0].message.content or ""

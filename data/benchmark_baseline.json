@@ -1,6 +1,6 @@
 {
   "query": "total number of vehicles visible in the video footage",
-  "timestamp": "2026-08-21 09:44:59",
+  "timestamp": "2026-08-21 10:54:32",
   "hardware": {
     "cpu_model": "Intel Core i7-13700HX (16 Cores, 24 Threads)",
     "ram_installed_gb": 16.0,
@@ -8,22 +8,22 @@
     "gpu_model": "NVIDIA GeForce RTX 4050 Laptop GPU (6GB VRAM)"
   },
   "timings": {
-    "total_latency_seconds": 0.0,
-    "vlm_reasoning_seconds": 0.0,
-    "faiss_retrieval_ms": 0,
-    "query_embedding_ms": 0
+    "total_latency_seconds": 82.09,
+    "vlm_reasoning_seconds": 81.65,
+    "faiss_retrieval_ms": 228.57,
+    "query_embedding_ms": 165.78
   },
   "metrics_before_optimization": {
-    "cpu_usage_avg_pct": 63.3,
-    "cpu_usage_peak_pct": 99.0,
-    "ram_used_avg_gb": 15.37,
-    "ram_used_peak_gb": 15.56,
+    "cpu_usage_avg_pct": 81.4,
+    "cpu_usage_peak_pct": 100.0,
+    "ram_used_avg_gb": 14.37,
+    "ram_used_peak_gb": 15.07,
     "ram_total_gb": 15.72,
-    "ram_usage_peak_pct": 99.0,
-    "gpu_utilization_avg_pct": 9.2,
-    "gpu_utilization_peak_pct": 42,
-    "gpu_temp_peak_c": 62,
-    "gpu_vram_peak_mb": 794,
-    "gpu_power_avg_w": 3.0
+    "ram_usage_peak_pct": 95.8,
+    "gpu_utilization_avg_pct": 0.0,
+    "gpu_utilization_peak_pct": 0,
+    "gpu_temp_peak_c": 61,
+    "gpu_vram_peak_mb": 707,
+    "gpu_power_avg_w": 2.0
   }
 }
