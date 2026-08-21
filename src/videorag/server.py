@@ -365,14 +365,14 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
 
     captioner = VLMCaptioner(
         backend=cfg_llm.get("backend", "local"),
-        model=cfg_llm.get("model", "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
+        model=cfg_llm.get("model", "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
         api_key=cfg_llm.get("api_key"),
         base_url=cfg_llm.get("base_url"),
     )
 
     llm_client = LLMClient(
         backend=cfg_llm.get("backend", "local"),
-        model=cfg_llm.get("model", "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
+        model=cfg_llm.get("model", "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
         api_key=cfg_llm.get("api_key"),
         base_url=cfg_llm.get("base_url"),
     )
@@ -515,7 +515,7 @@ def search_cctv(req: SearchRequest):
             cfg_llm = PIPELINE.get("config", {}).get("llm", {})
             captioner = VLMCaptioner(
                 backend=cfg_llm.get("backend", "local"),
-                model=cfg_llm.get("model", "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
+                model=cfg_llm.get("model", "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
                 api_key=cfg_llm.get("api_key"),
                 base_url=cfg_llm.get("base_url"),
             )
@@ -753,7 +753,7 @@ def process_video_smart(req: SmartProcessRequest):
     Run smart video processing with dHash/pHash frame filtering,
     optional VLM keyframe captioning, FAISS index rebuilding, and in-memory pipeline reloading.
     """
-    video_p = req.video_path or str(_PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4")
+    video_p = req.video_path or str(_PROJECT_ROOT / "data" / "videos" / "sample_cctv.mp4")
     video_file = Path(video_p)
     if not video_file.is_absolute():
         video_file = _PROJECT_ROOT / video_file
@@ -1305,7 +1305,7 @@ def get_camera_feeds():
 @app.get("/video/sample_cctv.mp4")
 def get_sample_video():
     """Stream the sample CCTV video file."""
-    video_path = _PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4"
+    video_path = _PROJECT_ROOT / "data" / "videos" / "sample_cctv.mp4"
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="Video file not found")
     return FileResponse(str(video_path), media_type="video/mp4")

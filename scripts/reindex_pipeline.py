@@ -32,7 +32,7 @@ console = Console()
 
 
 def run_full_pipeline(
-    video_path: str = "Video Footage/sample_cctv.mp4",
+    video_path: str = "data/videos/sample_cctv.mp4",
     sample_interval: float = 4.0,
     dhash_threshold: int = 10,
     workers: int = 3,
@@ -213,7 +213,7 @@ def run_full_pipeline(
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Full clean re-indexing pipeline")
-    parser.add_argument("--video", default="Video Footage/sample_cctv.mp4", help="Path to input video")
+    parser.add_argument("--video", default="data/videos/sample_cctv.mp4", help="Path to input video")
     parser.add_argument("--interval", type=float, default=4.0, help="Sampling interval in seconds")
     parser.add_argument("--dhash", type=int, default=10, help="dHash Hamming distance threshold")
     parser.add_argument("--workers", type=int, default=3, help="Concurrent VLM extraction workers")

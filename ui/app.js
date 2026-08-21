@@ -560,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rtspSampleCctvBtn) {
         rtspSampleCctvBtn.addEventListener('click', () => {
             if (rtspCamId && !rtspCamId.value) rtspCamId.value = 'CAM_01';
-            if (rtspLocalFile) rtspLocalFile.value = 'Video Footage/sample_cctv.mp4';
+            if (rtspLocalFile) rtspLocalFile.value = 'data/videos/sample_cctv.mp4';
         });
     }
 

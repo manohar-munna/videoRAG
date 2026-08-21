@@ -41,7 +41,7 @@ class CameraRegistry:
             "CAM_01": {
                 "camera_id": "CAM_01",
                 "name": "Main Entrance (Video Footage)",
-                "stream_url": "Video Footage/sample_cctv.mp4",
+                "stream_url": "data/videos/sample_cctv.mp4",
                 "type": "video_file",
                 "sample_interval": 15.0,
                 "hash_method": "dhash",

@@ -50,7 +50,7 @@ class VLMCaptioner:
     def __init__(
         self,
         backend: str = "local",
-        model: str = "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+        model: str = "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> None:

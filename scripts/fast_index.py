@@ -29,7 +29,7 @@ console = Console()
 
 
 def run_fast_indexing(
-    video_path: str = "Video Footage/sample_cctv.mp4",
+    video_path: str = "data/videos/sample_cctv.mp4",
     sample_interval: float = 4.0,
     dhash_threshold: int = 10,
 ):
@@ -111,7 +111,7 @@ def run_fast_indexing(
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Fast Lazy VLM Indexer")
-    parser.add_argument("--video", default="Video Footage/sample_cctv.mp4")
+    parser.add_argument("--video", default="data/videos/sample_cctv.mp4")
     parser.add_argument("--interval", type=float, default=4.0)
     parser.add_argument("--dhash", type=int, default=10)
     args = parser.parse_args()

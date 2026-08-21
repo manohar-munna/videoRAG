@@ -12,7 +12,7 @@ Steps
 
 Usage
 -----
-    python scripts/process_video.py --video "Video Footage/sample_cctv.mp4" --camera-id CAM_01 --interval 15 --enable-hash-filter --hash-method dhash --threshold 10
+    python scripts/process_video.py --video "data/videos/sample_cctv.mp4" --camera-id CAM_01 --interval 15 --enable-hash-filter --hash-method dhash --threshold 10
 """
 
 import argparse
@@ -158,8 +158,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--video",
-        default=str(_PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4"),
-        help="Path to video file (default: Video Footage/sample_cctv.mp4)",
+        default=str(_PROJECT_ROOT / "data" / "videos" / "sample_cctv.mp4"),
+        help="Path to video file (default: data/videos/sample_cctv.mp4)",
     )
     parser.add_argument(
         "--camera-id",

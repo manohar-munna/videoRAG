@@ -158,14 +158,18 @@ Ensure the following files are present in their designated folders:
 
 ```
 videoRAG/
-├── models/mobileclip_s2/
-│   ├── open_clip_model.safetensors        # Apple MobileCLIP-S2 weights
-│   └── open_clip_config.json              # Model configuration
-├── Local LLM 3VL 4Q/
-│   ├── Qwen3VL-4B-Instruct-Q4_K_M.gguf    # Quantized Qwen3-VL 4B Instruct
-│   └── mmproj-Qwen3VL-4B-Instruct-F16.gguf # Multimodal vision projector
+├── models/
+│   ├── mobileclip_s2/
+│   │   ├── open_clip_model.safetensors        # Apple MobileCLIP-S2 weights
+│   │   └── open_clip_config.json              # Model configuration
+│   └── qwen3_vl/
+│       ├── Qwen3VL-4B-Instruct-Q4_K_M.gguf    # Quantized Qwen3-VL 4B Instruct
+│       └── mmproj-Qwen3VL-4B-Instruct-F16.gguf # Multimodal vision projector
+├── data/
+│   └── videos/
+│       └── sample_cctv.mp4                    # Sample 24/7 CCTV surveillance footage
 └── tools/llama/
-    └── llama-server.exe                   # llama.cpp server binary
+    └── llama-server.exe                       # llama.cpp server binary
 ```
 
 ### 4. Launch the Server
@@ -293,11 +297,11 @@ retrieval:
 # Vision-Language Model (Forensic Engine)
 llm:
   backend: "local"              # Options: "local" (llama-server), "openai", "gemini"
-  model: "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
-  mmproj: "Local LLM 3VL 4Q/mmproj-Qwen3VL-4B-Instruct-F16.gguf"
+  model: "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+  mmproj: "models/qwen3_vl/mmproj-Qwen3VL-4B-Instruct-F16.gguf"
   base_url: "http://127.0.0.1:8080/v1"
   temperature: 0.1
-  max_tokens: 350
+  max_tokens: 1024
 ```
 
 ---
@@ -307,7 +311,7 @@ llm:
 ### 1. Re-Index Custom Video Footage
 To extract keyframes, filter duplicates with dHash, compute MobileCLIP 512-D vectors, and build a new FAISS index from the terminal:
 ```powershell
-python scripts/index.py --data "Video Footage/sample_cctv.mp4" --camera CAM_01
+python scripts/index.py --data "data/videos/sample_cctv.mp4" --camera CAM_01
 ```
 
 ### 2. Interactive CLI Forensic Query Loop

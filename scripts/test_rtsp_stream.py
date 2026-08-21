@@ -29,7 +29,7 @@ def test_single_stream_capture():
     print("TEST 1: Multi-Threaded Stream Capture & Ring Buffer Latency")
     print("="*70)
 
-    sample_video = _PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4"
+    sample_video = _PROJECT_ROOT / "data" / "videos" / "sample_cctv.mp4"
     if not sample_video.exists():
         print(f"Error: Sample video file not found at {sample_video}")
         return False
@@ -75,7 +75,7 @@ def test_multicamera_manager():
     print("TEST 2: Multi-Camera Stream Manager (Concurrent Surveillance Feeds)")
     print("="*70)
 
-    sample_video = _PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4"
+    sample_video = _PROJECT_ROOT / "data" / "videos" / "sample_cctv.mp4"
     manager = MultiCameraStreamManager(output_dir=str(_PROJECT_ROOT / "data" / "test_frames"))
 
     print("🚀 Adding 3 concurrent camera feeds (CAM_NORTH, CAM_PARKING, CAM_SOUTH)...")
