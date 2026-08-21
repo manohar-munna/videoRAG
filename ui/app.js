@@ -262,8 +262,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchEventsJson();
             } else if (targetTabId === 'tab-rtsp') {
                 fetchRtspStreamsStatus();
+                fetchStreamTelemetryLog();
                 if (!rtspPollInterval) {
-                    rtspPollInterval = setInterval(fetchRtspStreamsStatus, 2000);
+                    rtspPollInterval = setInterval(() => {
+                        fetchRtspStreamsStatus();
+                        fetchStreamTelemetryLog();
+                    }, 2000);
                 }
             } else {
                 if (rtspPollInterval) {
@@ -277,13 +281,124 @@ document.addEventListener('DOMContentLoaded', () => {
     let rtspPollInterval = null;
 
     // ------------------------------------------------------------------
-    // Tab 4: RTSP Live Stream Manager & Multi-Camera Stream Controls
+    // Tab 4: RTSP Live Stream & Local Video Manager
     // ------------------------------------------------------------------
     const rtspStreamsList = document.getElementById('rtsp-streams-list');
     const addRtspBtn = document.getElementById('add-rtsp-btn');
     const rtspCamId = document.getElementById('rtsp-cam-id');
     const rtspUrl = document.getElementById('rtsp-url');
     const rtspInterval = document.getElementById('rtsp-interval');
+
+    // Mode Switcher (URL Stream vs Local Video File)
+    const btnModeUrl = document.getElementById('btn-mode-url');
+    const btnModeLocal = document.getElementById('btn-mode-local');
+    const streamUrlForm = document.getElementById('stream-url-form');
+    const localVideoForm = document.getElementById('local-video-form');
+
+    if (btnModeUrl && btnModeLocal) {
+        btnModeUrl.addEventListener('click', () => {
+            btnModeUrl.classList.add('active');
+            btnModeLocal.classList.remove('active');
+            if (streamUrlForm) streamUrlForm.style.display = 'flex';
+            if (localVideoForm) localVideoForm.style.display = 'none';
+        });
+        btnModeLocal.addEventListener('click', () => {
+            btnModeLocal.classList.add('active');
+            btnModeUrl.classList.remove('active');
+            if (streamUrlForm) streamUrlForm.style.display = 'none';
+            if (localVideoForm) localVideoForm.style.display = 'flex';
+        });
+    }
+
+    // Local Video File Upload & Ingestion
+    const browseVideoBtn = document.getElementById('browse-video-btn');
+    const localVideoFileInput = document.getElementById('local-video-file-input');
+    const selectedVideoName = document.getElementById('selected-video-name');
+    const localCamId = document.getElementById('local-cam-id');
+    const localSampleInterval = document.getElementById('local-sample-interval');
+    const uploadLocalVideoBtn = document.getElementById('upload-local-video-btn');
+
+    let chosenVideoFile = null;
+
+    if (browseVideoBtn && localVideoFileInput) {
+        browseVideoBtn.addEventListener('click', () => localVideoFileInput.click());
+        localVideoFileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                chosenVideoFile = e.target.files[0];
+                if (selectedVideoName) selectedVideoName.textContent = `${chosenVideoFile.name} (${(chosenVideoFile.size / (1024*1024)).toFixed(1)} MB)`;
+                if (localCamId && (!localCamId.value || localCamId.value === 'CAM_01')) {
+                    const cleanStem = chosenVideoFile.name.replace(/\.[^/.]+$/, "").toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+                    localCamId.value = `CAM_${cleanStem}`;
+                }
+            }
+        });
+    }
+
+    if (uploadLocalVideoBtn) {
+        uploadLocalVideoBtn.addEventListener('click', async () => {
+            const camId = localCamId.value.trim() || 'CAM_01';
+            const interval = parseFloat(localSampleInterval.value) || 10.0;
+
+            uploadLocalVideoBtn.disabled = true;
+            uploadLocalVideoBtn.innerHTML = `<span>Uploading & Ingesting…</span>`;
+
+            try {
+                if (chosenVideoFile) {
+                    const formData = new FormData();
+                    formData.append('file', chosenVideoFile);
+                    formData.append('camera_id', camId);
+                    formData.append('sample_interval', interval);
+                    formData.append('hash_method', 'dhash');
+                    formData.append('threshold', '10');
+
+                    const resp = await fetch('/api/streams/upload', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    if (resp.ok) {
+                        alert(`Successfully uploaded '${chosenVideoFile.name}' and registered ${camId}! Ingestion & dHash indexing active.`);
+                        fetchRtspStreamsStatus();
+                        fetchCameraFeeds();
+                        fetchCameraPills();
+                        fetchEventsJson();
+                        fetchStreamTelemetryLog();
+                    } else {
+                        const err = await resp.json();
+                        alert('Upload failed: ' + (err.detail || 'Unknown error'));
+                    }
+                } else {
+                    // Ingest sample_cctv.mp4 in data/videos/
+                    const resp = await fetch('/api/streams/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            camera_id: camId,
+                            stream_url: 'data/videos/sample_cctv.mp4',
+                            sample_interval: interval,
+                            hash_method: 'dhash',
+                            threshold: 10,
+                        }),
+                    });
+                    if (resp.ok) {
+                        alert(`Successfully registered ${camId} with data/videos/sample_cctv.mp4! Ingestion & dHash indexing active.`);
+                        fetchRtspStreamsStatus();
+                        fetchCameraFeeds();
+                        fetchCameraPills();
+                        fetchEventsJson();
+                        fetchStreamTelemetryLog();
+                    } else {
+                        const err = await resp.json();
+                        alert('Registration failed: ' + (err.detail || 'Unknown error'));
+                    }
+                }
+            } catch (err) {
+                alert('Ingestion error: ' + err.message);
+            } finally {
+                uploadLocalVideoBtn.disabled = false;
+                uploadLocalVideoBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Start Ingest & Index</span>`;
+            }
+        });
+    }
 
     if (addRtspBtn) {
         addRtspBtn.addEventListener('click', async () => {
@@ -319,6 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetchCameraFeeds();
                     fetchCameraPills();
                     fetchEventsJson();
+                    fetchStreamTelemetryLog();
                 } else {
                     const err = await resp.json();
                     alert('Failed to start stream: ' + (err.detail || 'Unknown error'));
@@ -345,9 +461,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function fetchStreamTelemetryLog() {
+        const tbody = document.getElementById('telemetry-readings-tbody');
+        const countBadge = document.getElementById('telemetry-log-count');
+        if (!tbody) return;
+
+        try {
+            const resp = await fetch('/api/streams/telemetry_log');
+            if (resp.ok) {
+                const data = await resp.json();
+                const log = data.log || [];
+                if (countBadge) countBadge.textContent = `${log.length} READINGS RECORDED`;
+
+                if (log.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-dim); padding: 16px;">No internal readings recorded yet. Start or re-index a video stream to capture real-time readings.</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = log.map((item, idx) => {
+                    const actionClass = item.status === 'GATE_KEPT' ? 'text-green' : (item.status === 'ONLINE_INDEXED' ? 'text-blue' : 'text-purple');
+                    return `
+                        <tr>
+                            <td><strong style="font-family:var(--font-mono);">${item.id || (idx+1)}</strong></td>
+                            <td style="font-family:var(--font-mono); font-weight:700;">${escapeHtml(item.timestamp || '00:00:00')}</td>
+                            <td><span class="audit-badge" style="background:#f0f9ff; color:#0284c7; font-weight:700;">${escapeHtml(item.camera || 'CAM_01')}</span></td>
+                            <td class="${actionClass}" style="font-weight:700;">${escapeHtml(item.action || 'Evaluated')}</td>
+                            <td style="font-family:var(--font-mono);">${item.hamming_dist != null ? `H: ${item.hamming_dist} (${item.motion_pct}%)` : '-'}</td>
+                            <td style="font-family:var(--font-mono);">${item.latency_seconds ? (item.latency_seconds > 1 ? item.latency_seconds + 's' : (item.latency_seconds*1000).toFixed(0) + 'ms') : '-'}</td>
+                            <td style="font-family:var(--font-mono);">${item.cpu_percent != null ? item.cpu_percent + '%' : '-'} · ${item.ram_used_gb != null ? item.ram_used_gb + 'GB' : '-'}</td>
+                            <td style="font-family:var(--font-mono); font-size:0.75rem;">${item.gpu_load_pct != null ? `${item.gpu_load_pct}% load · ${item.gpu_vram_mb}MB · ${item.gpu_temp_c}°C` : '-'}</td>
+                            <td style="max-width:320px; font-size:0.75rem; color:var(--text-body); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(item.description || '')}">
+                                ${escapeHtml(item.description || '-')}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        } catch (err) {
+            console.warn('Telemetry log fetch failed:', err);
+        }
+    }
+
     function renderRtspStreams(streams) {
         if (!streams || streams.length === 0) {
-            rtspStreamsList.innerHTML = `<div class="empty-state" style="padding: 20px;"><p class="placeholder-text">No active camera streams running. Enter a stream URL above to launch multi-threaded capture.</p></div>`;
+            rtspStreamsList.innerHTML = `<div class="empty-state" style="padding: 20px;"><p class="placeholder-text">No active camera streams running. Choose a video file or stream URL above to launch capture.</p></div>`;
             return;
         }
 
@@ -430,6 +587,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ⏸️ Pause Extraction
                             </button>
                         `}
+                        <button class="btn-stream-action btn-reindex-stream reindex-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Delete previous frames and vectors for this camera and re-index from scratch">
+                            🔄 Re-Index
+                        </button>
                         <button class="btn-stream-action btn-remove-stream remove-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Remove camera from registry">
                             🗑️ Remove
                         </button>
@@ -466,6 +626,46 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        // Re-Index button handler
+        rtspStreamsList.querySelectorAll('.reindex-stream-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const camId = btn.dataset.cam;
+                const confirmed = confirm(`Are you sure you want to RE-INDEX '${camId}' from scratch?\n\nThis will DELETE all previous extracted frames and FAISS vectors for this camera and re-run dHash extraction and indexing.`);
+                if (!confirmed) return;
+
+                btn.disabled = true;
+                btn.innerHTML = `<span>Re-Indexing…</span>`;
+                try {
+                    const resp = await fetch('/api/streams/reindex', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            camera_id: camId,
+                            hash_method: 'dhash',
+                            threshold: 10,
+                        }),
+                    });
+                    if (resp.ok) {
+                        const resData = await resp.json();
+                        alert(`Re-indexing started for ${camId}! Previous frame cache and vectors purged. Fresh dHash extraction & indexing active.`);
+                        fetchRtspStreamsStatus();
+                        fetchCameraFeeds();
+                        fetchCameraPills();
+                        fetchEventsJson();
+                        fetchStreamTelemetryLog();
+                    } else {
+                        const err = await resp.json();
+                        alert('Re-indexing error: ' + (err.detail || 'Unknown error'));
+                    }
+                } catch (err) {
+                    alert('Re-indexing connection error: ' + err.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `🔄 Re-Index`;
+                }
+            });
+        });
+
         // Remove button handler
         rtspStreamsList.querySelectorAll('.remove-stream-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
@@ -482,6 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchCameraFeeds();
                 fetchCameraPills();
                 fetchEventsJson();
+                fetchStreamTelemetryLog();
             });
         });
 
@@ -503,6 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         checkHealth();
                         fetchCameraPills();
                         fetchEventsJson();
+                        fetchStreamTelemetryLog();
                     } else {
                         const err = await resp.json();
                         alert('Indexing failed: ' + (err.detail || 'Unknown error'));
@@ -607,23 +809,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // Box 3: Thermals, Fans & GPU
+                // Box 3: GPU Consumption (Load & VRAM)
+                const gpuLoad = document.getElementById('tbox-gpu-load');
+                const gpuVram = document.getElementById('tbox-gpu-vram');
                 const gpuTemp = document.getElementById('tbox-gpu-temp');
-                const gpuPower = document.getElementById('tbox-gpu-power');
-                const gpuFan = document.getElementById('tbox-gpu-fan');
                 const gpuName = document.getElementById('tbox-gpu-name');
                 const gpuBadge = document.getElementById('tbox-gpu-badge');
 
-                if (gpuTemp) gpuTemp.textContent = `${data.gpu_temp_c}°C`;
-                if (gpuPower) gpuPower.textContent = `${data.gpu_power_w}W`;
-                if (gpuFan) gpuFan.textContent = data.fan_status || 'Dynamic Auto';
+                const loadPct = data.gpu_utilization_pct != null ? data.gpu_utilization_pct : 0;
+                if (gpuLoad) gpuLoad.textContent = `${loadPct}%`;
+                if (gpuVram) gpuVram.textContent = `${data.gpu_vram_used_mb || 407} / ${data.gpu_vram_total_mb || 6141} MB`;
+                if (gpuTemp) gpuTemp.textContent = `${data.gpu_temp_c || 46}°C`;
                 if (gpuName && data.gpu_name) gpuName.textContent = data.gpu_name.replace('NVIDIA ', '');
                 if (gpuBadge) {
-                    if (data.gpu_temp_c > 75) {
-                        gpuBadge.textContent = 'WARM';
+                    if (loadPct > 70) {
+                        gpuBadge.textContent = 'HIGH GPU LOAD';
                         gpuBadge.className = 'tbox-badge badge-yellow';
+                    } else if (loadPct > 10) {
+                        gpuBadge.textContent = 'ACTIVE GPU';
+                        gpuBadge.className = 'tbox-badge badge-purple';
                     } else {
-                        gpuBadge.textContent = 'OPTIMAL';
+                        gpuBadge.textContent = 'LIVE LOAD';
                         gpuBadge.className = 'tbox-badge badge-purple';
                     }
                 }

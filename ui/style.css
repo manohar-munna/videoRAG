@@ -2083,3 +2083,53 @@ body {
         margin: -4px 0;
     }
 }
+
+/* Source Switcher Tab Bar in RTSP Manager */
+.stream-source-switch-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 8px;
+}
+.source-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-light);
+    color: var(--text-body);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.source-tab-btn:hover {
+    border-color: var(--blue-primary);
+    color: var(--blue-primary);
+}
+.source-tab-btn.active {
+    background: var(--blue-bg-subtle);
+    border-color: var(--blue-primary);
+    color: var(--blue-primary);
+}
+.btn-reindex-stream {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-reindex-stream:hover {
+    background: #fde68a;
+    color: #78350f;
+}

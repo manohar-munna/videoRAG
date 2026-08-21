@@ -1,22 +1,12 @@
 {
-  "CAM_3000": {
-    "camera_id": "CAM_3000",
-    "name": "YouTube Live Surveillance Feed",
-    "stream_url": "https://www.youtube.com/watch?v=1EiC9bvVGnk",
-    "type": "youtube_stream",
-    "sample_interval": 5.0,
+  "CAM_01": {
+    "camera_id": "CAM_01",
+    "name": "Main Perimeter Camera (sample_cctv.mp4)",
+    "stream_url": "data/videos/sample_cctv.mp4",
+    "type": "video_file",
+    "sample_interval": 10.0,
     "hash_method": "dhash",
     "threshold": 10,
-    "status": "paused"
-  },
-  "CAM_4000": {
-    "camera_id": "CAM_4000",
-    "name": "Camera CAM_4000",
-    "stream_url": "https://www.youtube.com/live/EO_1LWqsCNE?si=zGu_teV2HCn5EeWi",
-    "type": "youtube_stream",
-    "sample_interval": 5.0,
-    "hash_method": "dhash",
-    "threshold": 10,
-    "status": "paused"
+    "status": "running"
   }
 }

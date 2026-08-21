@@ -484,6 +484,53 @@ class MultiCameraStreamManager:
             self.registry.remove_camera(camera_id)
             return True
 
+    def reindex_camera(self, camera_id: str, hash_method: str = "dhash", threshold: int = 10) -> Optional[RTSPStreamCapture]:
+        """Stop extraction, purge previous frame cache and events, and restart extraction from scratch."""
+        import shutil
+        with self._lock:
+            stream_url = ""
+            interval = 5.0
+            if camera_id in self.streams:
+                old_stream = self.streams[camera_id]
+                stream_url = old_stream.stream_url
+                interval = old_stream.sample_interval
+                old_stream.stop()
+            else:
+                cfg = self.registry.get(camera_id)
+                if cfg:
+                    stream_url = cfg.get("stream_url", "")
+                    interval = cfg.get("sample_interval", 5.0)
+
+            if not stream_url:
+                return None
+
+            # 1. Purge extracted frame images
+            cam_frame_dir = Path("data/cameras") / camera_id / "extracted_frames"
+            if cam_frame_dir.exists():
+                shutil.rmtree(cam_frame_dir, ignore_errors=True)
+            cam_frame_dir.mkdir(parents=True, exist_ok=True)
+
+            # 2. Reset camera events.json
+            cam_events = Path("data/cameras") / camera_id / "events.json"
+            if cam_events.exists():
+                with open(cam_events, "w", encoding="utf-8") as fh:
+                    import json
+                    json.dump([], fh)
+
+            # 3. Create fresh stream capture instance
+            new_stream = RTSPStreamCapture(
+                camera_id=camera_id,
+                stream_url=stream_url,
+                sample_interval=interval,
+                hash_filter=EdgeFrameFilter(method=hash_method, threshold=threshold),
+                on_keyframe_callback=self.on_keyframe_callback,
+            )
+            self.streams[camera_id] = new_stream
+            self.registry.update_status(camera_id, "running")
+            new_stream.start()
+            logger.info("[%s] Re-indexed camera from scratch with %s (threshold=%d).", camera_id, hash_method, threshold)
+            return new_stream
+
     def get_all_statuses(self) -> List[Dict[str, Any]]:
         """Return status for all registered camera streams."""
         with self._lock:
