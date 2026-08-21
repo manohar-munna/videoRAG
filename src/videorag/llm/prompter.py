@@ -182,10 +182,13 @@ class LLMClient:
                 if not server_running:
                     logger.info("Local server at %s not detected. Attempting to start llama-server...", base_url)
                     project_root = Path(__file__).resolve().parent.parent.parent.parent
-                    llama_server = project_root / "tools" / "llama" / "llama-server.exe"
-                    model_file = project_root / "Local LLM 3VL 4Q" / "Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+                    model_file = project_root / "models" / "qwen3_vl" / "Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+                    if not model_file.exists():
+                        model_file = project_root / "Local LLM 3VL 4Q" / "Qwen3VL-4B-Instruct-Q4_K_M.gguf"
 
-                    mmproj_file = project_root / "Local LLM 3VL 4Q" / "mmproj-Qwen3VL-4B-Instruct-F16.gguf"
+                    mmproj_file = project_root / "models" / "qwen3_vl" / "mmproj-Qwen3VL-4B-Instruct-F16.gguf"
+                    if not mmproj_file.exists():
+                        mmproj_file = project_root / "Local LLM 3VL 4Q" / "mmproj-Qwen3VL-4B-Instruct-F16.gguf"
                     if llama_server.exists() and model_file.exists():
                         cmd = [
                             str(llama_server),

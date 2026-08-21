@@ -28,7 +28,7 @@ llm:
   # Backend to use: 'local' | 'gemini' | 'openai' | 'mock'
   backend: "local"
   # Model name or GGUF path
-  model: "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+  model: "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
   # Base URL for local llama-server / OpenAI-compatible endpoint
   base_url: "http://127.0.0.1:8080/v1"
   # Optional: API key

@@ -319,7 +319,7 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
 
     llm_client = LLMClient(
         backend=cfg_llm.get("backend", "local"),
-        model=cfg_llm.get("model", "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
+        model=cfg_llm.get("model", "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
         api_key=cfg_llm.get("api_key"),
         base_url=cfg_llm.get("base_url"),
     )
