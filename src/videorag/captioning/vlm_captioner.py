@@ -226,19 +226,23 @@ class VLMCaptioner:
         self,
         query: str,
         episodes: List[Dict[str, Any]],
-        max_moments: int = 5,
+        cam_id: str = "CAM_01",
+        max_moments: int = 3,
     ) -> str:
-        """Perform comprehensive video-wide forensic synthesis across multiple distinct CCTV moments."""
+        """Perform cross-episode video-wide forensic synthesis.
+
+        Takes top distinct surveillance episodes and selects representative anchor frames
+        across the video timeline (up to `max_moments` moments) for Qwen3-VL to synthesize.
+        """
         if not episodes:
-            return "No matching surveillance moments available across the video footage."
+            return "No video episodes found matching query."
 
         top_ep = episodes[0]
-        cam_id = top_ep.get("camera", "CAM_01")
-        selected_frames = []
+        selected_frames: List[Dict[str, Any]] = []
         seen_timestamps = set()
 
-        # 1. Primary episode's leading frames
-        for f in top_ep.get("frames", [])[:2]:
+        # 1. Primary episode's leading anchor frame
+        for f in top_ep.get("frames", [])[:1]:
             ts = f.get("timestamp")
             if ts and ts not in seen_timestamps:
                 seen_timestamps.add(ts)
@@ -261,7 +265,7 @@ class VLMCaptioner:
 
             if anchor_f:
                 ts = anchor_f.get("timestamp")
-                if ts and ts not in seen_timestamps and len(selected_frames) < 5:
+                if ts and ts not in seen_timestamps and len(selected_frames) < 3:
                     seen_timestamps.add(ts)
                     selected_frames.append({
                         "image_path": anchor_f.get("image_path"),
@@ -387,7 +391,8 @@ class VLMCaptioner:
                 f"\n[CHRONOLOGICAL MULTI-FRAME PAYLOAD SENT TO QWEN3-VL]"
             ]
 
-            for idx, frame in enumerate(frames[:5], start=1):
+            # Select the top 2 high-priority keyframes (Primary Anchor + Neighbor) to maximize detail and reduce latency
+            for idx, frame in enumerate(frames[:2], start=1):
                 img_p = frame.get("image_path", "")
                 ts = frame.get("timestamp", "00:00:00")
                 is_anchor = frame.get("is_anchor", False)

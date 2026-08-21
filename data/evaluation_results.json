@@ -1,0 +1,172 @@
+{
+  "timestamp": "2026-08-21 22:00:56",
+  "total_queries_tested": 7,
+  "passed_tests": 7,
+  "accuracy_rate_pct": 100.0,
+  "average_latency_seconds": 36.05,
+  "query_results": [
+    {
+      "id": "CAT1-OBJ-01",
+      "category": "Object and Color Grounding",
+      "query": "white pickup truck parked on the left side",
+      "is_negative": false,
+      "passed": true,
+      "latency_seconds": 24.82,
+      "storyboard_frame_count": 5,
+      "storyboard_timestamps": [
+        "00:00:00",
+        "00:00:04",
+        "00:00:08",
+        "00:00:15",
+        "00:00:20"
+      ],
+      "matched_keywords": [
+        "truck",
+        "white",
+        "left",
+        "parked"
+      ],
+      "keyword_score_pct": 100.0,
+      "answer": "[FRAME OBSERVATIONS]:  \nFrame 1 (00:00:00): A white pickup truck is visible on the left side of the frame, parked. The truck has \u201cMOTION PICTURE\u201d branding and a California license plate. No other vehicles are in the immediate vicinity.  \nFrame 2 (00:00:04): The white pickup truck remains parked on the left side. No significant movement or change in position. The scene remains consistent with Frame 1.\n\n[FORENSIC SYNTHESIS]: The query \u201cwhite pickup truck parked on the left side\u201d is satisfied across the sequence. The subject is consistently visible and stationary in the designated location.\n\n[CONFIRMED_AT: 00:00:00]\n\n[ENTITY TALLY]: 1 unique white pickup truck."
+    },
+    {
+      "id": "CAT1-OBJ-02",
+      "category": "Object and Color Grounding",
+      "query": "person wearing pink or magenta shirt in the crowd",
+      "is_negative": false,
+      "passed": true,
+      "latency_seconds": 21.01,
+      "storyboard_frame_count": 5,
+      "storyboard_timestamps": [
+        "00:00:24",
+        "00:00:28",
+        "00:00:30",
+        "00:00:32",
+        "00:00:35"
+      ],
+      "matched_keywords": [
+        "pink",
+        "person",
+        "crowd",
+        "shirt"
+      ],
+      "keyword_score_pct": 100.0,
+      "answer": "[FRAME OBSERVATIONS]:  \nFrame 1 (00:00:24): No individual wearing a pink or magenta shirt is visible in the crowd.  \nFrame 2 (00:00:28): A person in a bright pink/magenta shirt is visible in the background, standing near the grassy area behind the palm trees.  \n\n[FORENSIC SYNTHESIS]: The query is satisfied at timestamp 00:00:28, as a subject wearing a pink/magenta shirt is confirmed in the crowd.  \n\n[CONFIRMED_AT: 00:00:28]  \n\n[ENTITY TALLY]: 1 unique subject wearing pink/magenta shirt."
+    },
+    {
+      "id": "CAT2-SEC-01",
+      "category": "Security Perimeter",
+      "query": "yellow caution tape strung across the area",
+      "is_negative": false,
+      "passed": true,
+      "latency_seconds": 24.0,
+      "storyboard_frame_count": 5,
+      "storyboard_timestamps": [
+        "00:00:50",
+        "00:00:52",
+        "00:00:55",
+        "00:01:00",
+        "00:01:04"
+      ],
+      "matched_keywords": [
+        "yellow",
+        "caution",
+        "tape"
+      ],
+      "keyword_score_pct": 100.0,
+      "answer": "[FRAME OBSERVATIONS]:  \nFrame 1 (00:00:50): Yellow caution tape is visibly strung across the foreground area, spanning horizontally between two points, partially obscured by a tree trunk and bicycles.  \nFrame 2 (00:00:52): Yellow caution tape remains in the same position, visibly strung across the area, with minor movement of people and bicycles in the foreground.  \n\n[FORENSIC SYNTHESIS]: The query \u201cyellow caution tape strung across the area\u201d is satisfied across the sequence. The tape is consistently visible in both frames within the specified time range.  \n\n[CONFIRMED_AT: 00:00:50]  \n\n[ENTITY TALLY]: 1 unique instance of yellow caution tape."
+    },
+    {
+      "id": "CAT3-ACT-01",
+      "category": "Activity and Pedestrians",
+      "query": "crowd of people gathered or walking near trees",
+      "is_negative": false,
+      "passed": true,
+      "latency_seconds": 24.52,
+      "storyboard_frame_count": 5,
+      "storyboard_timestamps": [
+        "00:01:20",
+        "00:01:48",
+        "00:01:50",
+        "00:01:52",
+        "00:01:55"
+      ],
+      "matched_keywords": [
+        "crowd",
+        "people",
+        "walking",
+        "gathered"
+      ],
+      "keyword_score_pct": 100.0,
+      "answer": "[FRAME OBSERVATIONS]:  \nFrame 1 (00:01:20): A crowd of people is visible gathered near a line of trees on the right side of the frame, behind yellow caution tape. Several individuals are standing or walking near the tree trunks.  \nFrame 2 (00:01:48): The crowd remains near the trees; some individuals are walking slowly, while others stand still. The trees are still prominent in the background and foreground, with people clustered around them.\n\n[FORENSIC SYNTHESIS]: The query \u201ccrowd of people gathered or walking near trees\u201d is satisfied across the sequence. Multiple individuals are consistently observed near or moving around the trees in both frames.\n\n[CONFIRMED_AT: 00:01:20]\n\n[ENTITY TALLY]: Not applicable \u2014 the query does not request a count of unique subjects."
+    },
+    {
+      "id": "CAT4-CNT-01",
+      "category": "Video-Wide Counting",
+      "query": "total number of vehicles visible across the video footage",
+      "is_negative": false,
+      "passed": true,
+      "latency_seconds": 107.91,
+      "storyboard_frame_count": 5,
+      "storyboard_timestamps": [
+        "00:00:00",
+        "00:00:04",
+        "00:00:08",
+        "00:00:15",
+        "00:00:20"
+      ],
+      "matched_keywords": [
+        "vehicle",
+        "truck",
+        "unique"
+      ],
+      "keyword_score_pct": 75.0,
+      "answer": "[MOMENT OBSERVATIONS]:\n- Moment 1 (00:00:00\u201300:00:20): White pickup truck (side text: \u201cMOTION PICTURE\u201d, CA 939116) parked left foreground. No other vehicles visible.\n- Moment 2 (00:10:40\u201300:10:48): Same white pickup truck visible, parked in same position. A large film camera rig (on trailer) is visible to the right, but not a vehicle in the traditional sense; no other vehicles.\n- Moment 3 (00:07:52\u201300:08:16): No vehicles visible. Only people and a mobile restroom unit (with \u201cZ\u201d logo) in foreground, partially obscuring view.\n\n[CROSS-TIMELINE DE-DUPLICATION]:\n- The white pickup truck is consistently present across Moment 1 and Moment 2, but no other vehicles are observed in any moment.\n- The film camera rig in Moment 2 is a piece of equipment, not a vehicle, and not counted as a vehicle.\n- The mobile restroom unit in Moment 3 is a stationary structure, not a vehicle.\n\n[EXECUTIVE VERDICT]:\n{query} \u2192 1 unique vehicle observed (white pickup truck). Confirmed at: [CONFIRMED_AT: 00:00:00] and [CONFIRMED_AT: 00:10:40]."
+    },
+    {
+      "id": "CAT5-NEG-01",
+      "category": "Hallucination Resistance",
+      "query": "emergency red fire truck spraying water with hose",
+      "is_negative": true,
+      "passed": true,
+      "latency_seconds": 27.27,
+      "storyboard_frame_count": 5,
+      "storyboard_timestamps": [
+        "00:00:00",
+        "00:00:04",
+        "00:00:08",
+        "00:00:15",
+        "00:00:20"
+      ],
+      "matched_keywords": [
+        "0",
+        "no"
+      ],
+      "keyword_score_pct": 28.6,
+      "answer": "[FRAME OBSERVATIONS]:  \nFrame 1 (00:00:00): No emergency red fire truck visible. Visible: white truck labeled \u201cMOTION PICTURE\u201d, crowd, yellow tape, trees, and event signage.  \nFrame 2 (00:00:04): No emergency red fire truck visible. Scene remains unchanged from Frame 1; no new subjects introduced.\n\n[FORENSIC SYNTHESIS]: The query \u201cemergency red fire truck spraying water with hose\u201d is not satisfied across the sequence. No such vehicle or activity is present in any frame within the 00:00:00\u201300:00:20 window.\n\n[CONFIRMED_AT: NOT APPLICABLE]\n\n[ENTITY TALLY]: 0 unique subjects matching the query."
+    },
+    {
+      "id": "CAT5-NEG-02",
+      "category": "Hallucination Resistance",
+      "query": "helicopter landing in the parking lot",
+      "is_negative": true,
+      "passed": true,
+      "latency_seconds": 22.86,
+      "storyboard_frame_count": 5,
+      "storyboard_timestamps": [
+        "00:06:50",
+        "00:06:52",
+        "00:06:55",
+        "00:07:00",
+        "00:07:05"
+      ],
+      "matched_keywords": [
+        "no helicopter",
+        "0",
+        "no"
+      ],
+      "keyword_score_pct": 42.9,
+      "answer": "[FRAME OBSERVATIONS]:  \nFrame 1 (00:06:50): No helicopter visible in the parking lot or surrounding area. Visible: crowd, film crew, vehicles, yellow caution tape, trees, and a signpost.  \nFrame 2 (00:06:52): No helicopter visible. Scene remains unchanged from Frame 1; no new aerial subject introduced.\n\n[FORENSIC SYNTHESIS]: The query \"helicopter landing in the parking lot\" is not satisfied within the provided time range. No helicopter is observed in any frame from 00:06:50 to 00:07:05.\n\n[CONFIRMED_AT: 00:06:50]  \n[ENTITY TALLY]: 0 unique helicopter subjects observed."
+    }
+  ]
+}
