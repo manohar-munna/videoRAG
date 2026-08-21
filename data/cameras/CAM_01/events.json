@@ -78,5 +78,165 @@
     "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_10_21_18653.jpg",
     "hash_hex": "0x455574e88909ac68",
     "motion_pct": 30.09
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:10:41",
+    "seconds": 641.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including a person in a yellow safety vest and others in casual attire, are gathered near a yellow caution tape, with some loitering or observing. A white pickup truck is parked on the left, and a large film camera rig is positioned on a trailer to the right, indicating a production setup. No security events or restricted areas are visibly breached; activity appears to be a controlled filming operation near the Venice Hotel.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_10_41_19253.jpg",
+    "hash_hex": "0x575754f2a8117d69",
+    "motion_pct": 30.57
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:10:51",
+    "seconds": 651.73,
+    "epoch_time": null,
+    "description": "1. Multiple individuals are present: a person in a red shirt and helmet stands near a white truck; others include a person in a yellow safety vest, a woman in a black top, and several others loitering near a taped-off area. One person in a straw hat appears to be directing or coordinating activity.\n2. A white flatbed truck with “MOTION PICTURE” branding is parked on the left; no other vehicles are visible or in motion.\n3. A yellow caution tape cordons off an area where crew members and equipment are gathered, suggesting a controlled or restricted zone. No overt security breach or active threat is evident.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_10_51_19553.jpg",
+    "hash_hex": "0xc8dae8d8d2e86d0d",
+    "motion_pct": 41.96
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:11:01",
+    "seconds": 661.73,
+    "epoch_time": null,
+    "description": "Multiple individuals are present, including a group near a playground and others loitering or walking; one person in a bright yellow safety vest stands near a truck. A black flatbed truck is parked in the foreground, with no visible movement. No security incidents or restricted area breaches are evident; activity appears to be casual public gathering near a hotel.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_11_01_19853.jpg",
+    "hash_hex": "0xd55515b0918181cb",
+    "motion_pct": 48.01
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:11:11",
+    "seconds": 671.73,
+    "epoch_time": null,
+    "description": "Multiple individuals are present, including a person in a black jacket walking toward the right foreground, and others loitering or moving across a grassy area near palm trees. A dark-colored flatbed truck is parked on the right, stationary. No security incidents or restricted areas are evident; activity appears casual and non-threatening.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_11_11_20153.jpg",
+    "hash_hex": "0x4a6a725251504849",
+    "motion_pct": 48.59
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:11:21",
+    "seconds": 681.73,
+    "epoch_time": null,
+    "description": "Multiple individuals are present, including a group of people in casual attire (some wearing hats, one in a pink top holding red items) walking or loitering near a grassy area; no one is clearly entering or exiting a restricted zone. A white mobile restroom unit is stationary in the foreground, partially obscuring the view. No vehicles are visible in the frame.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_11_21_20453.jpg",
+    "hash_hex": "0xce4ececa484ac2ca",
+    "motion_pct": 46.29
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:11:31",
+    "seconds": 691.73,
+    "epoch_time": null,
+    "description": "Multiple individuals are present, including a man in a dark blue shirt and khaki pants walking toward a truck, and others loitering near a playground; one person in a white shirt walks away from the truck. A white utility trailer is parked on the left, and a dark-colored flatbed truck is stationary on the right. No security incidents or restricted areas are evident; activity appears to be routine, possibly film production-related, with no signs of unauthorized access or suspicious behavior.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_11_31_20753.jpg",
+    "hash_hex": "0xb13135a9a8a8a8ac",
+    "motion_pct": 46.24
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:11:41",
+    "seconds": 701.73,
+    "epoch_time": null,
+    "description": "Multiple individuals are present, including a person in a bright pink outfit and others in casual attire, some loitering near a yellow caution tape; a uniformed individual is walking near the tape. A black flatbed truck is parked on the right, stationary. No security events or restricted areas are visibly breached; activity appears to be a public gathering or event near a hotel, with no immediate suspicious behavior.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_11_41_21053.jpg",
+    "hash_hex": "0x6565654c41515158",
+    "motion_pct": 44.95
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:11:51",
+    "seconds": 711.73,
+    "epoch_time": null,
+    "description": "Multiple individuals are present in an outdoor park area near a playground; some are standing or loitering near trees, while others are seated or walking. A white flatbed truck is parked in the foreground, partially obstructing the view. No security incidents or restricted areas are evident; activity appears casual and non-threatening.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_11_51_21353.jpg",
+    "hash_hex": "0xadadadb9bda989ca",
+    "motion_pct": 48.16
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:12:01",
+    "seconds": 721.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including several in dark uniforms and casual attire, are gathered near a yellow caution tape, with some loitering and others appearing to interact or observe. A group of people, including a man in a black t-shirt and shorts, stand near the tape, while others are positioned further back on a grassy slope. No vehicles are visible in the frame; the scene is focused on a crowd and a restricted area marked by tape and cones.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_12_01_21653.jpg",
+    "hash_hex": "0xa8b8b03252726248",
+    "motion_pct": 45.8
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:12:11",
+    "seconds": 731.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including civilians and uniformed personnel, are gathered near a yellow caution tape; some are loitering or standing still, while others appear to be moving or observing. A white pickup truck is parked on the left, partially visible behind a tree. No clear security breach or restricted area violation is evident; activity appears to be crowd management or event control, with no overt suspicious behavior.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_12_11_21953.jpg",
+    "hash_hex": "0xdcdcd85051e5b4a6",
+    "motion_pct": 46.27
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:12:21",
+    "seconds": 741.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including at least five in high-visibility vests, are gathered near a yellow caution tape, with some loitering and others appearing to interact or observe. A white pickup truck is parked on the left, and a black vehicle is partially visible behind the crowd. No clear security breach or restricted area violation is evident; activity appears to be a controlled gathering or event setup.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_12_21_22253.jpg",
+    "hash_hex": "0x54d4dad055f1b12e",
+    "motion_pct": 49.03
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:12:31",
+    "seconds": 751.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including adults and children, are gathered near a yellow caution tape barrier; some are loitering while others appear to be moving or observing. No vehicles are visible in the frame. A crowd is present near the Venice Hotel, with no clear security incident or restricted area breach observed.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_12_31_22553.jpg",
+    "hash_hex": "0x4074644d4c4ce458",
+    "motion_pct": 42.88
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:12:41",
+    "seconds": 761.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including some on roller skates, are gathered near a yellow caution tape; attire varies, with visible dark and bright-colored clothing. A man in a light blue shirt and khaki pants stands near a blue tent, while others loiter or move slowly within the taped-off area. No vehicles are present in the frame.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_12_41_22853.jpg",
+    "hash_hex": "0x8c84444ca10cad8d",
+    "motion_pct": 48.42
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:12:51",
+    "seconds": 771.73,
+    "epoch_time": null,
+    "description": "Multiple individuals are gathered near a yellow caution tape, including a person in a bright pink outfit walking past, and others in casual and safety vests. A group of people loiter near the tape, with some appearing to interact or move toward a restricted area. No vehicles are visible in the frame.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_12_51_23153.jpg",
+    "hash_hex": "0x8c84246859484d8d",
+    "motion_pct": 49.77
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:13:11",
+    "seconds": 791.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including uniformed police officers and civilians, are gathered behind yellow tape; one officer in a high-visibility vest is actively engaging with a group. A young person on roller skates is near the center, and others loiter or stand in groups, suggesting a controlled or restricted area. No vehicles are visible in the frame.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_13_11_23753.jpg",
+    "hash_hex": "0xc141a151519193e1",
+    "motion_pct": 47.2
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:13:21",
+    "seconds": 801.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including uniformed police officers and civilians, are gathered near a yellow tape barrier; some are loitering or conversing, while others appear to be observing or waiting. A group of people, including one in a yellow shirt and another in a black t-shirt with a skull graphic, are clustered near the center. No vehicles are visible in the frame.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_13_21_24053.jpg",
+    "hash_hex": "0xc0e0e088a8c8d0d0",
+    "motion_pct": 40.46
   }
 ]
