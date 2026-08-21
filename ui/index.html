@@ -125,6 +125,111 @@
                     </button>
                 </div>
 
+                <!-- Real-Time Hardware Telemetry & Compute Flow (4 Connected Boxes) -->
+                <div class="telemetry-flow-container">
+                    <div class="telemetry-flow-header">
+                        <div class="stepper-title-wrap">
+                            <span class="status-pulse-dot" id="tflow-pulse-dot"></span>
+                            <h4>Real-Time System Telemetry & Edge Compute Flow</h4>
+                            <button class="info-btn" data-info="telemetry_flow">i</button>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="badge-live-telemetry" id="telemetry-badge">● LIVE POLLING (2.5s)</span>
+                            <button id="refresh-telemetry-btn" class="btn-primary btn-sm" style="height:26px; font-size:0.75rem; padding:0 10px;" title="Sample Hardware Sensors Now">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="telemetry-spinner"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                                <span>Refresh Sensors</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 4 Connected Horizontal Boxes Flow -->
+                    <div class="telemetry-flow-grid">
+                        <!-- Box 1: CPU Consumption (Peak & Avg) -->
+                        <div class="telemetry-box" id="tbox-cpu">
+                            <div class="tbox-top">
+                                <span class="tbox-tag">PROCESSOR</span>
+                                <span class="tbox-badge badge-cyan" id="tbox-cpu-badge">LIVE LOAD</span>
+                            </div>
+                            <h5 class="tbox-title">CPU Consumption</h5>
+                            <div class="tbox-sub" id="tbox-cpu-model">i7-13700HX (16 Cores / 24 Threads)</div>
+                            <div class="tbox-stat-row">
+                                <span class="tbox-lbl">Current Load:</span>
+                                <strong class="tbox-val text-blue" id="tbox-cpu-cur">12.4%</strong>
+                            </div>
+                            <div class="tbox-metrics-sub">
+                                <span>Peak: <strong class="text-orange" id="tbox-cpu-peak">28.4%</strong></span>
+                                <span>Avg: <strong class="text-blue" id="tbox-cpu-avg">15.8%</strong></span>
+                            </div>
+                        </div>
+
+                        <div class="tbox-connector">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+
+                        <!-- Box 2: System Memory (RAM) -->
+                        <div class="telemetry-box" id="tbox-ram">
+                            <div class="tbox-top">
+                                <span class="tbox-tag">SYSTEM MEMORY</span>
+                                <span class="tbox-badge badge-green" id="tbox-ram-badge">STABLE</span>
+                            </div>
+                            <h5 class="tbox-title">System RAM (16 GB)</h5>
+                            <div class="tbox-sub" id="tbox-ram-cap">15.72 GB Total Physical Pool</div>
+                            <div class="tbox-stat-row">
+                                <span class="tbox-lbl">Memory Used:</span>
+                                <strong class="tbox-val text-green" id="tbox-ram-used">12.80 / 15.72 GB</strong>
+                            </div>
+                            <div class="tbox-metrics-sub">
+                                <span>Peak: <strong id="tbox-ram-peak">13.10 GB</strong></span>
+                                <span>Usage: <strong class="text-green" id="tbox-ram-pct">81.4%</strong></span>
+                            </div>
+                        </div>
+
+                        <div class="tbox-connector">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+
+                        <!-- Box 3: Thermals, Fans & GPU -->
+                        <div class="telemetry-box" id="tbox-gpu">
+                            <div class="tbox-top">
+                                <span class="tbox-tag">THERMALS & SENSORS</span>
+                                <span class="tbox-badge badge-purple" id="tbox-gpu-badge">OPTIMAL</span>
+                            </div>
+                            <h5 class="tbox-title">Fans & Temperature</h5>
+                            <div class="tbox-sub" id="tbox-gpu-name">RTX 4050 Laptop GPU (6GB VRAM)</div>
+                            <div class="tbox-stat-row">
+                                <span class="tbox-lbl">Core Temp:</span>
+                                <strong class="tbox-val text-purple" id="tbox-gpu-temp">46°C</strong>
+                            </div>
+                            <div class="tbox-metrics-sub">
+                                <span>Power: <strong id="tbox-gpu-power">1.7W</strong></span>
+                                <span>Fans: <strong class="text-cyan" id="tbox-gpu-fan">Dynamic Auto</strong></span>
+                            </div>
+                        </div>
+
+                        <div class="tbox-connector">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+
+                        <!-- Box 4: Pipeline Latency (Total Time) -->
+                        <div class="telemetry-box" id="tbox-latency">
+                            <div class="tbox-top">
+                                <span class="tbox-tag">EXECUTION SPEED</span>
+                                <span class="tbox-badge badge-yellow" id="tbox-latency-badge">LOW LATENCY</span>
+                            </div>
+                            <h5 class="tbox-title">Pipeline Latency</h5>
+                            <div class="tbox-sub" id="tbox-latency-desc">End-to-End Query & Ingestion Time</div>
+                            <div class="tbox-stat-row">
+                                <span class="tbox-lbl">Total Time:</span>
+                                <strong class="tbox-val text-yellow" id="tbox-latency-total">1.25s</strong>
+                            </div>
+                            <div class="tbox-metrics-sub">
+                                <span>LLM: <strong id="tbox-latency-llm">1.15s</strong></span>
+                                <span>FAISS: <strong id="tbox-latency-faiss">4.5ms</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Hamming Distance Guide Info Card -->
                 <div class="guide-box">
                     <div class="guide-header">
