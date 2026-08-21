@@ -1,1 +1,82 @@
-[]
+[
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:00:10",
+    "seconds": 10.0,
+    "epoch_time": null,
+    "description": "Multiple individuals, including crew and actors, are gathered near a white “Motion Picture” truck; some are loitering near yellow tape, while others are seated or standing near bicycles. A uniformed security officer stands near the tape, and a white truck is parked on the left. No vehicles are in motion; the scene indicates a controlled filming area with restricted access.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_00_10_301.jpg",
+    "hash_hex": "0x9313d7536a09d030",
+    "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:00:21",
+    "seconds": 21.43,
+    "epoch_time": null,
+    "description": "Multiple individuals, including media personnel and civilians, are gathered near a taped-off area; some are loitering, others are moving or observing. A white pickup truck is parked on the left, stationary. No security incidents or restricted area breaches are evident; activity appears to be public gathering or event coverage.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_00_21_644.jpg",
+    "hash_hex": "0xccca4aca282652d7",
+    "motion_pct": 86.12
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:02:51",
+    "seconds": 171.73,
+    "epoch_time": null,
+    "description": "Multiple pedestrians are visible on a sidewalk adjacent to a beach, including individuals in blue, black, and orange safety vests, some walking or loitering near vendor stalls. A dark-colored vehicle is parked on the beachside road, with no apparent movement or activity around it. No security incidents or restricted area breaches are evident in this frame.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_02_51_5153.jpg",
+    "hash_hex": "0xd293d7d6b6eedbd8",
+    "motion_pct": 77.24
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:08:01",
+    "seconds": 481.73,
+    "epoch_time": null,
+    "description": "Multiple individuals are loitering in a grassy area near palm trees, including a person in a black top walking toward the foreground and others in casual attire, some seated. A white trailer with a female restroom symbol is parked in the foreground, and a dark van is partially visible behind it. No vehicles are in motion; the scene appears calm with no apparent security incidents or restricted area breaches.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_08_01_14453.jpg",
+    "hash_hex": "0x6d6b6971777f7777",
+    "motion_pct": 63.56
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:09:31",
+    "seconds": 571.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including crew and possibly actors, are gathered near a white production truck and a trailer; some are loitering near yellow caution tape, while others are actively engaged with equipment. A white pickup truck is parked on the left, and a black trailer with production gear is positioned centrally. No security incidents or restricted area breaches are evident; activity appears to be a film production setup.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_09_31_17153.jpg",
+    "hash_hex": "0x44f535c68c092c68",
+    "motion_pct": 30.77
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:09:51",
+    "seconds": 591.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including crew and possibly celebrities, are gathered near a taped-off area; some wear high-visibility vests, hats, or casual attire, with one person in a yellow safety vest walking toward the left. A white van is parked on the left, and a large camera rig is positioned on a trailer to the right, with personnel actively operating equipment. No security breach or restricted area violation is evident; activity appears to be media production or event coverage, with no signs of unauthorized access or suspicious behavior.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_09_51_17753.jpg",
+    "hash_hex": "0x44d5e5e48d29ea69",
+    "motion_pct": 28.18
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:10:11",
+    "seconds": 611.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including crew and attendees, are present; some wear cowboy hats and casual attire, with one person in a light blue shirt walking near yellow tape. A white utility truck is parked on the left, and a flatbed trailer with filming equipment is positioned centrally. No security incidents or restricted areas are visibly breached; activity appears to be a controlled film production setup.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_10_11_18353.jpg",
+    "hash_hex": "0x44d5f524a5097c69",
+    "motion_pct": 27.48
+  },
+  {
+    "camera": "CAM_01",
+    "timestamp": "00:10:21",
+    "seconds": 621.73,
+    "epoch_time": null,
+    "description": "Multiple individuals, including crew and personnel in high-visibility vests and casual attire, are gathered near a white truck and yellow caution tape. One person is bent over near the pavement, while others loiter or move slowly within the taped-off area. A white pickup truck is parked on the left, and a large camera rig is visible in the background, indicating media or production activity.",
+    "image_path": "data/cameras/CAM_01/extracted_frames/CAM_01_00_10_21_18653.jpg",
+    "hash_hex": "0x455574e88909ac68",
+    "motion_pct": 30.09
+  }
+]
