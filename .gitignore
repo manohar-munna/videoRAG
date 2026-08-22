@@ -35,8 +35,8 @@ Thumbs.db
 
 # Local GGUF models & binaries
 *.gguf
-Local LLM 3VL 4Q/
 models/
+Local LLM 3VL 4Q/
 tools/
 
 # Video files & extracted frame image caches
@@ -45,6 +45,8 @@ data/videos/
 data/uploads/
 data/extracted_frames/
 data/cameras/*/extracted_frames/
+data/cameras/*/*.jpg
 
 # Logs
 *.log
+

@@ -104,9 +104,10 @@ class RTSPStreamCapture:
         else:
             self.camera_type = "rtsp_stream"
             self.is_live = True
-        
+
         self.extracted_keyframes: List[Dict[str, Any]] = []
         self.audit_trail: List[Dict[str, Any]] = []
+        self._completed: bool = False
 
     def start(self) -> None:
         """Start producer and consumer background worker threads."""
@@ -238,9 +239,12 @@ class RTSPStreamCapture:
             ret, frame = cap.read()
             if not ret or frame is None:
                 # If reading a local MP4 file, stop cleanly at EOF
-                if Path(self.stream_url).exists() and Path(self.stream_url).is_file():
+                if (Path(self.stream_url).exists() and Path(self.stream_url).is_file()) or self.camera_type == "video_file":
                     logger.info("[%s] Reached end of local video file (%s). Stream capture completed.", self.camera_id, self.stream_url)
                     self.is_connected = False
+                    self._completed = True
+                    self._running = False
+                    self.progress_pct = 100.0
                     break
 
                 logger.warning("[%s] Failed to read frame from live stream. Reconnecting...", self.camera_id)
@@ -351,7 +355,15 @@ class RTSPStreamCapture:
         with self._lock:
             keyframe_count = len(self.extracted_keyframes)
 
-        state_str = "RUNNING" if self._running else ("PAUSED" if self._paused else "STOPPED")
+        is_completed = getattr(self, "_completed", False)
+        if is_completed:
+            state_str = "COMPLETED"
+        elif self._running:
+            state_str = "RUNNING"
+        elif self._paused:
+            state_str = "PAUSED"
+        else:
+            state_str = "STOPPED"
 
         return {
             "camera_id": self.camera_id,
@@ -361,6 +373,7 @@ class RTSPStreamCapture:
             "is_connected": self.is_connected,
             "is_running": self._running,
             "is_paused": self._paused,
+            "is_completed": is_completed,
             "state": state_str,
             "fps": round(self.fps, 2),
             "total_frames_read": self.total_frames_read,
@@ -483,53 +496,6 @@ class MultiCameraStreamManager:
                 del self.streams[camera_id]
             self.registry.remove_camera(camera_id)
             return True
-
-    def reindex_camera(self, camera_id: str, hash_method: str = "dhash", threshold: int = 10) -> Optional[RTSPStreamCapture]:
-        """Stop extraction, purge previous frame cache and events, and restart extraction from scratch."""
-        import shutil
-        with self._lock:
-            stream_url = ""
-            interval = 5.0
-            if camera_id in self.streams:
-                old_stream = self.streams[camera_id]
-                stream_url = old_stream.stream_url
-                interval = old_stream.sample_interval
-                old_stream.stop()
-            else:
-                cfg = self.registry.get(camera_id)
-                if cfg:
-                    stream_url = cfg.get("stream_url", "")
-                    interval = cfg.get("sample_interval", 5.0)
-
-            if not stream_url:
-                return None
-
-            # 1. Purge extracted frame images
-            cam_frame_dir = Path("data/cameras") / camera_id / "extracted_frames"
-            if cam_frame_dir.exists():
-                shutil.rmtree(cam_frame_dir, ignore_errors=True)
-            cam_frame_dir.mkdir(parents=True, exist_ok=True)
-
-            # 2. Reset camera events.json
-            cam_events = Path("data/cameras") / camera_id / "events.json"
-            if cam_events.exists():
-                with open(cam_events, "w", encoding="utf-8") as fh:
-                    import json
-                    json.dump([], fh)
-
-            # 3. Create fresh stream capture instance
-            new_stream = RTSPStreamCapture(
-                camera_id=camera_id,
-                stream_url=stream_url,
-                sample_interval=interval,
-                hash_filter=EdgeFrameFilter(method=hash_method, threshold=threshold),
-                on_keyframe_callback=self.on_keyframe_callback,
-            )
-            self.streams[camera_id] = new_stream
-            self.registry.update_status(camera_id, "running")
-            new_stream.start()
-            logger.info("[%s] Re-indexed camera from scratch with %s (threshold=%d).", camera_id, hash_method, threshold)
-            return new_stream
 
     def get_all_statuses(self) -> List[Dict[str, Any]]:
         """Return status for all registered camera streams."""

@@ -26,22 +26,37 @@ class CameraRegistry:
         self.load()
 
     def load(self) -> None:
-        """Load registry from JSON file or initialize with default actual cameras."""
+        """Load registry from JSON file and automatically discover all cameras on disk."""
+        self._cameras = {}
         if self.registry_file.exists():
             try:
                 with open(self.registry_file, "r", encoding="utf-8") as fh:
-                    self._cameras = json.load(fh)
+                    loaded = json.load(fh)
+                    if isinstance(loaded, dict):
+                        self._cameras = loaded
                 logger.info("Loaded %d cameras from %s", len(self._cameras), self.registry_file)
-                return
             except Exception as e:
                 logger.warning("Could not read %s (%s). Re-initializing.", self.registry_file, e)
 
-        # Default initial actual camera configurations (Real footage & live stream)
-        self._cameras = {
+        cam_base = self.registry_file.parent / "cameras"
+        discovered_cams = set()
+        if cam_base.exists():
+            for p in cam_base.iterdir():
+                if p.is_dir():
+                    discovered_cams.add(p.name)
+
+        # 1. PRUNE: Remove cameras from registry whose folders were deleted from disk
+        to_remove = [cam_id for cam_id in self._cameras if cam_id not in discovered_cams]
+        for cam_id in to_remove:
+            del self._cameras[cam_id]
+            logger.info("Pruned deleted camera '%s' from registry (folder removed from disk).", cam_id)
+
+        # Default known camera presets
+        known_defaults = {
             "CAM_01": {
                 "camera_id": "CAM_01",
                 "name": "Main Entrance (Video Footage)",
-                "stream_url": "Video Footage/sample_cctv.mp4",
+                "stream_url": "data/videos/sample_cctv.mp4",
                 "type": "video_file",
                 "sample_interval": 15.0,
                 "hash_method": "dhash",
@@ -58,7 +73,41 @@ class CameraRegistry:
                 "threshold": 10,
                 "status": "running",
             },
+            "CAM_4000": {
+                "camera_id": "CAM_4000",
+                "name": "Camera CAM_4000 (Live Stream)",
+                "stream_url": "https://www.youtube.com/live/EO_1LWqsCNE?si=zGu_teV2HCn5EeWi",
+                "type": "youtube_stream",
+                "sample_interval": 5.0,
+                "hash_method": "dhash",
+                "threshold": 10,
+                "status": "running",
+            },
         }
+
+        # 2. ADD: If registry is missing discovered cams on disk, populate them
+        for cam_id in discovered_cams:
+            if cam_id not in self._cameras:
+                if cam_id in known_defaults:
+                    self._cameras[cam_id] = dict(known_defaults[cam_id])
+                else:
+                    self._cameras[cam_id] = {
+                        "camera_id": cam_id,
+                        "name": f"Camera {cam_id}",
+                        "stream_url": "data/videos/sample_cctv.mp4",
+                        "type": "video_file",
+                        "sample_interval": 5.0,
+                        "hash_method": "dhash",
+                        "threshold": 10,
+                        "status": "stopped",
+                    }
+
+        if not self._cameras and not discovered_cams:
+            self._cameras = {
+                "CAM_01": dict(known_defaults["CAM_01"]),
+                "CAM_3000": dict(known_defaults["CAM_3000"]),
+            }
+
         self.save()
 
     def save(self) -> None:
@@ -130,10 +179,16 @@ class CameraRegistry:
         return False
 
     def remove_camera(self, camera_id: str) -> bool:
-        """Remove a camera from the registry."""
+        """Remove a camera from the registry and delete its folder from disk."""
         if camera_id in self._cameras:
             del self._cameras[camera_id]
             self.save()
             logger.info("Removed camera '%s' from registry.", camera_id)
-            return True
-        return False
+
+        # Delete camera folder from data/cameras/
+        cam_dir = self.registry_file.parent / "cameras" / camera_id
+        if cam_dir.exists():
+            import shutil
+            shutil.rmtree(cam_dir, ignore_errors=True)
+            logger.info("Deleted directory for camera '%s' at %s", camera_id, cam_dir)
+        return True

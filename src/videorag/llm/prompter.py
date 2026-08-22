@@ -182,13 +182,18 @@ class LLMClient:
                 if not server_running:
                     logger.info("Local server at %s not detected. Attempting to start llama-server...", base_url)
                     project_root = Path(__file__).resolve().parent.parent.parent.parent
-                    model_file = project_root / "models" / "qwen3_vl" / "Qwen3VL-4B-Instruct-Q4_K_M.gguf"
-                    if not model_file.exists():
-                        model_file = project_root / "Local LLM 3VL 4Q" / "Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+                    llama_server = project_root / "tools" / "llama" / "llama-server.exe"
+                    model_candidates = [
+                        project_root / "models" / "qwen3_vl" / "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+                        project_root / "Local LLM 3VL 4Q" / "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+                    ]
+                    mmproj_candidates = [
+                        project_root / "models" / "qwen3_vl" / "mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+                        project_root / "Local LLM 3VL 4Q" / "mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+                    ]
+                    model_file = next((p for p in model_candidates if p.exists()), model_candidates[0])
+                    mmproj_file = next((p for p in mmproj_candidates if p.exists()), mmproj_candidates[0])
 
-                    mmproj_file = project_root / "models" / "qwen3_vl" / "mmproj-Qwen3VL-4B-Instruct-F16.gguf"
-                    if not mmproj_file.exists():
-                        mmproj_file = project_root / "Local LLM 3VL 4Q" / "mmproj-Qwen3VL-4B-Instruct-F16.gguf"
                     if llama_server.exists() and model_file.exists():
                         cmd = [
                             str(llama_server),
@@ -199,6 +204,7 @@ class LLMClient:
 
                         cmd.extend([
                             "-ngl", "99",
+                            "-c", "4096",
                             "--port", "8080",
                             "--host", "127.0.0.1",
                         ])

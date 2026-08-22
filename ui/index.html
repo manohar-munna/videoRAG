@@ -35,7 +35,7 @@
                 </div>
                 <div class="stat-pill">
                     <span class="stat-label">Index:</span>
-                    <span class="stat-value" id="stat-vectors">48 Vectors</span>
+                    <span class="stat-value" id="stat-vectors">—</span>
                 </div>
                 <div class="stat-pill">
                     <span class="stat-label">Status:</span>
@@ -123,111 +123,6 @@
                         </svg>
                         <span>Run Smart Frame Filter</span>
                     </button>
-                </div>
-
-                <!-- Real-Time Hardware Telemetry & Compute Flow (4 Connected Boxes) -->
-                <div class="telemetry-flow-container">
-                    <div class="telemetry-flow-header">
-                        <div class="stepper-title-wrap">
-                            <span class="status-pulse-dot" id="tflow-pulse-dot"></span>
-                            <h4>Real-Time System Telemetry & Edge Compute Flow</h4>
-                            <button class="info-btn" data-info="telemetry_flow">i</button>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <span class="badge-live-telemetry" id="telemetry-badge">● LIVE POLLING (2.5s)</span>
-                            <button id="refresh-telemetry-btn" class="btn-primary btn-sm" style="height:26px; font-size:0.75rem; padding:0 10px;" title="Sample Hardware Sensors Now">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="telemetry-spinner"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
-                                <span>Refresh Sensors</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 4 Connected Horizontal Boxes Flow -->
-                    <div class="telemetry-flow-grid">
-                        <!-- Box 1: CPU Consumption (Peak & Avg) -->
-                        <div class="telemetry-box" id="tbox-cpu">
-                            <div class="tbox-top">
-                                <span class="tbox-tag">PROCESSOR</span>
-                                <span class="tbox-badge badge-cyan" id="tbox-cpu-badge">LIVE LOAD</span>
-                            </div>
-                            <h5 class="tbox-title">CPU Consumption</h5>
-                            <div class="tbox-sub" id="tbox-cpu-model">i7-13700HX (16 Cores / 24 Threads)</div>
-                            <div class="tbox-stat-row">
-                                <span class="tbox-lbl">Current Load:</span>
-                                <strong class="tbox-val text-blue" id="tbox-cpu-cur">12.4%</strong>
-                            </div>
-                            <div class="tbox-metrics-sub">
-                                <span>Peak: <strong class="text-orange" id="tbox-cpu-peak">28.4%</strong></span>
-                                <span>Avg: <strong class="text-blue" id="tbox-cpu-avg">15.8%</strong></span>
-                            </div>
-                        </div>
-
-                        <div class="tbox-connector">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-
-                        <!-- Box 2: System Memory (RAM) -->
-                        <div class="telemetry-box" id="tbox-ram">
-                            <div class="tbox-top">
-                                <span class="tbox-tag">SYSTEM MEMORY</span>
-                                <span class="tbox-badge badge-green" id="tbox-ram-badge">STABLE</span>
-                            </div>
-                            <h5 class="tbox-title">System RAM (16 GB)</h5>
-                            <div class="tbox-sub" id="tbox-ram-cap">15.72 GB Total Physical Pool</div>
-                            <div class="tbox-stat-row">
-                                <span class="tbox-lbl">Memory Used:</span>
-                                <strong class="tbox-val text-green" id="tbox-ram-used">12.80 / 15.72 GB</strong>
-                            </div>
-                            <div class="tbox-metrics-sub">
-                                <span>Peak: <strong id="tbox-ram-peak">13.10 GB</strong></span>
-                                <span>Usage: <strong class="text-green" id="tbox-ram-pct">81.4%</strong></span>
-                            </div>
-                        </div>
-
-                        <div class="tbox-connector">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-
-                        <!-- Box 3: GPU Consumption (Load & VRAM) -->
-                        <div class="telemetry-box" id="tbox-gpu">
-                            <div class="tbox-top">
-                                <span class="tbox-tag">GPU ENGINE</span>
-                                <span class="tbox-badge badge-purple" id="tbox-gpu-badge">LIVE LOAD</span>
-                            </div>
-                            <h5 class="tbox-title">GPU Consumption</h5>
-                            <div class="tbox-sub" id="tbox-gpu-name">RTX 4050 (6,141 MB GDDR6 Pool)</div>
-                            <div class="tbox-stat-row">
-                                <span class="tbox-lbl">GPU Load:</span>
-                                <strong class="tbox-val text-purple" id="tbox-gpu-load">0.0%</strong>
-                            </div>
-                            <div class="tbox-metrics-sub">
-                                <span>VRAM: <strong id="tbox-gpu-vram">407 / 6141 MB</strong></span>
-                                <span>Temp: <strong class="text-purple" id="tbox-gpu-temp">46°C</strong></span>
-                            </div>
-                        </div>
-
-                        <div class="tbox-connector">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-
-                        <!-- Box 4: Pipeline Latency (Total Time) -->
-                        <div class="telemetry-box" id="tbox-latency">
-                            <div class="tbox-top">
-                                <span class="tbox-tag">EXECUTION SPEED</span>
-                                <span class="tbox-badge badge-yellow" id="tbox-latency-badge">LOW LATENCY</span>
-                            </div>
-                            <h5 class="tbox-title">Pipeline Latency</h5>
-                            <div class="tbox-sub" id="tbox-latency-desc">End-to-End Query & Ingestion Time</div>
-                            <div class="tbox-stat-row">
-                                <span class="tbox-lbl">Total Time:</span>
-                                <strong class="tbox-val text-yellow" id="tbox-latency-total">1.25s</strong>
-                            </div>
-                            <div class="tbox-metrics-sub">
-                                <span>LLM: <strong id="tbox-latency-llm">1.15s</strong></span>
-                                <span>FAISS: <strong id="tbox-latency-faiss">4.5ms</strong></span>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Hamming Distance Guide Info Card -->
@@ -433,30 +328,17 @@
                 <pre class="json-code-box" id="json-code-display" style="display: none;">Loading indexed CCTV events JSON dataset…</pre>
             </div>
 
-            <!-- TAB 4: RTSP Live Stream & Local Video Manager -->
+            <!-- TAB 4: RTSP Live Stream Manager -->
             <div class="dev-tab-content" id="tab-rtsp" style="display: none;">
-                <!-- Source Selection Switcher -->
-                <div class="stream-source-switch-bar">
-                    <button class="source-tab-btn active" id="btn-mode-url" data-mode="url">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                        <span>🌐 Network Stream / URL (RTSP / RTMP / YouTube)</span>
-                    </button>
-                    <button class="source-tab-btn" id="btn-mode-local" data-mode="local">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
-                        <span>📁 Local Video File (Select from Computer)</span>
-                    </button>
-                </div>
-
-                <!-- Form 1: URL Stream Bar -->
-                <div class="rtsp-form-bar" id="stream-url-form">
+                <div class="rtsp-form-bar">
                     <div class="control-group">
                         <label>Camera ID:</label>
                         <input type="text" id="rtsp-cam-id" placeholder="CAM_NORTH_RTSP" class="dev-input" style="width: 140px;">
                     </div>
 
                     <div class="control-group" style="flex: 1;">
-                        <label>Stream URL (RTSP / RTMP / YouTube):</label>
-                        <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live or https://www.youtube.com/watch?v=..." class="dev-input" style="width: 100%;">
+                        <label>Stream URL (RTSP / RTMP / File):</label>
+                        <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live or Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
                     </div>
 
                     <div class="control-group">
@@ -473,89 +355,19 @@
                     </button>
                 </div>
 
-                <!-- Form 2: Local Video Upload & Ingestion Bar -->
-                <div class="rtsp-form-bar" id="local-video-form" style="display: none;">
-                    <div class="control-group">
-                        <label>Camera ID:</label>
-                        <input type="text" id="local-cam-id" placeholder="CAM_01" value="CAM_01" class="dev-input" style="width: 130px;">
-                    </div>
-
-                    <div class="control-group" style="flex: 1;">
-                        <label>Select Video File (.mp4, .mkv, .avi):</label>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <input type="file" id="local-video-file-input" accept="video/*" style="display:none;">
-                            <button type="button" id="browse-video-btn" class="btn-secondary btn-sm" style="height:32px; background:var(--bg-canvas); border:1px solid var(--border-strong);">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                                <span>Choose Video File…</span>
-                            </button>
-                            <span id="selected-video-name" class="text-muted" style="font-family:var(--font-mono); font-size:0.75rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:260px;">
-                                sample_cctv.mp4 (Available in data/videos)
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="control-group">
-                        <label>Interval (s):</label>
-                        <input type="number" id="local-sample-interval" value="10.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 70px;">
-                    </div>
-
-                    <button id="upload-local-video-btn" class="btn-primary btn-sm">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                        <span>Start Ingest & Index</span>
-                    </button>
-                </div>
-
                 <div class="guide-box" style="margin: 10px 0;">
                     <div class="guide-header">
-                        <strong>⚡ Async Multi-Threaded RTSP & Local Video Stream Capture Engine</strong>
+                        <strong>⚡ Async Multi-Threaded RTSP Stream Capture Engine</strong>
                         <button class="info-btn" data-info="rtsp_manager">i</button>
                     </div>
                     <p>
-                        Captures live CCTV network feeds (RTSP/RTMP), YouTube live streams, and local video files on non-blocking background producer threads using a <strong>Size-1 Ring Buffer</strong>. Runs continuous edge dHash/pHash keyframe extraction and automatic Qwen3-VL vector indexing.
+                        Captures live CCTV network feeds (RTSP/RTMP) on non-blocking background producer threads using a <strong>Size-1 Ring Buffer</strong>. Ensures zero streaming lag while running continuous edge dHash keyframe extraction and automatic reconnection watchdogs.
                     </p>
                 </div>
 
-                <!-- Active Streams Grid -->
                 <div class="rtsp-streams-grid" id="rtsp-streams-list">
                     <div class="empty-state" style="padding: 20px;">
-                        <p class="placeholder-text">No active camera streams running. Choose a video file or stream URL above to launch capture.</p>
-                    </div>
-                </div>
-
-                <!-- Internal Processing & Indexing Telemetry Table -->
-                <div class="stream-telemetry-container" style="margin-top: 16px; background:var(--bg-surface); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:16px;">
-                    <div class="telemetry-flow-header">
-                        <div class="stepper-title-wrap">
-                            <span class="status-pulse-dot" style="background:#0284c7; box-shadow:0 0 8px #0284c7;"></span>
-                            <h4 style="font-size:0.9rem; font-weight:700;">Internal Ingestion & Indexing Telemetry Readings</h4>
-                        </div>
-                        <span class="badge-live-telemetry" id="telemetry-log-count">0 READINGS RECORDED</span>
-                    </div>
-                    <div class="dev-table-wrapper" style="max-height: 280px; overflow-y: auto;">
-                        <table class="dev-audit-table" id="telemetry-readings-table">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Time</th>
-                                    <th>Camera</th>
-                                    <th>Action / Gate</th>
-                                    <th>Hamming / Motion</th>
-                                    <th>Latency</th>
-                                    <th>CPU / RAM</th>
-                                    <th>GPU Load & VRAM</th>
-                                    <th>Surveillance Description / Metadata</th>
-                                </tr>
-                            </thead>
-                            <tbody id="telemetry-readings-tbody">
-                                <tr>
-                                    <td colspan="9" style="text-align: center; color: var(--text-dim); padding: 16px;">
-                                        No internal readings recorded yet. Start or re-index a video stream to capture real-time readings.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                        <p class="placeholder-text">No active camera streams running. Enter a stream URL above to launch multi-threaded capture.</p>
                     </div>
                 </div>
             </div>

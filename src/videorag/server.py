@@ -73,17 +73,9 @@ PIPELINE: Dict[str, Any] = {}
 CAMERA_REGISTRY = CameraRegistry(_PROJECT_ROOT / "data" / "cameras_registry.json")
 
 # Fair Round-Robin Auto-Indexing Queue for Real-Time Multi-Camera Ingestion
-CAMERA_QUEUES: Dict[str, collections.deque] = collections.defaultdict(lambda: collections.deque(maxlen=20))
+CAMERA_QUEUES: Dict[str, collections.deque] = collections.defaultdict(lambda: collections.deque(maxlen=2000))
 QUEUE_LOCK = threading.Lock()
 QUEUE_NOTIFY = threading.Condition(QUEUE_LOCK)
-
-# Real-Time Internal Ingestion & Indexing Readings Log
-STREAM_TELEMETRY_LOG = collections.deque(maxlen=200)
-
-def _add_telemetry_entry(entry: Dict[str, Any]) -> None:
-    entry["id"] = len(STREAM_TELEMETRY_LOG) + 1
-    entry["epoch_time"] = round(time.time(), 3)
-    STREAM_TELEMETRY_LOG.appendleft(entry)
 
 
 def _queue_auto_index_keyframe(keyframe_meta: Dict[str, Any]) -> None:
@@ -94,24 +86,6 @@ def _queue_auto_index_keyframe(keyframe_meta: Dict[str, Any]) -> None:
     with QUEUE_NOTIFY:
         CAMERA_QUEUES[cam].append(keyframe_meta)
         QUEUE_NOTIFY.notify_all()
-
-    hw_snap = _get_live_hardware_stats()
-    _add_telemetry_entry({
-        "camera": cam,
-        "timestamp": keyframe_meta.get("timestamp", "00:00:00"),
-        "action": "dHash Gate: KEPT",
-        "hamming_dist": keyframe_meta.get("hamming_dist", 12),
-        "motion_pct": keyframe_meta.get("motion_pct", 18.5),
-        "latency_seconds": 0.001,
-        "cpu_percent": hw_snap.get("cpu_percent", 0.0),
-        "ram_used_gb": hw_snap.get("ram_used_gb", 0.0),
-        "gpu_load_pct": hw_snap.get("gpu_utilization_pct", 0),
-        "gpu_vram_mb": hw_snap.get("gpu_vram_used_mb", 407),
-        "gpu_temp_c": hw_snap.get("gpu_temp_c", 46),
-        "gpu_power_w": hw_snap.get("gpu_power_w", 2.0),
-        "description": f"Keyframe passed 64-bit dHash gate (Hamming: {keyframe_meta.get('hamming_dist', 12)}). Queued for Qwen3-VL.",
-        "status": "GATE_KEPT"
-    })
     logger.info("[Auto-Indexer] Queued new keyframe for %s @ %s (cam pending: %d).", 
                 cam, keyframe_meta.get("timestamp"), len(CAMERA_QUEUES[cam]))
 
@@ -142,9 +116,48 @@ def _auto_index_worker_loop() -> None:
         try:
             keyframe = None
             with QUEUE_NOTIFY:
+                # If queues are empty, check disk for any uncaptioned keyframes and enqueue them
+                if not any(len(q) > 0 for q in CAMERA_QUEUES.values()):
+                    cam_base = _PROJECT_ROOT / "data" / "cameras"
+                    if cam_base.exists():
+                        for cam_dir in cam_base.iterdir():
+                            if cam_dir.is_dir():
+                                cam_id = cam_dir.name
+                                ef = cam_dir / "events.json"
+                                indexed_paths = set()
+                                if ef.exists():
+                                    try:
+                                        with open(ef, "r", encoding="utf-8") as fh:
+                                            indexed_paths = set(str(r.get("image_path", "")).replace("\\", "/") for r in json.load(fh))
+                                    except Exception:
+                                        pass
+                                frames_dir = cam_dir / "extracted_frames"
+                                if frames_dir.exists():
+                                    for img_p in sorted(frames_dir.glob("*.jpg"), key=os.path.getmtime):
+                                        clean_p = str(img_p.relative_to(_PROJECT_ROOT)).replace("\\", "/")
+                                        if clean_p not in indexed_paths and not any(k.get("image_path") == str(img_p) for k in CAMERA_QUEUES[cam_id]):
+                                            parts = img_p.stem.split("_")
+                                            ts = "00:00:00"
+                                            secs = 0.0
+                                            if len(parts) >= 5:
+                                                ts = f"{parts[-4]}:{parts[-3]}:{parts[-2]}"
+                                                try:
+                                                    secs = int(parts[-4])*3600 + int(parts[-3])*60 + int(parts[-2])
+                                                except Exception:
+                                                    secs = 0.0
+                                            CAMERA_QUEUES[cam_id].append({
+                                                "camera": cam_id,
+                                                "timestamp": ts,
+                                                "seconds": secs,
+                                                "epoch_time": round(img_p.stat().st_mtime, 3),
+                                                "image_path": str(img_p),
+                                                "hash_hex": "0x0",
+                                                "motion_pct": 100.0,
+                                            })
+
                 # Wait until at least one camera has a pending keyframe
                 while not any(len(q) > 0 for q in CAMERA_QUEUES.values()):
-                    QUEUE_NOTIFY.wait(timeout=1.0)
+                    QUEUE_NOTIFY.wait(timeout=2.0)
 
                 # Fair round-robin across cameras that have pending frames
                 available_cams = [c for c, q in CAMERA_QUEUES.items() if len(q) > 0]
@@ -174,11 +187,7 @@ def _auto_index_worker_loop() -> None:
 
             logger.info("[Auto-Indexer] [%s] Running VLM captioning on %s @ %s (%s)...", 
                         cam_id, cam_id, ts_str, Path(img_path).name)
-            
-            t_cap_0 = time.time()
             desc = captioner.caption_frame(img_path)
-            t_cap_1 = time.time()
-            cap_duration_s = round(t_cap_1 - t_cap_0, 2)
 
             # 1. Update per-camera isolated events JSON
             cam_dir = _PROJECT_ROOT / "data" / "cameras" / cam_id
@@ -254,25 +263,6 @@ def _auto_index_worker_loop() -> None:
                     PIPELINE["vector_store"].save(str(idx_path))
                     logger.info("[Auto-Indexer] [%s] Successfully auto-indexed keyframe @ %s! Vector count: %d", 
                                 cam_id, ts_str, PIPELINE["vector_store"].size)
-
-                # 4. Record comprehensive internal telemetry reading
-                hw_snap = _get_live_hardware_stats()
-                _add_telemetry_entry({
-                    "camera": cam_id,
-                    "timestamp": ts_str,
-                    "action": "Qwen VLM Ingested & FAISS Indexed",
-                    "hamming_dist": keyframe.get("hamming_dist", 12),
-                    "motion_pct": keyframe.get("motion_pct", 18.5),
-                    "latency_seconds": cap_duration_s,
-                    "cpu_percent": hw_snap.get("cpu_percent", 0.0),
-                    "ram_used_gb": hw_snap.get("ram_used_gb", 0.0),
-                    "gpu_load_pct": hw_snap.get("gpu_utilization_pct", 0),
-                    "gpu_vram_mb": hw_snap.get("gpu_vram_used_mb", 407),
-                    "gpu_temp_c": hw_snap.get("gpu_temp_c", 46),
-                    "gpu_power_w": hw_snap.get("gpu_power_w", 2.0),
-                    "description": desc,
-                    "status": "ONLINE_INDEXED"
-                })
 
         except Exception as exc:
             logger.error("[Auto-Indexer] Error during keyframe auto-indexing: %s", exc, exc_info=True)
@@ -368,7 +358,7 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
 
     llm_client = LLMClient(
         backend=cfg_llm.get("backend", "local"),
-        model=cfg_llm.get("model", "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
+        model=cfg_llm.get("model", "Local LLM 3VL 4Q/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
         api_key=cfg_llm.get("api_key"),
         base_url=cfg_llm.get("base_url"),
     )
@@ -391,131 +381,6 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
 
 
 # ---------------------------------------------------------------------------
-# Real-Time Hardware Telemetry & Pipeline Latency Tracker
-# ---------------------------------------------------------------------------
-import subprocess
-try:
-    import psutil
-except ImportError:
-    psutil = None
-
-TELEMETRY_DATA: Dict[str, Any] = {
-    "cpu_peak_pct": 0.0,
-    "cpu_samples": collections.deque(maxlen=60),
-    "ram_peak_gb": 0.0,
-    "ram_samples": collections.deque(maxlen=60),
-    "gpu_temp_peak_c": 0,
-    "last_query": {
-        "total_latency_seconds": 1.25,
-        "llm_reasoning_seconds": 1.15,
-        "llm_reasoning_ms": 1150.0,
-        "faiss_retrieval_ms": 4.5,
-        "query_embedding_ms": 18.2,
-        "rerank_ms": 12.0,
-        "dhash_time_ms": 0.25,
-    }
-}
-
-def _get_live_hardware_stats() -> Dict[str, Any]:
-    """Sample live CPU, System RAM, and NVIDIA GPU thermal & power sensors."""
-    cur_cpu = 0.0
-    cpu_cores = 16
-    cpu_threads = 24
-    ram_used_gb = 0.0
-    ram_total_gb = 15.72
-    ram_usage_pct = 0.0
-
-    if psutil:
-        try:
-            cur_cpu = psutil.cpu_percent(interval=None)
-            cpu_cores = psutil.cpu_count(logical=False) or 16
-            cpu_threads = psutil.cpu_count(logical=True) or 24
-            vmem = psutil.virtual_memory()
-            ram_used_gb = round(vmem.used / (1024 ** 3), 2)
-            ram_total_gb = round(vmem.total / (1024 ** 3), 2)
-            ram_usage_pct = round(vmem.percent, 1)
-
-            TELEMETRY_DATA["cpu_samples"].append(cur_cpu)
-            if cur_cpu > TELEMETRY_DATA["cpu_peak_pct"]:
-                TELEMETRY_DATA["cpu_peak_pct"] = cur_cpu
-
-            TELEMETRY_DATA["ram_samples"].append(ram_used_gb)
-            if ram_used_gb > TELEMETRY_DATA["ram_peak_gb"]:
-                TELEMETRY_DATA["ram_peak_gb"] = ram_used_gb
-        except Exception:
-            pass
-
-    cpu_samples = TELEMETRY_DATA["cpu_samples"]
-    avg_cpu = round(sum(cpu_samples) / len(cpu_samples), 1) if cpu_samples else cur_cpu
-    peak_cpu = round(TELEMETRY_DATA["cpu_peak_pct"], 1)
-
-    ram_samples = TELEMETRY_DATA["ram_samples"]
-    avg_ram = round(sum(ram_samples) / len(ram_samples), 2) if ram_samples else ram_used_gb
-    peak_ram = round(TELEMETRY_DATA["ram_peak_gb"], 2)
-
-    # GPU Sensors via nvidia-smi
-    gpu_name = "NVIDIA GeForce RTX 4050 Laptop GPU"
-    gpu_temp = 46
-    gpu_util = 0
-    gpu_vram_used = 407
-    gpu_vram_total = 6141
-    gpu_power = 2.0
-    fan_status = "Auto Dynamic (Quiet)"
-
-    try:
-        res = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total,power.draw,fan.speed", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=1.5
-        )
-        if res.returncode == 0 and res.stdout.strip():
-            parts = [p.strip() for p in res.stdout.strip().split(",")]
-            if len(parts) >= 6:
-                gpu_name = parts[0]
-                if parts[1].isdigit(): gpu_temp = int(parts[1])
-                if parts[2].isdigit(): gpu_util = int(parts[2])
-                if parts[3].isdigit(): gpu_vram_used = int(parts[3])
-                if parts[4].isdigit(): gpu_vram_total = int(parts[4])
-                try:
-                    gpu_power = float(parts[5])
-                except ValueError:
-                    pass
-                if len(parts) > 6:
-                    fan_val = parts[6]
-                    if fan_val not in ("[N/A]", "N/A"):
-                        fan_status = f"{fan_val}% RPM"
-                    else:
-                        fan_status = "Dynamic (Quiet)" if gpu_temp < 55 else ("Optimal Curve" if gpu_temp < 70 else "Active Boost")
-    except Exception:
-        pass
-
-    if gpu_temp > TELEMETRY_DATA["gpu_temp_peak_c"]:
-        TELEMETRY_DATA["gpu_temp_peak_c"] = gpu_temp
-
-    return {
-        "cpu_percent": cur_cpu,
-        "cpu_peak_pct": peak_cpu,
-        "cpu_avg_pct": avg_cpu,
-        "cpu_cores": cpu_cores,
-        "cpu_threads": cpu_threads,
-        "cpu_model": f"Intel Core i7-13700HX ({cpu_cores} Cores, {cpu_threads} Threads)",
-        "ram_used_gb": ram_used_gb,
-        "ram_total_gb": ram_total_gb,
-        "ram_used_peak_gb": peak_ram,
-        "ram_used_avg_gb": avg_ram,
-        "ram_usage_pct": ram_usage_pct,
-        "gpu_name": gpu_name,
-        "gpu_temp_c": gpu_temp,
-        "gpu_temp_peak_c": TELEMETRY_DATA["gpu_temp_peak_c"],
-        "gpu_utilization_pct": gpu_util,
-        "gpu_vram_used_mb": gpu_vram_used,
-        "gpu_vram_total_mb": gpu_vram_total,
-        "gpu_power_w": gpu_power,
-        "fan_status": fan_status,
-        "last_query": TELEMETRY_DATA["last_query"],
-    }
-
-
-# ---------------------------------------------------------------------------
 # API Endpoints
 # ---------------------------------------------------------------------------
 
@@ -535,41 +400,89 @@ def get_health():
     }
 
 
-@app.get("/api/system_stats")
-def get_system_stats():
-    """Return real-time hardware telemetry and compute benchmarks."""
-    return _get_live_hardware_stats()
+def _sync_disk_events() -> List[Dict[str, Any]]:
+    """Synchronize events bidirectionally between master real_cctv_events.json and all data/cameras/*/events.json."""
+    data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+    cam_base = _PROJECT_ROOT / "data" / "cameras"
+    records = []
+    seen_keys = set()
+
+    # Active directories on disk are the ultimate source of truth
+    existing_dir_cams = set(p.name for p in cam_base.iterdir() if p.is_dir()) if cam_base.exists() else set()
+
+    # 1. Read from master (and filter out deleted cameras)
+    if data_path.exists():
+        try:
+            with open(data_path, "r", encoding="utf-8") as fh:
+                loaded = json.load(fh)
+                if isinstance(loaded, list):
+                    for r in loaded:
+                        cam = r.get("camera")
+                        if cam and cam in existing_dir_cams:
+                            k = (cam, r.get("timestamp"), str(r.get("image_path", "")).replace("\\", "/"))
+                            if k not in seen_keys:
+                                seen_keys.add(k)
+                                records.append(r)
+        except Exception as exc:
+            logger.warning("Failed to read %s: %s", data_path, exc)
+
+    # 2. Read from all existing per-camera events.json
+    if cam_base.exists():
+        for cam_events in cam_base.glob("*/events.json"):
+            if cam_events.parent.name in existing_dir_cams:
+                try:
+                    with open(cam_events, "r", encoding="utf-8") as fh:
+                        content = fh.read().strip()
+                        if content:
+                            cam_records = json.loads(content)
+                            if isinstance(cam_records, list):
+                                for cr in cam_records:
+                                    cam = cr.get("camera")
+                                    if cam and cam in existing_dir_cams:
+                                        k = (cam, cr.get("timestamp"), str(cr.get("image_path", "")).replace("\\", "/"))
+                                        if k not in seen_keys:
+                                            seen_keys.add(k)
+                                            records.append(cr)
+                except Exception as exc:
+                    logger.warning("Failed to read %s: %s", cam_events, exc)
+
+    # 3. Write back per-camera events.json
+    per_cam = collections.defaultdict(list)
+    for r in records:
+        cam = r.get("camera")
+        if cam and cam in existing_dir_cams:
+            per_cam[cam].append(r)
+
+    if cam_base.exists():
+        for cam, recs in per_cam.items():
+            cam_dir = cam_base / cam
+            cam_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                with open(cam_dir / "events.json", "w", encoding="utf-8") as fh:
+                    json.dump(recs, fh, indent=2, ensure_ascii=False)
+            except Exception as exc:
+                logger.warning("Failed to write %s/events.json: %s", cam, exc)
+
+    # 4. Write back master real_cctv_events.json
+    try:
+        with open(data_path, "w", encoding="utf-8") as fh:
+            json.dump(records, fh, indent=2, ensure_ascii=False)
+    except Exception as exc:
+        logger.warning("Failed to write %s: %s", data_path, exc)
+
+    return records
 
 
 @app.get("/api/events")
 def get_events(camera: Optional[str] = None, detailed: bool = False):
     """Return combined CCTV events dataset with dynamic camera discovery and optional filtering."""
     data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-    records = []
-    
-    # 1. Read from master real_cctv_events.json if available
-    if data_path.exists():
-        try:
-            with open(data_path, "r", encoding="utf-8") as fh:
-                records = json.load(fh)
-        except Exception as exc:
-            logger.warning("Failed to read %s: %s", data_path, exc)
-
-    # 2. Always aggregate and sync directly from per-camera isolated events JSON
-    seen_keys = set((r.get("camera"), r.get("timestamp"), r.get("image_path", "")) for r in records)
     cam_base = _PROJECT_ROOT / "data" / "cameras"
-    if cam_base.exists():
-        for cam_events in cam_base.glob("*/events.json"):
-            try:
-                with open(cam_events, "r", encoding="utf-8") as fh:
-                    cam_records = json.load(fh)
-                    for cr in cam_records:
-                        k = (cr.get("camera"), cr.get("timestamp"), cr.get("image_path", ""))
-                        if k not in seen_keys:
-                            seen_keys.add(k)
-                            records.append(cr)
-            except Exception:
-                pass
+    records = _sync_disk_events()
+
+    # Dynamic camera discovery strictly from existing camera directories on disk
+    existing_dir_cams = set(p.name for p in cam_base.iterdir() if p.is_dir()) if cam_base.exists() else set()
+    all_cams = sorted(list(existing_dir_cams))
 
     # Normalize image_path and calculate epoch_time for browser display
     for r in records:
@@ -591,30 +504,20 @@ def get_events(camera: Optional[str] = None, detailed: bool = False):
             if local_img.exists():
                 r["epoch_time"] = round(local_img.stat().st_mtime, 3)
 
-    # Dynamic camera discovery across all system sources
-    registered_cams = set(c["camera_id"] for c in CAMERA_REGISTRY.get_all())
-    stream_cams = set(STREAM_MANAGER.streams.keys())
-    dir_cams = set(p.name for p in cam_base.iterdir() if p.is_dir()) if cam_base.exists() else set()
-    event_cams = set(r.get("camera") for r in records if r.get("camera"))
-    all_cams = sorted(list(registered_cams | stream_cams | dir_cams | event_cams))
-
     # Filter by camera if requested
     filtered = records
     if camera:
         filtered = [r for r in records if r.get("camera") == camera]
 
-    if detailed:
-        file_size = data_path.stat().st_size if data_path.exists() else 0
-        return {
-            "events": filtered,
-            "total_count": len(records),
-            "filtered_count": len(filtered),
-            "cameras": all_cams,
-            "file_size_bytes": file_size,
-            "dataset_path": "data/real_cctv_events.json",
-        }
-
-    return filtered
+    file_size = data_path.stat().st_size if data_path.exists() else 0
+    return {
+        "events": filtered,
+        "total_count": len(records),
+        "filtered_count": len(filtered),
+        "cameras": all_cams,
+        "file_size_bytes": file_size,
+        "dataset_path": "data/real_cctv_events.json",
+    }
 
 
 @app.post("/api/search")
@@ -743,19 +646,7 @@ def search_cctv(req: SearchRequest):
             "faiss_retrieval_ms": round((t2 - t1) * 1000, 2),
             "cross_encoder_rerank_ms": round((t3 - t2) * 1000, 2),
             "llm_generation_ms": round((t4 - t3) * 1000, 2),
-            "total_latency_seconds": round(t4 - t0, 3),
         }
-    }
-
-    # Record into real-time telemetry
-    TELEMETRY_DATA["last_query"] = {
-        "total_latency_seconds": round(t4 - t0, 3),
-        "llm_reasoning_seconds": round(t4 - t3, 3),
-        "llm_reasoning_ms": round((t4 - t3) * 1000, 2),
-        "faiss_retrieval_ms": round((t2 - t1) * 1000, 2),
-        "query_embedding_ms": round((t1 - t0) * 1000, 2),
-        "rerank_ms": round((t3 - t2) * 1000, 2),
-        "dhash_time_ms": 0.25,
     }
 
     return {
@@ -765,7 +656,6 @@ def search_cctv(req: SearchRequest):
         "evaluation": eval_result,
         "total_retrieved": len(raw_results),
         "debug_trace": debug_trace,
-        "timings": debug_trace["timings_ms"],
     }
 
 
@@ -851,7 +741,20 @@ def add_camera_stream(req: AddStreamRequest):
 @app.get("/api/streams/status")
 def get_streams_status():
     """Return health metrics and stats for all registered multi-camera streams."""
-    return {"active_streams": STREAM_MANAGER.get_all_statuses()}
+    statuses = STREAM_MANAGER.get_all_statuses()
+    cam_base = _PROJECT_ROOT / "data" / "cameras"
+    for st in statuses:
+        cid = st.get("camera_id")
+        events_file = cam_base / cid / "events.json" if cid else None
+        indexed_count = 0
+        if events_file and events_file.exists():
+            try:
+                with open(events_file, "r", encoding="utf-8") as fh:
+                    indexed_count = len(json.load(fh))
+            except Exception:
+                indexed_count = 0
+        st["indexed_count"] = indexed_count
+    return {"active_streams": statuses}
 
 
 @app.post("/api/streams/pause")
@@ -875,162 +778,38 @@ def resume_camera_stream(req: RemoveStreamRequest):
 
 @app.post("/api/streams/remove")
 def remove_camera_stream(req: RemoveStreamRequest):
-    """Stop and completely remove camera stream from registry."""
+    """Stop and completely remove camera stream and delete its folder from disk."""
     _clear_camera_queue(req.camera_id)
     success = STREAM_MANAGER.remove_camera(req.camera_id)
+    _sync_disk_events()
     return {"status": "removed", "camera_id": req.camera_id}
 
 
-@app.get("/api/streams/telemetry_log")
-def get_stream_telemetry_log():
-    """Return recent real-time internal ingestion, hashing & indexing readings."""
-    return {"log": list(STREAM_TELEMETRY_LOG)}
+@app.get("/api/cameras")
+def get_camera_list():
+    """Return list of all dynamically registered cameras strictly present on disk."""
+    CAMERA_REGISTRY.load()
+    registered = [c["camera_id"] for c in CAMERA_REGISTRY.get_all()]
+    return {"cameras": sorted(list(set(registered)))}
 
 
-@app.post("/api/streams/upload")
-async def upload_local_video(
-    file: UploadFile = File(...),
-    camera_id: Optional[str] = Form(None),
-    sample_interval: Optional[float] = Form(10.0),
-    hash_method: Optional[str] = Form("dhash"),
-    threshold: Optional[int] = Form(10),
-):
-    """
-    Upload a local video file from user's computer, save to data/uploads/,
-    register in camera registry, and launch multi-threaded dHash extraction & auto-indexing.
-    """
-    import shutil
-    upload_dir = _PROJECT_ROOT / "data" / "uploads"
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    
-    filename = file.filename or "uploaded_video.mp4"
-    dest_path = upload_dir / filename
-    
-    with open(dest_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+@app.get("/api/cameras/feeds")
+def get_camera_feeds():
+    """Return live and recorded surveillance feeds from persistent CameraRegistry."""
+    CAMERA_REGISTRY.load()
+    feeds = []
+    registered_cams = CAMERA_REGISTRY.get_all()
+    active_cam_ids = set(c["camera_id"] for c in registered_cams)
 
-    cam_id = camera_id.strip() if (camera_id and camera_id.strip()) else f"CAM_{Path(filename).stem.upper().replace(' ', '_')}"
-    rel_path = f"data/uploads/{filename}"
-    
-    stream = STREAM_MANAGER.add_camera(
-        camera_id=cam_id,
-        stream_url=rel_path,
-        name=f"Local Video: {filename}",
-        sample_interval=sample_interval or 10.0,
-        hash_method=hash_method or "dhash",
-        threshold=threshold or 10,
-        start_immediately=True,
-    )
-    
-    hw_snap = _get_live_hardware_stats()
-    _add_telemetry_entry({
-        "camera": cam_id,
-        "timestamp": "00:00:00",
-        "action": "Local Video Uploaded & Stream Initialized",
-        "hamming_dist": 0,
-        "motion_pct": 0.0,
-        "latency_seconds": 0.05,
-        "cpu_percent": hw_snap.get("cpu_percent", 0.0),
-        "ram_used_gb": hw_snap.get("ram_used_gb", 0.0),
-        "gpu_load_pct": hw_snap.get("gpu_utilization_pct", 0),
-        "gpu_vram_mb": hw_snap.get("gpu_vram_used_mb", 407),
-        "gpu_temp_c": hw_snap.get("gpu_temp_c", 46),
-        "gpu_power_w": hw_snap.get("gpu_power_w", 2.0),
-        "description": f"Loaded local video '{filename}' into {cam_id}. Starting async dHash extraction.",
-        "status": "STREAM_READY"
-    })
-
-    return {
-        "status": "uploaded_and_registered",
-        "camera_id": cam_id,
-        "video_path": rel_path,
-        "stream_info": stream.get_status()
-    }
-
-
-@app.post("/api/streams/reindex")
-def reindex_camera_stream(req: AddStreamRequest):
-    """
-    Purge previous extracted frames and FAISS vectors for this camera,
-    and restart stream reader from timestamp 0 with fresh dHash filtering & auto-indexing.
-    """
-    cam_id = req.camera_id
-    _clear_camera_queue(cam_id)
-    
-    # 1. Reindex camera in StreamManager
-    new_stream = STREAM_MANAGER.reindex_camera(
-        camera_id=cam_id,
-        hash_method=req.hash_method or "dhash",
-        threshold=req.threshold or 10,
-    )
-    if not new_stream:
-        raise HTTPException(status_code=404, detail=f"Camera '{cam_id}' not found in registry.")
-
-    # 2. Re-sync master real_cctv_events.json by aggregating all per-camera events
-    out_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-    all_events = []
-    for c_dir in (_PROJECT_ROOT / "data" / "cameras").glob("*"):
-        e_f = c_dir / "events.json"
-        if e_f.exists():
+    # Stop and remove background streams for cameras removed from disk
+    with STREAM_MANAGER._lock:
+        to_remove = [cid for cid in list(STREAM_MANAGER.streams.keys()) if cid not in active_cam_ids]
+        for cid in to_remove:
             try:
-                with open(e_f, "r", encoding="utf-8") as fh:
-                    all_events.extend(json.load(fh))
+                STREAM_MANAGER.streams[cid].stop()
+                del STREAM_MANAGER.streams[cid]
             except Exception:
                 pass
-
-    seen_k = set()
-    deduped = []
-    for r in all_events:
-        k = (r.get("camera"), r.get("timestamp"), r.get("description", "")[:30])
-        if k not in seen_k:
-            seen_k.add(k)
-            deduped.append(r)
-
-    with open(out_file, "w", encoding="utf-8") as fh:
-        json.dump(deduped, fh, indent=2, ensure_ascii=False)
-
-    # 3. Rebuild FAISS Index for all remaining events
-    if deduped and PIPELINE.get("embedder"):
-        from videorag.indexing.vector_store import FAISSVectorStore
-        texts = [f"Camera: {r.get('camera')} | Time: {r.get('timestamp')} | Event: {r.get('description')}" for r in deduped]
-        embeddings = PIPELINE["embedder"].embed(texts)
-        store = FAISSVectorStore(dim=384, index_type="flat")
-        store.add(embeddings, metadata=deduped)
-        idx_path = _PROJECT_ROOT / "index" / "cctv_index"
-        store.save(str(idx_path))
-        PIPELINE["vector_store"] = store
-    else:
-        from videorag.indexing.vector_store import FAISSVectorStore
-        store = FAISSVectorStore(dim=384, index_type="flat")
-        idx_path = _PROJECT_ROOT / "index" / "cctv_index"
-        store.save(str(idx_path))
-        PIPELINE["vector_store"] = store
-
-    hw_snap = _get_live_hardware_stats()
-    _add_telemetry_entry({
-        "camera": cam_id,
-        "timestamp": "00:00:00",
-        "action": "Camera Re-Indexed (Caches Purged)",
-        "hamming_dist": 0,
-        "motion_pct": 0.0,
-        "latency_seconds": 0.12,
-        "cpu_percent": hw_snap.get("cpu_percent", 0.0),
-        "ram_used_gb": hw_snap.get("ram_used_gb", 0.0),
-        "gpu_load_pct": hw_snap.get("gpu_utilization_pct", 0),
-        "gpu_vram_mb": hw_snap.get("gpu_vram_used_mb", 407),
-        "gpu_temp_c": hw_snap.get("gpu_temp_c", 46),
-        "gpu_power_w": hw_snap.get("gpu_power_w", 2.0),
-        "description": f"Deleted old frames and FAISS vectors for {cam_id}. Re-indexing started from 00:00:00.",
-        "status": "REINDEX_STARTED"
-    })
-
-    logger.info("[%s] Re-indexed camera from scratch! Remaining vectors: %d", cam_id, PIPELINE["vector_store"].size)
-    return {
-        "status": "reindexed",
-        "camera_id": cam_id,
-        "remaining_vectors": PIPELINE["vector_store"].size,
-        "stream_info": new_stream.get_status()
-    }
 
 
 @app.post("/api/streams/index_now")
@@ -1115,24 +894,6 @@ def index_stream_keyframes(req: RemoveStreamRequest):
         "camera_json_path": str(cam_json_file),
     }
 
-
-@app.get("/api/cameras")
-def get_camera_list():
-    """Return list of all dynamically registered cameras."""
-    registered = [c["camera_id"] for c in CAMERA_REGISTRY.get_all()]
-    # Add any cameras that have folders with events
-    for cam_dir in (_PROJECT_ROOT / "data" / "cameras").glob("*"):
-        if cam_dir.is_dir() and (cam_dir / "events.json").exists():
-            registered.append(cam_dir.name)
-    return {"cameras": sorted(list(set(registered)))}
-
-
-@app.get("/api/cameras/feeds")
-def get_camera_feeds():
-    """Return live and recorded surveillance feeds from persistent CameraRegistry."""
-    feeds = []
-    registered_cams = CAMERA_REGISTRY.get_all()
-
     for cfg in registered_cams:
         cam_id = cfg["camera_id"]
         cam_type = cfg.get("type", "rtsp_stream")
@@ -1159,6 +920,7 @@ def get_camera_feeds():
         if stream:
             st = stream.get_status()
             is_connected = st.get("is_connected", False)
+            is_completed = st.get("is_completed", False)
             fps_val = st.get("fps", 30.0)
             progress_pct = st.get("progress_pct")
             total_duration_sec = st.get("total_duration_sec")
@@ -1167,7 +929,9 @@ def get_camera_feeds():
             frames_read = st.get("total_frames_read", 0)
             cam_type = st.get("camera_type", cam_type)
 
-            if st.get("is_running"):
+            if is_completed:
+                status = "COMPLETED"
+            elif st.get("is_running"):
                 status = "LIVE (TCP)" if is_connected else "RECONNECTING"
             elif st.get("is_paused"):
                 status = "PAUSED"
@@ -1187,6 +951,16 @@ def get_camera_feeds():
             vid_id = yt_match.group(1) if yt_match else "1EiC9bvVGnk"
             embed_url = f"https://www.youtube-nocookie.com/embed/{vid_id}?autoplay=1&mute=1&enablejsapi=1"
 
+        # Count actual indexed events from events.json
+        cam_events_file = _PROJECT_ROOT / "data" / "cameras" / cam_id / "events.json"
+        indexed_count = 0
+        if cam_events_file.exists():
+            try:
+                with open(cam_events_file, "r", encoding="utf-8") as fh:
+                    indexed_count = len(json.load(fh))
+            except Exception:
+                indexed_count = 0
+
         feed_item = {
             "camera_id": cam_id,
             "name": cfg.get("name", f"Camera {cam_id}"),
@@ -1201,6 +975,7 @@ def get_camera_feeds():
             "current_position_sec": current_pos_sec,
             "progress_pct": progress_pct,
             "keyframes_count": keyframes_count,
+            "indexed_count": indexed_count,
             "frames_read": frames_read,
             "preview_image": preview_img,
         }
@@ -1212,10 +987,15 @@ def get_camera_feeds():
 @app.get("/video/sample_cctv.mp4")
 def get_sample_video():
     """Stream the sample CCTV video file."""
-    video_path = _PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4"
-    if not video_path.exists():
-        raise HTTPException(status_code=404, detail="Video file not found")
-    return FileResponse(str(video_path), media_type="video/mp4")
+    candidates = [
+        _PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4",
+        _PROJECT_ROOT / "data" / "videos" / "sample_cctv.mp4",
+        _PROJECT_ROOT / "data" / "uploads" / "sample_cctv.mp4",
+    ]
+    for video_path in candidates:
+        if video_path.exists():
+            return FileResponse(str(video_path), media_type="video/mp4")
+    raise HTTPException(status_code=404, detail="Video file not found")
 
 
 @app.post("/api/shutdown")

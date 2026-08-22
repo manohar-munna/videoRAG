@@ -86,10 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
             title: "Developer Mode Overview",
             body: "An advanced inspection suite that exposes edge frame hash filtering, 384-dimensional vector embedding representations, pipeline timing breakdowns, and raw indexed JSON event chunks."
         },
-        telemetry_flow: {
-            title: "Real-Time System Telemetry & Edge Compute Flow",
-            body: "Live 4-box connected hardware flow monitoring: (1) <strong>CPU Load & Peak/Avg</strong> on Intel i7-13700HX, (2) <strong>System RAM Pool</strong> (16 GB), (3) <strong>GPU Temperature, Power & Fans</strong> on NVIDIA RTX 4050, and (4) <strong>Pipeline Latency</strong> across dHash, vector search, and LLM reasoning."
-        },
         dhash_phash: {
             title: "dHash & pHash Edge Gate",
             body: "Edge frame hashing algorithms converting 1080p frames into compact 64-bit binary integers (<0.2ms) to detect static scenes and skip sending duplicate frames to LLMs."
@@ -262,12 +258,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchEventsJson();
             } else if (targetTabId === 'tab-rtsp') {
                 fetchRtspStreamsStatus();
-                fetchStreamTelemetryLog();
                 if (!rtspPollInterval) {
-                    rtspPollInterval = setInterval(() => {
-                        fetchRtspStreamsStatus();
-                        fetchStreamTelemetryLog();
-                    }, 2000);
+                    rtspPollInterval = setInterval(fetchRtspStreamsStatus, 2000);
                 }
             } else {
                 if (rtspPollInterval) {
@@ -281,124 +273,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let rtspPollInterval = null;
 
     // ------------------------------------------------------------------
-    // Tab 4: RTSP Live Stream & Local Video Manager
+    // Tab 4: RTSP Live Stream Manager & Multi-Camera Stream Controls
     // ------------------------------------------------------------------
     const rtspStreamsList = document.getElementById('rtsp-streams-list');
     const addRtspBtn = document.getElementById('add-rtsp-btn');
     const rtspCamId = document.getElementById('rtsp-cam-id');
     const rtspUrl = document.getElementById('rtsp-url');
     const rtspInterval = document.getElementById('rtsp-interval');
-
-    // Mode Switcher (URL Stream vs Local Video File)
-    const btnModeUrl = document.getElementById('btn-mode-url');
-    const btnModeLocal = document.getElementById('btn-mode-local');
-    const streamUrlForm = document.getElementById('stream-url-form');
-    const localVideoForm = document.getElementById('local-video-form');
-
-    if (btnModeUrl && btnModeLocal) {
-        btnModeUrl.addEventListener('click', () => {
-            btnModeUrl.classList.add('active');
-            btnModeLocal.classList.remove('active');
-            if (streamUrlForm) streamUrlForm.style.display = 'flex';
-            if (localVideoForm) localVideoForm.style.display = 'none';
-        });
-        btnModeLocal.addEventListener('click', () => {
-            btnModeLocal.classList.add('active');
-            btnModeUrl.classList.remove('active');
-            if (streamUrlForm) streamUrlForm.style.display = 'none';
-            if (localVideoForm) localVideoForm.style.display = 'flex';
-        });
-    }
-
-    // Local Video File Upload & Ingestion
-    const browseVideoBtn = document.getElementById('browse-video-btn');
-    const localVideoFileInput = document.getElementById('local-video-file-input');
-    const selectedVideoName = document.getElementById('selected-video-name');
-    const localCamId = document.getElementById('local-cam-id');
-    const localSampleInterval = document.getElementById('local-sample-interval');
-    const uploadLocalVideoBtn = document.getElementById('upload-local-video-btn');
-
-    let chosenVideoFile = null;
-
-    if (browseVideoBtn && localVideoFileInput) {
-        browseVideoBtn.addEventListener('click', () => localVideoFileInput.click());
-        localVideoFileInput.addEventListener('change', (e) => {
-            if (e.target.files && e.target.files.length > 0) {
-                chosenVideoFile = e.target.files[0];
-                if (selectedVideoName) selectedVideoName.textContent = `${chosenVideoFile.name} (${(chosenVideoFile.size / (1024*1024)).toFixed(1)} MB)`;
-                if (localCamId && (!localCamId.value || localCamId.value === 'CAM_01')) {
-                    const cleanStem = chosenVideoFile.name.replace(/\.[^/.]+$/, "").toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-                    localCamId.value = `CAM_${cleanStem}`;
-                }
-            }
-        });
-    }
-
-    if (uploadLocalVideoBtn) {
-        uploadLocalVideoBtn.addEventListener('click', async () => {
-            const camId = localCamId.value.trim() || 'CAM_01';
-            const interval = parseFloat(localSampleInterval.value) || 10.0;
-
-            uploadLocalVideoBtn.disabled = true;
-            uploadLocalVideoBtn.innerHTML = `<span>Uploading & Ingesting…</span>`;
-
-            try {
-                if (chosenVideoFile) {
-                    const formData = new FormData();
-                    formData.append('file', chosenVideoFile);
-                    formData.append('camera_id', camId);
-                    formData.append('sample_interval', interval);
-                    formData.append('hash_method', 'dhash');
-                    formData.append('threshold', '10');
-
-                    const resp = await fetch('/api/streams/upload', {
-                        method: 'POST',
-                        body: formData,
-                    });
-                    if (resp.ok) {
-                        alert(`Successfully uploaded '${chosenVideoFile.name}' and registered ${camId}! Ingestion & dHash indexing active.`);
-                        fetchRtspStreamsStatus();
-                        fetchCameraFeeds();
-                        fetchCameraPills();
-                        fetchEventsJson();
-                        fetchStreamTelemetryLog();
-                    } else {
-                        const err = await resp.json();
-                        alert('Upload failed: ' + (err.detail || 'Unknown error'));
-                    }
-                } else {
-                    // Ingest sample_cctv.mp4 in data/videos/
-                    const resp = await fetch('/api/streams/add', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            camera_id: camId,
-                            stream_url: 'data/videos/sample_cctv.mp4',
-                            sample_interval: interval,
-                            hash_method: 'dhash',
-                            threshold: 10,
-                        }),
-                    });
-                    if (resp.ok) {
-                        alert(`Successfully registered ${camId} with data/videos/sample_cctv.mp4! Ingestion & dHash indexing active.`);
-                        fetchRtspStreamsStatus();
-                        fetchCameraFeeds();
-                        fetchCameraPills();
-                        fetchEventsJson();
-                        fetchStreamTelemetryLog();
-                    } else {
-                        const err = await resp.json();
-                        alert('Registration failed: ' + (err.detail || 'Unknown error'));
-                    }
-                }
-            } catch (err) {
-                alert('Ingestion error: ' + err.message);
-            } finally {
-                uploadLocalVideoBtn.disabled = false;
-                uploadLocalVideoBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Start Ingest & Index</span>`;
-            }
-        });
-    }
 
     if (addRtspBtn) {
         addRtspBtn.addEventListener('click', async () => {
@@ -434,7 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetchCameraFeeds();
                     fetchCameraPills();
                     fetchEventsJson();
-                    fetchStreamTelemetryLog();
                 } else {
                     const err = await resp.json();
                     alert('Failed to start stream: ' + (err.detail || 'Unknown error'));
@@ -455,56 +335,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resp.ok) {
                 const data = await resp.json();
                 renderRtspStreams(data.active_streams || []);
+                fetchEventsJson(true);
+                checkHealth();
             }
         } catch (err) {
             console.warn('Failed to fetch RTSP streams status:', err);
         }
     }
 
-    async function fetchStreamTelemetryLog() {
-        const tbody = document.getElementById('telemetry-readings-tbody');
-        const countBadge = document.getElementById('telemetry-log-count');
-        if (!tbody) return;
-
-        try {
-            const resp = await fetch('/api/streams/telemetry_log');
-            if (resp.ok) {
-                const data = await resp.json();
-                const log = data.log || [];
-                if (countBadge) countBadge.textContent = `${log.length} READINGS RECORDED`;
-
-                if (log.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-dim); padding: 16px;">No internal readings recorded yet. Start or re-index a video stream to capture real-time readings.</td></tr>`;
-                    return;
-                }
-
-                tbody.innerHTML = log.map((item, idx) => {
-                    const actionClass = item.status === 'GATE_KEPT' ? 'text-green' : (item.status === 'ONLINE_INDEXED' ? 'text-blue' : 'text-purple');
-                    return `
-                        <tr>
-                            <td><strong style="font-family:var(--font-mono);">${item.id || (idx+1)}</strong></td>
-                            <td style="font-family:var(--font-mono); font-weight:700;">${escapeHtml(item.timestamp || '00:00:00')}</td>
-                            <td><span class="audit-badge" style="background:#f0f9ff; color:#0284c7; font-weight:700;">${escapeHtml(item.camera || 'CAM_01')}</span></td>
-                            <td class="${actionClass}" style="font-weight:700;">${escapeHtml(item.action || 'Evaluated')}</td>
-                            <td style="font-family:var(--font-mono);">${item.hamming_dist != null ? `H: ${item.hamming_dist} (${item.motion_pct}%)` : '-'}</td>
-                            <td style="font-family:var(--font-mono);">${item.latency_seconds ? (item.latency_seconds > 1 ? item.latency_seconds + 's' : (item.latency_seconds*1000).toFixed(0) + 'ms') : '-'}</td>
-                            <td style="font-family:var(--font-mono);">${item.cpu_percent != null ? item.cpu_percent + '%' : '-'} · ${item.ram_used_gb != null ? item.ram_used_gb + 'GB' : '-'}</td>
-                            <td style="font-family:var(--font-mono); font-size:0.75rem;">${item.gpu_load_pct != null ? `${item.gpu_load_pct}% load · ${item.gpu_vram_mb}MB · ${item.gpu_temp_c}°C` : '-'}</td>
-                            <td style="max-width:320px; font-size:0.75rem; color:var(--text-body); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(item.description || '')}">
-                                ${escapeHtml(item.description || '-')}
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-            }
-        } catch (err) {
-            console.warn('Telemetry log fetch failed:', err);
-        }
-    }
-
     function renderRtspStreams(streams) {
         if (!streams || streams.length === 0) {
-            rtspStreamsList.innerHTML = `<div class="empty-state" style="padding: 20px;"><p class="placeholder-text">No active camera streams running. Choose a video file or stream URL above to launch capture.</p></div>`;
+            rtspStreamsList.innerHTML = `<div class="empty-state" style="padding: 20px;"><p class="placeholder-text">No active camera streams running. Enter a stream URL above to launch multi-threaded capture.</p></div>`;
             return;
         }
 
@@ -512,11 +353,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const isRunning = s.is_running;
             const isPaused = s.is_paused;
             const isConnected = s.is_connected;
+            const isCompleted = s.is_completed || s.state === 'COMPLETED' || (!s.is_live && s.camera_type === 'video_file' && s.progress_pct >= 100);
             const isLive = s.is_live ?? (s.camera_type !== 'video_file');
             const camType = s.camera_type || (isLive ? 'youtube_stream' : 'video_file');
+            const indexedCount = s.indexed_count != null ? s.indexed_count : (s.keyframes_kept || 0);
             
-            let statusBadge = isRunning ? (isConnected ? 'LIVE (TCP)' : 'RECONNECTING') : (isPaused ? 'PAUSED' : 'STOPPED');
-            let statusColor = isRunning && isConnected ? 'text-green' : (isPaused ? 'text-blue' : 'text-dim');
+            let statusBadge = isCompleted ? 'COMPLETED' : (isRunning ? (isConnected ? 'LIVE (TCP)' : 'RECONNECTING') : (isPaused ? 'PAUSED' : 'STOPPED'));
+            let statusColor = isCompleted ? 'text-green' : (isRunning && isConnected ? 'text-green' : (isPaused ? 'text-blue' : 'text-dim'));
 
             let typeBadgeClass = 'badge-live';
             let typeBadgeLabel = '🔴 24/7 LIVE';
@@ -534,12 +377,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="stream-card ${isRunning ? 'active' : ''}">
                     <div class="stream-card-header">
                         <div class="stream-cam-title">
-                            <span class="status-indicator ${isConnected ? 'online' : (isPaused ? 'warning' : 'offline')}"></span>
+                            <span class="status-indicator ${isCompleted || isConnected ? 'online' : (isPaused ? 'warning' : 'offline')}"></span>
                             ${escapeHtml(s.camera_id)} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${escapeHtml(s.name || s.camera_id)})</span>
                         </div>
                         <div style="display:flex; align-items:center; gap:6px;">
                             <span class="cctv-yt-badge ${typeBadgeClass}">${typeBadgeLabel}</span>
-                            <span class="feed-badge ${isRunning ? 'live' : ''}">${statusBadge}</span>
+                            <span class="feed-badge ${isCompleted || (isRunning && isConnected) ? 'live' : ''}">${statusBadge}</span>
                         </div>
                     </div>
                     <div class="stream-url-tag">URL: ${escapeHtml(s.stream_url)}</div>
@@ -562,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div class="cctv-yt-progress-sub">
                             <span>${(s.total_frames_read || 0).toLocaleString()} frames read</span>
-                            <span>${s.keyframes_kept || 0} keyframes extracted & indexed</span>
+                            <span>${indexedCount} keyframes indexed</span>
                         </div>
                     </div>
 
@@ -571,14 +414,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="sm-item"><span class="sm-label">FPS</span><span class="sm-val">${s.fps}</span></div>
                         <div class="sm-item"><span class="sm-label">Duration</span><span class="sm-val">${s.total_duration_sec ? Math.round(s.total_duration_sec) + 's' : '24/7 LIVE'}</span></div>
                         <div class="sm-item"><span class="sm-label">Ring Dropped</span><span class="sm-val text-dim">${s.total_frames_dropped}</span></div>
-                        <div class="sm-item"><span class="sm-label">Keyframes Kept</span><span class="sm-val text-blue">${s.keyframes_kept}</span></div>
+                        <div class="sm-item"><span class="sm-label">Keyframes Indexed</span><span class="sm-val text-blue">${indexedCount}</span></div>
                         <div class="sm-item"><span class="sm-label">Compute Saved</span><span class="sm-val text-green">${s.llm_compute_saved_pct}%</span></div>
                     </div>
                     <div class="stream-card-actions">
-                        <button class="index-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 3px 8px; font-size: 0.72rem;" ${s.keyframes_kept === 0 ? 'disabled' : ''} title="Manual trigger or sync VLM indexing">
-                            ⚡ Indexed (${s.keyframes_kept})
+                        <button class="index-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 3px 8px; font-size: 0.72rem;" ${indexedCount === 0 ? 'disabled' : ''} title="Manual trigger or sync VLM indexing">
+                            ⚡ Indexed (${indexedCount})
                         </button>
-                        ${isPaused ? `
+                        ${isCompleted ? `
+                            <button class="btn-stream-action" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; cursor:default; font-weight:600;" disabled title="Video extraction and indexing completed">
+                                ✅ Done
+                            </button>
+                        ` : isPaused ? `
                             <button class="btn-stream-action btn-resume-stream resume-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Resume stream extraction">
                                 ▶️ Resume Extraction
                             </button>
@@ -587,9 +434,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ⏸️ Pause Extraction
                             </button>
                         `}
-                        <button class="btn-stream-action btn-reindex-stream reindex-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Delete previous frames and vectors for this camera and re-index from scratch">
-                            🔄 Re-Index
-                        </button>
                         <button class="btn-stream-action btn-remove-stream remove-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Remove camera from registry">
                             🗑️ Remove
                         </button>
@@ -626,46 +470,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // Re-Index button handler
-        rtspStreamsList.querySelectorAll('.reindex-stream-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const camId = btn.dataset.cam;
-                const confirmed = confirm(`Are you sure you want to RE-INDEX '${camId}' from scratch?\n\nThis will DELETE all previous extracted frames and FAISS vectors for this camera and re-run dHash extraction and indexing.`);
-                if (!confirmed) return;
-
-                btn.disabled = true;
-                btn.innerHTML = `<span>Re-Indexing…</span>`;
-                try {
-                    const resp = await fetch('/api/streams/reindex', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            camera_id: camId,
-                            hash_method: 'dhash',
-                            threshold: 10,
-                        }),
-                    });
-                    if (resp.ok) {
-                        const resData = await resp.json();
-                        alert(`Re-indexing started for ${camId}! Previous frame cache and vectors purged. Fresh dHash extraction & indexing active.`);
-                        fetchRtspStreamsStatus();
-                        fetchCameraFeeds();
-                        fetchCameraPills();
-                        fetchEventsJson();
-                        fetchStreamTelemetryLog();
-                    } else {
-                        const err = await resp.json();
-                        alert('Re-indexing error: ' + (err.detail || 'Unknown error'));
-                    }
-                } catch (err) {
-                    alert('Re-indexing connection error: ' + err.message);
-                } finally {
-                    btn.disabled = false;
-                    btn.innerHTML = `🔄 Re-Index`;
-                }
-            });
-        });
-
         // Remove button handler
         rtspStreamsList.querySelectorAll('.remove-stream-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
@@ -682,7 +486,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchCameraFeeds();
                 fetchCameraPills();
                 fetchEventsJson();
-                fetchStreamTelemetryLog();
             });
         });
 
@@ -704,7 +507,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         checkHealth();
                         fetchCameraPills();
                         fetchEventsJson();
-                        fetchStreamTelemetryLog();
                     } else {
                         const err = await resp.json();
                         alert('Indexing failed: ' + (err.detail || 'Unknown error'));
@@ -736,6 +538,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log(`System clocks synchronized. Offset: ${serverTimeOffsetMs}ms`);
                 }
 
+                if (statVectors) {
+                    statVectors.textContent = `${data.vector_count || 0} Vectors`;
+                }
+                if (statStatus) {
+                    statStatus.textContent = 'ONLINE (GPU)';
+                    statStatus.className = 'stat-value text-green';
+                }
+                if (statusDot) {
+                    statusDot.className = 'status-indicator online';
+                }
+                if (statModel && data.llm_model) {
+                    statModel.textContent = 'Local Qwen3-VL';
+                }
+
                 const healthDot = document.getElementById('health-indicator');
                 const healthText = document.getElementById('health-status-text');
                 if (healthDot && healthText) {
@@ -746,130 +562,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (vectorCountBadge) {
                     vectorCountBadge.textContent = `${data.vector_count || 0} VECTORS`;
                 }
+            } else {
+                if (statStatus) {
+                    statStatus.textContent = 'OFFLINE';
+                    statStatus.className = 'stat-value text-red';
+                }
+                if (statusDot) {
+                    statusDot.className = 'status-indicator offline';
+                }
             }
         } catch (err) {
             console.warn('Health check failed:', err);
+            if (statStatus) {
+                statStatus.textContent = 'OFFLINE';
+                statStatus.className = 'stat-value text-red';
+            }
+            if (statusDot) {
+                statusDot.className = 'status-indicator offline';
+            }
         }
     }
     checkHealth();
-
-    // ------------------------------------------------------------------
-    // Real-Time Hardware Telemetry & Compute Flow (4 Connected Boxes)
-    // ------------------------------------------------------------------
-    async function fetchRealtimeTelemetry() {
-        const spinner = document.getElementById('telemetry-spinner');
-        try {
-            if (spinner) spinner.style.animation = 'spin 1s linear infinite';
-            const resp = await fetch('/api/system_stats');
-            if (resp.ok) {
-                const data = await resp.json();
-
-                // Box 1: CPU Consumption
-                const cpuCur = document.getElementById('tbox-cpu-cur');
-                const cpuPeak = document.getElementById('tbox-cpu-peak');
-                const cpuAvg = document.getElementById('tbox-cpu-avg');
-                const cpuModel = document.getElementById('tbox-cpu-model');
-                const cpuBadge = document.getElementById('tbox-cpu-badge');
-
-                if (cpuCur) cpuCur.textContent = `${data.cpu_percent}%`;
-                if (cpuPeak) cpuPeak.textContent = `${data.cpu_peak_pct}%`;
-                if (cpuAvg) cpuAvg.textContent = `${data.cpu_avg_pct}%`;
-                if (cpuModel && data.cpu_model) cpuModel.textContent = data.cpu_model;
-                if (cpuBadge) {
-                    if (data.cpu_percent > 75) {
-                        cpuBadge.textContent = 'HIGH LOAD';
-                        cpuBadge.className = 'tbox-badge badge-yellow';
-                    } else if (data.cpu_percent > 30) {
-                        cpuBadge.textContent = 'ACTIVE';
-                        cpuBadge.className = 'tbox-badge badge-cyan';
-                    } else {
-                        cpuBadge.textContent = 'LIVE LOAD';
-                        cpuBadge.className = 'tbox-badge badge-cyan';
-                    }
-                }
-
-                // Box 2: System Memory (RAM)
-                const ramUsed = document.getElementById('tbox-ram-used');
-                const ramPeak = document.getElementById('tbox-ram-peak');
-                const ramPct = document.getElementById('tbox-ram-pct');
-                const ramCap = document.getElementById('tbox-ram-cap');
-                const ramBadge = document.getElementById('tbox-ram-badge');
-
-                if (ramUsed) ramUsed.textContent = `${data.ram_used_gb} / ${data.ram_total_gb} GB`;
-                if (ramPeak) ramPeak.textContent = `${data.ram_used_peak_gb} GB`;
-                if (ramPct) ramPct.textContent = `${data.ram_usage_pct}%`;
-                if (ramCap) ramCap.textContent = `${data.ram_total_gb} GB Total Physical Pool`;
-                if (ramBadge) {
-                    if (data.ram_usage_pct > 90) {
-                        ramBadge.textContent = 'HIGH LOAD';
-                        ramBadge.className = 'tbox-badge badge-yellow';
-                    } else {
-                        ramBadge.textContent = 'STABLE';
-                        ramBadge.className = 'tbox-badge badge-green';
-                    }
-                }
-
-                // Box 3: GPU Consumption (Load & VRAM)
-                const gpuLoad = document.getElementById('tbox-gpu-load');
-                const gpuVram = document.getElementById('tbox-gpu-vram');
-                const gpuTemp = document.getElementById('tbox-gpu-temp');
-                const gpuName = document.getElementById('tbox-gpu-name');
-                const gpuBadge = document.getElementById('tbox-gpu-badge');
-
-                const loadPct = data.gpu_utilization_pct != null ? data.gpu_utilization_pct : 0;
-                if (gpuLoad) gpuLoad.textContent = `${loadPct}%`;
-                if (gpuVram) gpuVram.textContent = `${data.gpu_vram_used_mb || 407} / ${data.gpu_vram_total_mb || 6141} MB`;
-                if (gpuTemp) gpuTemp.textContent = `${data.gpu_temp_c || 46}°C`;
-                if (gpuName && data.gpu_name) gpuName.textContent = data.gpu_name.replace('NVIDIA ', '');
-                if (gpuBadge) {
-                    if (loadPct > 70) {
-                        gpuBadge.textContent = 'HIGH GPU LOAD';
-                        gpuBadge.className = 'tbox-badge badge-yellow';
-                    } else if (loadPct > 10) {
-                        gpuBadge.textContent = 'ACTIVE GPU';
-                        gpuBadge.className = 'tbox-badge badge-purple';
-                    } else {
-                        gpuBadge.textContent = 'LIVE LOAD';
-                        gpuBadge.className = 'tbox-badge badge-purple';
-                    }
-                }
-
-                // Box 4: Pipeline Latency (Total Time)
-                const latTotal = document.getElementById('tbox-latency-total');
-                const latLlm = document.getElementById('tbox-latency-llm');
-                const latFaiss = document.getElementById('tbox-latency-faiss');
-                const latBadge = document.getElementById('tbox-latency-badge');
-
-                const lq = data.last_query || {};
-                if (latTotal) latTotal.textContent = lq.total_latency_seconds ? `${lq.total_latency_seconds}s` : '1.25s';
-                if (latLlm) {
-                    const llmTime = lq.llm_reasoning_seconds || (lq.llm_reasoning_ms ? (lq.llm_reasoning_ms/1000).toFixed(2) : 1.15);
-                    latLlm.textContent = `${llmTime}s`;
-                }
-                if (latFaiss) latFaiss.textContent = lq.faiss_retrieval_ms ? `${lq.faiss_retrieval_ms}ms` : '4.5ms';
-                if (latBadge) {
-                    if (lq.total_latency_seconds > 10) {
-                        latBadge.textContent = 'VLM REASONING';
-                        latBadge.className = 'tbox-badge badge-yellow';
-                    } else {
-                        latBadge.textContent = 'LOW LATENCY';
-                        latBadge.className = 'tbox-badge badge-yellow';
-                    }
-                }
-            }
-        } catch (err) {
-            console.warn('Realtime telemetry fetch failed:', err);
-        } finally {
-            if (spinner) spinner.style.animation = 'none';
-        }
-    }
-    fetchRealtimeTelemetry();
-    setInterval(fetchRealtimeTelemetry, 2500);
-
-    const refreshTelemetryBtn = document.getElementById('refresh-telemetry-btn');
-    if (refreshTelemetryBtn) {
-        refreshTelemetryBtn.addEventListener('click', fetchRealtimeTelemetry);
-    }
 
     async function fetchCameraPills() {
         if (!cameraFilterContainer) return;
@@ -878,6 +591,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resp.ok) {
                 const data = await resp.json();
                 const cams = data.cameras || [];
+                if (activeCameraFilter && !cams.includes(activeCameraFilter)) {
+                    activeCameraFilter = '';
+                }
                 cameraFilterContainer.innerHTML = `
                     <span class="filter-label">Camera:</span>
                     <button class="filter-pill ${activeCameraFilter === '' ? 'active' : ''}" data-camera="">All Feeds</button>
@@ -885,6 +601,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="filter-pill ${activeCameraFilter === c ? 'active' : ''}" data-camera="${escapeHtml(c)}">${escapeHtml(c)}</button>
                     `).join('')}
                 `;
+                cameraFilterContainer.querySelectorAll('.filter-pill').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        cameraFilterContainer.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        activeCameraFilter = btn.dataset.camera;
+                    });
+                });
             }
         } catch (err) {
             console.warn('Failed to fetch camera pills:', err);
@@ -978,21 +701,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const resp = await fetch('/api/events?detailed=true');
             if (resp.ok) {
                 const data = await resp.json();
-                const newEvents = data.events || [];
+                const newEvents = Array.isArray(data) ? data : (data.events || []);
                 const countChanged = newEvents.length !== loadedJsonEvents.length;
                 loadedJsonEvents = newEvents;
                 
                 // Update stats chips
-                if (jsonStatTotal) jsonStatTotal.textContent = `${data.total_count || loadedJsonEvents.length} Events`;
-                if (jsonStatCams) jsonStatCams.textContent = `${(data.cameras || []).length} Cameras`;
+                const camsList = Array.isArray(data) ? Array.from(new Set(newEvents.map(e => e.camera).filter(Boolean))) : (data.cameras || []);
+                if (jsonStatTotal) jsonStatTotal.textContent = `${(data && data.total_count) || loadedJsonEvents.length} Events`;
+                if (jsonStatCams) jsonStatCams.textContent = `${camsList.length} Cameras`;
                 if (jsonStatDim) jsonStatDim.textContent = `384-D FAISS`;
                 if (jsonStatSize) {
-                    const kb = ((data.file_size_bytes || 0) / 1024).toFixed(1);
+                    const kb = (((data && data.file_size_bytes) || 0) / 1024).toFixed(1);
                     jsonStatSize.textContent = `~${kb} KB`;
                 }
 
                 // Render camera filter pills for JSON tab
-                renderJsonCameraFilters(data.cameras || []);
+                renderJsonCameraFilters(camsList);
                 renderJsonExplorer();
             } else {
                 if (jsonCodeDisplay && !silent) jsonCodeDisplay.textContent = 'Failed to load CCTV events dataset.';
@@ -1010,10 +734,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+    fetchEventsJson(true);
 
     function renderJsonCameraFilters(cameras) {
         if (!jsonCameraFilters) return;
         
+        if (activeJsonCameraFilter && !cameras.includes(activeJsonCameraFilter)) {
+            activeJsonCameraFilter = '';
+        }
+
         // Count per camera
         const counts = {};
         loadedJsonEvents.forEach(e => {
@@ -1154,6 +883,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // ------------------------------------------------------------------
     // Dev Mode Toggle & Controls
     // ------------------------------------------------------------------
+    async function fetchHashAuditLogs() {
+        try {
+            const resp = await fetch('/api/hash_audit');
+            if (resp.ok) {
+                const data = await resp.json();
+            }
+        } catch (e) {
+            console.warn('Failed to fetch hash audit:', e);
+        }
+    }
+
     if (devModeBtn) {
         devModeBtn.addEventListener('click', () => {
             isDevModeActive = !isDevModeActive;
@@ -1365,6 +1105,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resp.ok) {
                 const data = await resp.json();
                 availableFeeds = data.feeds || [];
+                if (activeFeedCamId !== 'ALL' && !availableFeeds.some(f => f.camera_id === activeFeedCamId)) {
+                    activeFeedCamId = availableFeeds.length > 0 ? availableFeeds[0].camera_id : 'ALL';
+                }
                 renderCameraFeedSwitcher();
                 if (activeFeedCamId === 'ALL') {
                     renderAllFeedsGrid();
@@ -1858,7 +1601,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await resp.json();
             renderResults(data);
             renderVectorDebugger(data.debug_trace);
-            fetchRealtimeTelemetry();
         } catch (err) {
             console.error('Search error:', err);
             aiAnswerBody.innerHTML = `<p style="color: #dc2626;">Search failed: ${err.message}</p>`;
