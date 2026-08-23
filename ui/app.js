@@ -2018,12 +2018,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill faiss">${row.faiss_ms}ms / ${row.rerank_ms}ms</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill speed">${row.speed_tok_s} tok/s</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill latency">${row.total_latency_ms} ms</span></td>
-                    <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;">
-                        <div class="eval-resp-preview-wrap">
-                            <div class="eval-resp-preview" title="Click to view full answer" data-ans="${escapeHtml(row.answer)}">
-                                ${escapeHtml(row.answer || '[No response generated]')}
-                            </div>
-                            <button class="btn-view-resp" data-ans="${escapeHtml(row.answer)}" title="View complete text">🔍 View</button>
+                    <td style="border: 1.5px solid #38bdf8; padding: 6px 8px; max-width: 280px; min-width: 200px; vertical-align: top;">
+                        <div class="eval-resp-preview" style="max-height: 68px; max-width: 280px; min-width: 200px; overflow-y: auto; overflow-x: hidden; font-size: 0.72rem; line-height: 1.35; color: #1e293b; background: #f8fafc; border: 1px solid #bae6fd; border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; word-break: break-word; box-sizing: border-box;" title="Scroll inside to read response">
+                            ${escapeHtml(row.answer || '[No response generated]')}
                         </div>
                     </td>
                     <td style="text-align: center; border: 1.5px solid #38bdf8; padding: 8px 10px;">
@@ -2037,17 +2034,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </tr>
             `;
         }).join('');
-
-        const handleViewAns = (e) => {
-            const btn = e.currentTarget;
-            const fullAns = btn.dataset.ans;
-            if (fullAns) {
-                alert(`LLM Generated CCTV Analysis:\n\n${fullAns}`);
-            }
-        };
-
-        queryEvalTbody.querySelectorAll('.eval-resp-preview').forEach(el => el.addEventListener('click', handleViewAns));
-        queryEvalTbody.querySelectorAll('.btn-view-resp').forEach(el => el.addEventListener('click', handleViewAns));
 
         queryEvalTbody.querySelectorAll('.btn-delete-row').forEach(btn => {
             btn.addEventListener('click', (e) => {

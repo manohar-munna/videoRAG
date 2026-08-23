@@ -2758,5 +2758,25 @@
     "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_56_50_7035.jpg",
     "hash_hex": "0xe9cc6e3e3cd5acca",
     "motion_pct": 11.24
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:56:56",
+    "seconds": 1787498816.53,
+    "epoch_time": 1787498816.527,
+    "description": "1. Two individuals are visible near the left storefront; one stands near the entrance, the other appears to be loitering near the sidewalk. Both are dressed in dark clothing, with one wearing a dark jacket and the other in a dark top and pants.\n2. Multiple vehicles are present: a white pickup truck in the foreground, a white SUV and a black SUV in motion, and a white Jeep parked near the center of the intersection. Traffic is flowing through the intersection with a green light.\n3. No security events or restricted areas are evident. Normal traffic flow and pedestrian activity are observed; no unusual or suspicious behavior is detected.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_56_56_7185.jpg",
+    "hash_hex": "0xe9cc6e3e3ee6b6ab",
+    "motion_pct": 16.57
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:57:31",
+    "seconds": 1787498851.11,
+    "epoch_time": 1787498851.107,
+    "description": "1. Two pedestrians are visible: one near the left storefront, standing still; another crossing the street near the center, moving toward the right. A third pedestrian is partially visible on the far right sidewalk, walking away from the camera.\n2. A white pickup truck is parked in the foreground, with a load of items in its bed. Other vehicles include a dark SUV and a silver sedan moving through the intersection, with additional cars in the background.\n3. No security events or restricted area breaches are evident. Traffic is flowing normally, with no signs of trespassing, obstruction, or unusual activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_57_31_7486.jpg",
+    "hash_hex": "0xe9cc6e3e3cf69cde",
+    "motion_pct": 10.08
   }
 ]
