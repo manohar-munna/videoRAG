@@ -2738,5 +2738,25 @@
     "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_55_45_6285.jpg",
     "hash_hex": "0xf9cc6e3e3e663c7e",
     "motion_pct": 14.97
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:56:40",
+    "seconds": 1787498800.1,
+    "epoch_time": 1787498800.097,
+    "description": "Two pedestrians, one in dark clothing and one in light-colored pants, are crossing the street near a crosswalk; both appear to be loitering briefly before proceeding. A white pickup truck is parked in the foreground, while a black sedan is stationary to its right. Traffic flows normally at the intersection with multiple vehicles visible, including a silver SUV parked on the left and a black sedan in motion.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_56_40_6301.jpg",
+    "hash_hex": "0xe9cc6e3e3af6de96",
+    "motion_pct": 20.53
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:56:50",
+    "seconds": 1787498810.92,
+    "epoch_time": 1787498810.92,
+    "description": "Two pedestrians, one in dark clothing and one in light-colored pants, are loitering near the crosswalk on the left sidewalk. A silver SUV is in motion, crossing the intersection, while other vehicles, including a dark pickup truck and a white van, are moving or parked along the street. No security incidents or restricted areas are evident in the frame.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_56_50_7035.jpg",
+    "hash_hex": "0xe9cc6e3e3cd5acca",
+    "motion_pct": 11.24
   }
 ]
