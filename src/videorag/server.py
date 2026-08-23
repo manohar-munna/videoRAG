@@ -959,7 +959,7 @@ def search_cctv(req: SearchRequest):
         "query_vector_norm": vec_norm,
         "query_vector_sample": vec_sample,
         "faiss_indexed_vectors": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
-        "prompt_constructed": prompt,
+        "prompt_constructed": locals().get("prompt") or req.query,
         "system_metrics": {
             "process_rss_mb": rss_mb,
             "process_rss_gb": rss_gb,
@@ -988,7 +988,7 @@ def search_cctv(req: SearchRequest):
         "episodes": episodes,
         "results": items,
         "evaluation": eval_result,
-        "total_retrieved": len(raw_results),
+        "total_retrieved": len(episodes),
         "server_time": round(time.time(), 3),
         "debug_trace": debug_trace,
     }

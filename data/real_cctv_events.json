@@ -2888,5 +2888,25 @@
     "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_21_13_20_1.jpg",
     "hash_hex": "0xe94e673ebad49caa",
     "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "21:35:19",
+    "seconds": 1787501119.78,
+    "epoch_time": 1787501119.777,
+    "description": "Surveillance keyframe captured by CAM_3000 at 21:35:19.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_21_35_19_1.jpg",
+    "hash_hex": "0xed4e673e1cd8ba3a",
+    "motion_pct": 100.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "21:35:24",
+    "seconds": 1787501124.97,
+    "epoch_time": 1787501124.974,
+    "description": "Surveillance keyframe captured by CAM_3000 at 21:35:24.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_21_35_24_285.jpg",
+    "hash_hex": "0xed4e6f3e3ee4eeea",
+    "motion_pct": 47.65
   }
 ]
