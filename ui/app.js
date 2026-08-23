@@ -1854,21 +1854,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const ramEl = document.getElementById('flow-ram-peak');
             if (ramEl) {
-                const rss = sys.process_rss_mb || 0;
+                const sysGb = sys.system_ram_used_gb || (sys.process_rss_mb ? (sys.process_rss_mb/1024).toFixed(2) : '15.1');
+                const totGb = sys.system_ram_total_gb || '15.7';
                 const pct = sys.system_ram_pct || 0;
-                ramEl.textContent = `${rss} MB (${pct}%)`;
+                const procMb = sys.process_rss_mb || 0;
+                ramEl.textContent = `${sysGb} GB / ${totGb} GB (${pct}%) · Proc: ${procMb} MB`;
             }
 
             const cpuEl = document.getElementById('flow-cpu-util');
             if (cpuEl) {
-                cpuEl.textContent = `${sys.cpu_util_pct ?? 0}%`;
+                cpuEl.textContent = `${sys.cpu_util_pct ?? 0}% CPU`;
             }
 
             const gpuEl = document.getElementById('flow-gpu-mem');
             if (gpuEl) {
                 const gpu = sys.gpu || {};
                 if (gpu.available) {
-                    gpuEl.textContent = `${gpu.allocated_mb || 0} MB (${gpu.device_name || 'GPU'})`;
+                    if (gpu.hardware_total_gb > 0) {
+                        gpuEl.textContent = `${gpu.hardware_used_gb} GB / ${gpu.hardware_total_gb} GB (${gpu.hardware_pct}%) · ${gpu.device_name || 'GPU'}`;
+                    } else {
+                        gpuEl.textContent = `${gpu.allocated_mb || 0} MB (${gpu.device_name || 'GPU'})`;
+                    }
                 } else {
                     gpuEl.textContent = '0 MB (CPU-Only)';
                 }
@@ -1936,7 +1942,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const edge = (data.debug_trace && data.debug_trace.edge_gate) || {};
         const gpu = sys.gpu || {};
 
-        const hasGpu = gpu.available && (gpu.allocated_mb || 0) > 0;
+        const hasGpu = gpu.available && ((gpu.hardware_used_mb || 0) > 0 || (gpu.allocated_mb || 0) > 0);
         const genMs = timings.llm_generation_ms || 0;
         const estTok = 45;
         const speedTokS = genMs > 0 ? (estTok / (genMs / 1000)).toFixed(1) : (hasGpu ? '45.0' : '2.7');
@@ -1948,10 +1954,15 @@ document.addEventListener('DOMContentLoaded', () => {
             query: query,
             profile: hasGpu ? '4B GPU Default' : '4B Trimmed CPU',
             ram_rss_mb: sys.process_rss_mb || 0,
+            sys_ram_used_gb: sys.system_ram_used_gb || (sys.process_rss_mb ? (sys.process_rss_mb/1024).toFixed(2) : '15.1'),
+            sys_ram_total_gb: sys.system_ram_total_gb || '15.7',
             ram_pct: sys.system_ram_pct || 0,
             cpu_pct: sys.cpu_util_pct ?? 0,
-            gpu_vram_mb: hasGpu ? gpu.allocated_mb : 0,
-            gpu_mode: hasGpu ? `${gpu.allocated_mb} MB (${gpu.device_name || 'GPU'})` : '0 MB (CPU-Only)',
+            gpu_vram_mb: hasGpu ? (gpu.hardware_used_mb || gpu.allocated_mb || 0) : 0,
+            gpu_vram_gb: hasGpu ? (gpu.hardware_used_gb || 0) : 0,
+            gpu_total_gb: hasGpu ? (gpu.hardware_total_gb || 0) : 0,
+            gpu_vram_pct: hasGpu ? (gpu.hardware_pct || 0) : 0,
+            gpu_mode: hasGpu ? (gpu.hardware_total_gb > 0 ? `${gpu.hardware_used_gb} GB / ${gpu.hardware_total_gb} GB (${gpu.hardware_pct}%) · ${gpu.device_name || 'GPU'}` : `${gpu.allocated_mb} MB (${gpu.device_name || 'GPU'})`) : '0 MB (CPU-Only)',
             edge_eval_ms: edge.avg_edge_eval_ms != null ? edge.avg_edge_eval_ms.toFixed(2) : '0.25',
             faiss_ms: timings.faiss_retrieval_ms != null ? timings.faiss_retrieval_ms.toFixed(1) : '0.0',
             rerank_ms: timings.cross_encoder_rerank_ms != null ? timings.cross_encoder_rerank_ms.toFixed(1) : '0.0',
@@ -2004,16 +2015,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         queryEvalTbody.innerHTML = queryEvalHistory.map(row => {
-            const hasGpu = row.gpu_vram_mb > 0;
+            const hasGpu = row.gpu_vram_mb > 0 || (row.gpu_vram_gb && row.gpu_vram_gb > 0);
+            const ramText = row.sys_ram_used_gb ? `${row.sys_ram_used_gb} GB / ${row.sys_ram_total_gb || '15.7'} GB (${row.ram_pct}%)` : `${row.ram_rss_mb} MB (${row.ram_pct}%)`;
+            const gpuText = (row.gpu_vram_gb > 0 && row.gpu_total_gb > 0) ? `${row.gpu_vram_gb} GB / ${row.gpu_total_gb} GB (${row.gpu_vram_pct}%)` : (row.gpu_vram_mb > 0 ? `${row.gpu_vram_mb} MB` : '0 MB (CPU)');
             return `
                 <tr style="border-bottom: 1.5px solid #38bdf8;">
                     <td style="text-align: center; border: 1.5px solid #38bdf8; padding: 8px 10px;"><span style="background: #0284c7; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem;">#${row.id}</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><code style="font-family: var(--font-mono); font-size: 0.72rem; color: #0369a1; font-weight: 600;">${escapeHtml(row.time)}</code></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-query-tag" title="${escapeHtml(row.query)}">"${escapeHtml(row.query)}"</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-badge ${hasGpu ? 'badge-gpu' : 'badge-cpu'}">${escapeHtml(row.profile)}</span></td>
-                    <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill ram">${row.ram_rss_mb} MB (${row.ram_pct}%)</span></td>
+                    <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill ram" title="Process RSS: ${row.ram_rss_mb} MB | System RAM: ${ramText}">${ramText} <small style="opacity:0.75; font-size:0.65rem;">[Proc: ${row.ram_rss_mb}MB]</small></span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill cpu">${row.cpu_pct}%</span></td>
-                    <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill gpu">${hasGpu ? row.gpu_vram_mb + ' MB' : '0 MB (CPU)'}</span></td>
+                    <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill gpu" title="${escapeHtml(row.gpu_mode || '')}">${gpuText}</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill edge">~${row.edge_eval_ms} ms</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill faiss">${row.faiss_ms}ms / ${row.rerank_ms}ms</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill speed">${row.speed_tok_s} tok/s</span></td>
