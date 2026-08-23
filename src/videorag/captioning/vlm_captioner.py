@@ -319,7 +319,7 @@ class VLMCaptioner:
                     res = self._client.chat.completions.create(
                         model=self.model,
                         messages=[{"role": "user", "content": content_blocks}],
-                        max_tokens=1024,
+                        max_tokens=256,
                         temperature=0.2,
                     )
                     answer = res.choices[0].message.content or ""
@@ -413,7 +413,7 @@ class VLMCaptioner:
                     res = self._client.chat.completions.create(
                         model=self.model,
                         messages=[{"role": "user", "content": content_blocks}],
-                        max_tokens=1024,
+                        max_tokens=256,
                         temperature=0.2,
                     )
                     answer = res.choices[0].message.content or ""
