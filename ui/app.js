@@ -522,6 +522,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let serverTimeOffsetMs = 0; // Tracks clock drift between client and server
 
+    function syncServerClock(serverTimeSec, t0, t1) {
+        if (!serverTimeSec) return;
+        const latency = t0 && t1 ? (t1 - t0) / 2 : 0;
+        const endMs = t1 || Date.now();
+        const serverMs = serverTimeSec * 1000;
+        serverTimeOffsetMs = serverMs - (endMs - latency);
+    }
+
     async function checkHealth() {
         try {
             const t0 = Date.now();
@@ -532,10 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await resp.json();
 
                 if (data && data.server_time) {
-                    const latency = (t1 - t0) / 2;
-                    const serverMs = data.server_time * 1000;
-                    serverTimeOffsetMs = serverMs - (t1 - latency);
-                    console.log(`System clocks synchronized. Offset: ${serverTimeOffsetMs}ms`);
+                    syncServerClock(data.server_time, t0, t1);
                 }
 
                 if (statVectors) {
@@ -691,6 +696,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let prevEventsFingerprint = '';
+
     async function fetchEventsJson(silent = false) {
         try {
             if (!silent && refreshJsonBtn) {
@@ -702,8 +709,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resp.ok) {
                 const data = await resp.json();
                 const newEvents = Array.isArray(data) ? data : (data.events || []);
-                const countChanged = newEvents.length !== loadedJsonEvents.length;
+                const newFingerprint = `${newEvents.length}_${newEvents[0]?.image_path || ''}_${newEvents[newEvents.length - 1]?.image_path || ''}`;
+                const dataChanged = newFingerprint !== prevEventsFingerprint || !silent;
+
                 loadedJsonEvents = newEvents;
+                prevEventsFingerprint = newFingerprint;
                 
                 // Update stats chips
                 const camsList = Array.isArray(data) ? Array.from(new Set(newEvents.map(e => e.camera).filter(Boolean))) : (data.cameras || []);
@@ -715,9 +725,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     jsonStatSize.textContent = `~${kb} KB`;
                 }
 
-                // Render camera filter pills for JSON tab
-                renderJsonCameraFilters(camsList);
-                renderJsonExplorer();
+                // Render camera filter pills & cards ONLY when data actually changes
+                if (dataChanged) {
+                    renderJsonCameraFilters(camsList);
+                    renderJsonExplorer();
+                }
             } else {
                 if (jsonCodeDisplay && !silent) jsonCodeDisplay.textContent = 'Failed to load CCTV events dataset.';
             }
@@ -1583,6 +1595,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         try {
+            const t0 = Date.now();
             const resp = await fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1593,12 +1606,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     camera_filter: activeCameraFilter || null,
                 }),
             });
+            const t1 = Date.now();
 
             if (!resp.ok) {
                 throw new Error(`Search API error: ${resp.statusText}`);
             }
 
             const data = await resp.json();
+            if (data && data.server_time) {
+                syncServerClock(data.server_time, t0, t1);
+            }
             renderResults(data);
             renderVectorDebugger(data.debug_trace);
         } catch (err) {

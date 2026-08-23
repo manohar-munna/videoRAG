@@ -655,6 +655,7 @@ def search_cctv(req: SearchRequest):
         "results": items,
         "evaluation": eval_result,
         "total_retrieved": len(raw_results),
+        "server_time": round(time.time(), 3),
         "debug_trace": debug_trace,
     }
 
@@ -811,89 +812,6 @@ def get_camera_feeds():
             except Exception:
                 pass
 
-
-@app.post("/api/streams/index_now")
-def index_stream_keyframes(req: RemoveStreamRequest):
-    """
-    Run VLM visual captioning and FAISS vector indexing on all captured keyframes
-    for the specified camera stream (e.g. 'CAM_3000').
-    """
-    cam_id = req.camera_id
-    if cam_id not in STREAM_MANAGER.streams:
-        raise HTTPException(status_code=404, detail=f"Camera '{cam_id}' not found.")
-
-    stream = STREAM_MANAGER.streams[cam_id]
-    keyframes = list(stream.extracted_keyframes)
-
-    if not keyframes:
-        raise HTTPException(status_code=400, detail=f"No keyframes extracted yet for camera '{cam_id}'.")
-
-    logger.info("Indexing %d keyframes for camera '%s' using Qwen3-VL VLM...", len(keyframes), cam_id)
-
-    # 1. VLM Captioning
-    captioner = VLMCaptioner(backend="local")
-    new_records = captioner.caption_batch(keyframes, show_progress=False)
-
-    # 2. Save isolated per-camera JSON data at data/cameras/<camera_id>/events.json
-    cam_dir = _PROJECT_ROOT / "data" / "cameras" / cam_id
-    cam_dir.mkdir(parents=True, exist_ok=True)
-    cam_json_file = cam_dir / "events.json"
-
-    existing_cam_records = []
-    if cam_json_file.exists():
-        try:
-            with open(cam_json_file, "r", encoding="utf-8") as fh:
-                existing_cam_records = json.load(fh)
-        except Exception:
-            existing_cam_records = []
-
-    cam_paths = {str(r.get("image_path", "")).replace("\\", "/") for r in existing_cam_records if "image_path" in r}
-    unique_cam_new = [r for r in new_records if str(r.get("image_path", "")).replace("\\", "/") not in cam_paths]
-    updated_cam_records = existing_cam_records + unique_cam_new
-
-    with open(cam_json_file, "w", encoding="utf-8") as fh:
-        json.dump(updated_cam_records, fh, indent=2, ensure_ascii=False)
-
-    # 3. Update master combined real_cctv_events.json by aggregating all per-camera event files
-    out_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
-    all_events = []
-    for cam_dir in (_PROJECT_ROOT / "data" / "cameras").glob("*"):
-        events_f = cam_dir / "events.json"
-        if events_f.exists():
-            try:
-                with open(events_f, "r", encoding="utf-8") as fh:
-                    all_events.extend(json.load(fh))
-            except Exception:
-                pass
-
-    seen_keys = set()
-    deduped_master = []
-    for r in all_events:
-        key = (r.get("camera"), r.get("timestamp"), r.get("description", "")[:30])
-        if key not in seen_keys:
-            seen_keys.add(key)
-            deduped_master.append(r)
-
-    with open(out_file, "w", encoding="utf-8") as fh:
-        json.dump(deduped_master, fh, indent=2, ensure_ascii=False)
-
-    # 4. Rebuild FAISS Vector Index
-    from scripts.index import run_indexing
-    cfg_file = PIPELINE.get("config_path", str(_PROJECT_ROOT / "config" / "config.yaml"))
-    run_indexing(config_path=cfg_file, data_path=str(out_file))
-
-    # 5. Reload in-memory FAISS store
-    init_pipeline(config_path=cfg_file)
-    logger.info("Successfully indexed %d new keyframes for %s. Total vectors: %d", len(unique_cam_new), cam_id, PIPELINE["vector_store"].size)
-
-    return {
-        "status": "success",
-        "camera_id": cam_id,
-        "indexed_count": len(unique_cam_new),
-        "total_vectors": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
-        "camera_json_path": str(cam_json_file),
-    }
-
     for cfg in registered_cams:
         cam_id = cfg["camera_id"]
         cam_type = cfg.get("type", "rtsp_stream")
@@ -982,6 +900,89 @@ def index_stream_keyframes(req: RemoveStreamRequest):
         feeds.append(feed_item)
 
     return {"feeds": feeds}
+
+
+@app.post("/api/streams/index_now")
+def index_stream_keyframes(req: RemoveStreamRequest):
+    """
+    Run VLM visual captioning and FAISS vector indexing on all captured keyframes
+    for the specified camera stream (e.g. 'CAM_3000').
+    """
+    cam_id = req.camera_id
+    if cam_id not in STREAM_MANAGER.streams:
+        raise HTTPException(status_code=404, detail=f"Camera '{cam_id}' not found.")
+
+    stream = STREAM_MANAGER.streams[cam_id]
+    keyframes = list(stream.extracted_keyframes)
+
+    if not keyframes:
+        raise HTTPException(status_code=400, detail=f"No keyframes extracted yet for camera '{cam_id}'.")
+
+    logger.info("Indexing %d keyframes for camera '%s' using Qwen3-VL VLM...", len(keyframes), cam_id)
+
+    # 1. VLM Captioning
+    captioner = VLMCaptioner(backend="local")
+    new_records = captioner.caption_batch(keyframes, show_progress=False)
+
+    # 2. Save isolated per-camera JSON data at data/cameras/<camera_id>/events.json
+    cam_dir = _PROJECT_ROOT / "data" / "cameras" / cam_id
+    cam_dir.mkdir(parents=True, exist_ok=True)
+    cam_json_file = cam_dir / "events.json"
+
+    existing_cam_records = []
+    if cam_json_file.exists():
+        try:
+            with open(cam_json_file, "r", encoding="utf-8") as fh:
+                existing_cam_records = json.load(fh)
+        except Exception:
+            existing_cam_records = []
+
+    cam_paths = {str(r.get("image_path", "")).replace("\\", "/") for r in existing_cam_records if "image_path" in r}
+    unique_cam_new = [r for r in new_records if str(r.get("image_path", "")).replace("\\", "/") not in cam_paths]
+    updated_cam_records = existing_cam_records + unique_cam_new
+
+    with open(cam_json_file, "w", encoding="utf-8") as fh:
+        json.dump(updated_cam_records, fh, indent=2, ensure_ascii=False)
+
+    # 3. Update master combined real_cctv_events.json by aggregating all per-camera event files
+    out_file = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+    all_events = []
+    for cam_dir in (_PROJECT_ROOT / "data" / "cameras").glob("*"):
+        events_f = cam_dir / "events.json"
+        if events_f.exists():
+            try:
+                with open(events_f, "r", encoding="utf-8") as fh:
+                    all_events.extend(json.load(fh))
+            except Exception:
+                pass
+
+    seen_keys = set()
+    deduped_master = []
+    for r in all_events:
+        key = (r.get("camera"), r.get("timestamp"), r.get("description", "")[:30])
+        if key not in seen_keys:
+            seen_keys.add(key)
+            deduped_master.append(r)
+
+    with open(out_file, "w", encoding="utf-8") as fh:
+        json.dump(deduped_master, fh, indent=2, ensure_ascii=False)
+
+    # 4. Rebuild FAISS Vector Index
+    from scripts.index import run_indexing
+    cfg_file = PIPELINE.get("config_path", str(_PROJECT_ROOT / "config" / "config.yaml"))
+    run_indexing(config_path=cfg_file, data_path=str(out_file))
+
+    # 5. Reload in-memory FAISS store
+    init_pipeline(config_path=cfg_file)
+    logger.info("Successfully indexed %d new keyframes for %s. Total vectors: %d", len(unique_cam_new), cam_id, PIPELINE["vector_store"].size)
+
+    return {
+        "status": "success",
+        "camera_id": cam_id,
+        "indexed_count": len(unique_cam_new),
+        "total_vectors": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
+        "camera_json_path": str(cam_json_file),
+    }
 
 
 @app.get("/video/sample_cctv.mp4")
