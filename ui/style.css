@@ -2176,48 +2176,47 @@ body {
     background: #ffffff;
 }
 .opt-comp-table {
-    width: 100% !important;
+    width: 100%;
     border-collapse: collapse !important;
     border: 2px solid #0284c7 !important;
     font-size: 0.78rem;
     text-align: left;
 }
 .opt-comp-table th {
-    padding: 10px 14px !important;
+    padding: 10px 14px;
     background: #e0f2fe !important;
     color: #0369a1 !important;
     border: 1.5px solid #0284c7 !important;
-    font-weight: 800 !important;
+    font-weight: 700;
     white-space: nowrap;
 }
 .opt-comp-table th:last-child {
-    background: #d1fae5 !important;
+    background: #dcfce7 !important;
     color: #065f46 !important;
     border: 1.5px solid #10b981 !important;
 }
 .opt-comp-table td {
-    padding: 9px 14px !important;
-    border: 1.5px solid #93c5fd !important;
-    color: #1e293b !important;
+    padding: 9px 14px;
+    border: 1.5px solid #38bdf8 !important;
+    color: #0f172a;
     font-weight: 500;
     vertical-align: middle;
-    background: #ffffff;
 }
 .opt-comp-table td:last-child {
-    background: #ecfdf5 !important;
-    border: 1.5px solid #6ee7b7 !important;
+    background: #f0fdf4;
+    border: 1.5px solid #86efac !important;
 }
 .opt-comp-table tr:nth-child(even) td {
-    background: #f8fafc !important;
+    background: #f8fafc;
 }
 .opt-comp-table tr:nth-child(even) td:last-child {
-    background: #e6fcf0 !important;
+    background: #eefcf3;
 }
 .opt-comp-table tr:hover td {
-    background: #dbeafe !important;
+    background: #e0f2fe;
 }
 .opt-comp-table tr:hover td:last-child {
-    background: #ccfbf1 !important;
+    background: #dcfce7;
 }
 .text-purple {
     color: #9333ea !important;
@@ -2241,7 +2240,7 @@ body {
     align-items: center;
     margin-bottom: 14px;
     padding-bottom: 10px;
-    border-bottom: 2px solid #bae6fd;
+    border-bottom: 2px solid #0284c7;
 }
 .query-eval-title {
     display: flex;
@@ -2258,13 +2257,13 @@ body {
 }
 .query-eval-table-wrap {
     overflow-x: auto;
-    border: 2px solid #0284c7;
+    border: 2px solid #0284c7 !important;
     border-radius: 8px;
     background: #ffffff;
     box-shadow: 0 2px 6px rgba(2, 132, 199, 0.04);
 }
 .query-eval-table {
-    width: 100% !important;
+    width: 100%;
     border-collapse: collapse !important;
     border: 2px solid #0284c7 !important;
     font-size: 0.75rem;
@@ -2273,27 +2272,26 @@ body {
 .query-eval-table th {
     background: #e0f2fe !important;
     color: #0369a1 !important;
-    font-weight: 800 !important;
-    padding: 10px 12px !important;
+    font-weight: 700;
+    padding: 10px 12px;
     border: 1.5px solid #0284c7 !important;
     white-space: nowrap;
 }
 .query-eval-table td {
-    padding: 9px 12px !important;
-    border: 1.5px solid #93c5fd !important;
-    color: #1e293b !important;
+    padding: 9px 12px;
+    border: 1.5px solid #38bdf8 !important;
+    color: #0f172a;
     vertical-align: middle;
     white-space: nowrap;
-    background: #ffffff;
 }
 .query-eval-table td:last-child {
     white-space: normal;
 }
 .query-eval-table tr:nth-child(even) td {
-    background: #f8fafc !important;
+    background: #f8fafc;
 }
 .query-eval-table tr:hover td {
-    background: #dbeafe !important;
+    background: #bae6fd;
 }
 
 /* Metric Pills in Evaluation Table */

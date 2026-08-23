@@ -638,5 +638,75 @@
     "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_52_03_2701.jpg",
     "hash_hex": "0xfcce6e3e3eeeacba",
     "motion_pct": 9.93
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:53:21",
+    "seconds": 1787498601.84,
+    "epoch_time": 1787498601.839,
+    "description": "1. Three pedestrians in casual attire (light-colored tops, dark bottoms) are crossing the street near the center of the intersection; one appears to be loitering briefly near the crosswalk.  \n2. A dark gray pickup truck is parked in the foreground, while a white van with “EBIKE RENTALS” branding is partially visible on the left. A silver minivan and a red sedan are in motion on the road.  \n3. No security incidents or restricted area breaches are evident; traffic is flowing normally with no unusual activity or obstructions.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_53_21_3901.jpg",
+    "hash_hex": "0xf8ce6e3e3e9e0cce",
+    "motion_pct": 17.38
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:53:27",
+    "seconds": 1787498607.46,
+    "epoch_time": 1787498607.462,
+    "description": "Three individuals in light-colored (white or beige) casual attire stand near a parked silver sedan on the left sidewalk, appearing to loiter. A dark SUV is being towed by a flatbed truck in the center of the intersection, moving slowly across the road. No vehicles are in motion except the tow truck and a distant white car; all other vehicles are stationary or moving slowly in the background.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_53_27_4335.jpg",
+    "hash_hex": "0xf8ce6e3e3ea6b4fa",
+    "motion_pct": 7.78
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:55:15",
+    "seconds": 1787498715.6,
+    "epoch_time": 1787498715.599,
+    "description": "Two pedestrians, one in a dark top and one in a light-colored top, are loitering near a storefront on the left sidewalk. A white SUV is moving through the intersection, while a red pickup truck and a dark trailer are parked or stopped at the crosswalk. No security incidents or restricted areas are visible; traffic appears normal with no unusual activity.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_55_15_5385.jpg",
+    "hash_hex": "0xf9cc6e3e3edacc5e",
+    "motion_pct": 10.87
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:55:21",
+    "seconds": 1787498721.33,
+    "epoch_time": 1787498721.334,
+    "description": "1. Three individuals are visible on the sidewalk near a storefront, standing and appearing to loiter; one wears a light-colored top, another a dark top, and the third is partially obscured.  \n2. A silver van is prominently positioned in the foreground, moving across the intersection; other vehicles, including sedans and a large truck, are in motion or parked along the street.  \n3. No security incidents or restricted area breaches are evident; traffic is flowing normally with no unusual activity or obstructions.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_55_21_5835.jpg",
+    "hash_hex": "0xe9cc6e3e7ee0bcbe",
+    "motion_pct": 20.74
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:55:26",
+    "seconds": 1787498726.71,
+    "epoch_time": 1787498726.705,
+    "description": "1. Three individuals in casual attire (one in dark pants, one in light-colored pants, one in dark shorts) are loitering near a storefront on the left sidewalk; no distinct clothing colors are discernible beyond general attire.  \n2. A silver van is in motion through the intersection, a red SUV is stationary in the foreground, and multiple other vehicles are moving or parked along the street; no vehicles are conspicuously parked in restricted zones.  \n3. No security events or restricted area breaches are evident; traffic is flowing normally, and no unusual activity is observed.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_55_26_5985.jpg",
+    "hash_hex": "0xf9cc6e3ebeaecc7e",
+    "motion_pct": 12.92
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:55:32",
+    "seconds": 1787498732.39,
+    "epoch_time": 1787498732.393,
+    "description": "1. Three individuals in casual attire are loitering near a storefront on the left; one appears to be holding a child. A red SUV and a white RV are stationary at the intersection, while a dark SUV is moving through the crosswalk.\n2. A white RV is parked at the intersection, a red SUV is stopped at the crosswalk, and a dark SUV is in motion. Several other vehicles are queued at the traffic signal.\n3. No security events or restricted area breaches are evident. Traffic is flowing normally with no unusual activity or incidents.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_55_32_6135.jpg",
+    "hash_hex": "0xf9cc6e3e6afe6cce",
+    "motion_pct": 12.91
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "20:55:45",
+    "seconds": 1787498745.43,
+    "epoch_time": 1787498745.429,
+    "description": "1. Three individuals in casual attire are loitering near a storefront on the left; one appears to be gesturing. A fourth person is visible near a white sedan, standing still.  \n2. A red SUV is parked in the foreground, partially obstructing the view. A black SUV is moving through the intersection. Multiple vehicles are queued at the traffic light, including a white sedan and a dark SUV.  \n3. No security events or restricted area breaches are evident. Traffic is flowing normally; no unusual activity or suspicious behavior is observed.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_20_55_45_6285.jpg",
+    "hash_hex": "0xf9cc6e3e3e663c7e",
+    "motion_pct": 14.97
   }
 ]

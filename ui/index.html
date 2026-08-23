@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="/ui/style.css?v=20260823_2058">
+    <link rel="stylesheet" href="/ui/style.css?v=20260823_2100">
 </head>
 <body>
     <div class="app-container">
@@ -69,36 +69,23 @@
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
                     <h3>
-                        Lazy VLM Architecture, Vector Store & Pipeline Debugger
+                        Edge Frame Filter, Vector Store & Pipeline Debugger
                         <button class="info-btn" data-info="dev_panel_overview" title="What is this panel?">i</button>
                     </h3>
                 </div>
-
-                <!-- Active Architecture Strip -->
-                <div class="arch-badge-strip">
-                    <span class="arch-tag arch-active">⚡ Active Pipeline: Lazy Multi-Frame VLM</span>
-                    <span class="arch-tag">Embedder: Apple MobileCLIP-S2 (512-D)</span>
-                    <span class="arch-tag" id="arch-vector-store-tag">Vector Store: FAISS (512-D)</span>
-                    <span class="arch-tag">Forensic VLM: Qwen3-VL 4B (GPU)</span>
-                </div>
-
                 <!-- Dev Mode Tabs -->
                 <div class="dev-tabs">
-                    <button class="dev-tab-btn active" data-tab="tab-lazy-vlm">
-                        ⚡ Lazy VLM & Vector Grounding
-                        <button class="info-btn tab-info" data-info="lazy_vlm" title="What is Lazy VLM Architecture?">i</button>
+                    <button class="dev-tab-btn active" data-tab="tab-hash">
+                        dHash / pHash Edge Gate
+                        <button class="info-btn tab-info" data-info="dhash_phash" title="What is dHash / pHash?">i</button>
                     </button>
                     <button class="dev-tab-btn" data-tab="tab-vector">
                         Vector & Execution Trace
                         <button class="info-btn tab-info" data-info="vector_trace" title="What is Vector Execution Trace?">i</button>
                     </button>
-                    <button class="dev-tab-btn" data-tab="tab-hash" id="tab-btn-hash">
-                        <span id="tab-hash-label">dHash Edge Gate (Compute Saved)</span>
-                        <button class="info-btn tab-info" data-info="dhash_phash" title="What is dHash / pHash?">i</button>
-                    </button>
                     <button class="dev-tab-btn" data-tab="tab-json">
-                        <span id="tab-json-label">Visual Keyframes Dataset</span>
-                        <button class="info-btn tab-info" data-info="json_explorer" title="What is the Keyframes Dataset?">i</button>
+                        JSON Event Chunks Explorer
+                        <button class="info-btn tab-info" data-info="json_explorer" title="What are JSON Chunks?">i</button>
                     </button>
                     <button class="dev-tab-btn" data-tab="tab-rtsp">
                         RTSP Live Stream Manager
@@ -107,352 +94,8 @@
                 </div>
             </div>
 
-            <!-- TAB 0: 4-Stage Horizontal Live Operating Pipeline & Frame-to-Vector Grounding -->
-            <div class="dev-tab-content" id="tab-lazy-vlm">
-                <!-- 4 Horizontal Operating Boxes -->
-                <div class="lazy-pipeline-container">
-                    <div class="lazy-pipeline-header">
-                        <div class="stepper-title-wrap">
-                            <span class="status-pulse-dot" id="lazy-pulse-dot"></span>
-                            <h4>Live 4-Stage Query Execution Pipeline (Lazy VLM Architecture)</h4>
-                            <button class="info-btn" data-info="lazy_vlm">i</button>
-                        </div>
-                        <span class="badge-lazy" id="lazy-pipeline-badge">READY ● STANDBY</span>
-                    </div>
-
-                    <!-- 4 Horizontal Stage Boxes -->
-                    <div class="horizontal-stages-grid">
-                        <!-- Stage 1 -->
-                        <div class="stage-box" id="pstage-1">
-                            <div class="stage-top">
-                                <span class="stage-num">STAGE 1</span>
-                                <span class="stage-badge" id="pstage-1-status">STANDBY</span>
-                            </div>
-                            <h5 class="stage-title">Text Query Embedding</h5>
-                            <div class="stage-tech">Apple MobileCLIP-S2 (512-D)</div>
-                            <div class="stage-stat-row">
-                                <span class="stat-lbl">Latency:</span>
-                                <strong class="stat-val text-blue" id="pstage-1-time">-- ms</strong>
-                            </div>
-                            <div class="stage-sub" id="pstage-1-detail">Vector Norm ||v||: 1.0000</div>
-                        </div>
-
-                        <div class="stage-connector">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-
-                        <!-- Stage 2 -->
-                        <div class="stage-box" id="pstage-2">
-                            <div class="stage-top">
-                                <span class="stage-num">STAGE 2</span>
-                                <span class="stage-badge" id="pstage-2-status">STANDBY</span>
-                            </div>
-                            <h5 class="stage-title">Multimodal FAISS Search</h5>
-                            <div class="stage-tech">Cosine Inner Product (179 Vectors)</div>
-                            <div class="stage-stat-row">
-                                <span class="stat-lbl">Latency:</span>
-                                <strong class="stat-val text-blue" id="pstage-2-time">-- ms</strong>
-                            </div>
-                            <div class="stage-sub" id="pstage-2-detail">Target: 179 Visual Keyframes</div>
-                        </div>
-
-                        <div class="stage-connector">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-
-                        <!-- Stage 3 -->
-                        <div class="stage-box" id="pstage-3">
-                            <div class="stage-top">
-                                <span class="stage-num">STAGE 3</span>
-                                <span class="stage-badge" id="pstage-3-status">STANDBY</span>
-                            </div>
-                            <h5 class="stage-title">Temporal Window Expander</h5>
-                            <div class="stage-tech">±15s–30s Chronological Slicer</div>
-                            <div class="stage-stat-row">
-                                <span class="stat-lbl">Latency:</span>
-                                <strong class="stat-val text-blue" id="pstage-3-time">-- ms</strong>
-                            </div>
-                            <div class="stage-sub" id="pstage-3-detail">Window: [t-1, t0, t+1] (3 Frames)</div>
-                        </div>
-
-                        <div class="stage-connector">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-
-                        <!-- Stage 4 -->
-                        <div class="stage-box" id="pstage-4">
-                            <div class="stage-top">
-                                <span class="stage-num">STAGE 4</span>
-                                <span class="stage-badge" id="pstage-4-status">STANDBY</span>
-                            </div>
-                            <h5 class="stage-title">Qwen3-VL Forensic Reasoning</h5>
-                            <div class="stage-tech">Multi-Frame Vision Model (GPU)</div>
-                            <div class="stage-stat-row">
-                                <span class="stat-lbl">Latency:</span>
-                                <strong class="stat-val text-purple" id="pstage-4-time">-- ms</strong>
-                            </div>
-                            <div class="stage-sub" id="pstage-4-detail">Engine: Local llama-server</div>
-                        </div>
-                    </div>
-
-                    <!-- Pipeline Telemetry Bar -->
-                    <div class="lazy-telemetry-bar">
-                        <div class="telemetry-item">
-                            <span class="telemetry-lbl">Ingestion LLM Wait:</span>
-                            <strong class="telemetry-val text-green">0.0s (Instant Ingestion)</strong>
-                        </div>
-                        <div class="telemetry-item">
-                            <span class="telemetry-lbl">Indexed Keyframes:</span>
-                            <strong class="telemetry-val text-blue" id="lazy-stat-keyframes">179 Vectors</strong>
-                        </div>
-                        <div class="telemetry-item">
-                            <span class="telemetry-lbl">Vision Vector Space:</span>
-                            <strong class="telemetry-val text-purple">512-D MobileCLIP-S2</strong>
-                        </div>
-                        <div class="telemetry-item">
-                            <span class="telemetry-lbl">Total Query Time:</span>
-                            <strong class="telemetry-val text-blue" id="lazy-stat-latency">-- ms</strong>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Live Hardware Telemetry & LLM Compute Benchmarks (Matching 4-Stage Operating Box Design) -->
-                <div class="lazy-pipeline-container" style="margin-top: 14px; border-color: rgba(245, 158, 11, 0.3);">
-                    <div class="lazy-pipeline-header">
-                        <div class="stepper-title-wrap">
-                            <span class="status-pulse-dot" id="hw-pulse-dot" style="background:#f59e0b; box-shadow:0 0 10px #f59e0b;"></span>
-                            <h4>Hardware Telemetry & LLM Compute Benchmarks (i7-13700HX + RTX 4050)</h4>
-                            <button class="info-btn" data-info="hardware_benchmarks">i</button>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <span class="badge-lazy" id="hw-optimization-status" style="background:rgba(245, 158, 11, 0.15); color:#fbbf24; border:1px solid rgba(245, 158, 11, 0.3);">⚠️ UNOPTIMIZED BASELINE (91% CPU LOAD)</span>
-                            <button id="run-bench-btn" class="btn-primary btn-sm" style="display:flex; align-items:center; gap:6px; height:28px; padding:0 12px; font-size:0.75rem;">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="hw-refresh-spinner"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
-                                <span id="hw-refresh-text">Refresh Hardware Telemetry</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 4 Horizontal Benchmark Boxes Matching 4 Pipeline Stages -->
-                    <div class="horizontal-stages-grid">
-                        <!-- Box 1: CPU Load -->
-                        <div class="stage-box" id="hw-stage-1">
-                            <div class="stage-top">
-                                <span class="stage-num">PROCESSOR</span>
-                                <span class="stage-badge" id="hw-cpu-badge" style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">99% PEAK</span>
-                            </div>
-                            <h5 class="stage-title">CPU Load (i7-13700HX)</h5>
-                            <div class="stage-tech">16 Cores / 24 Threads</div>
-                            <div class="stage-stat-row">
-                                <span class="stat-lbl">Peak Load:</span>
-                                <strong class="stat-val text-red" id="hw-cpu-val">99.0%</strong>
-                            </div>
-                            <div class="stage-sub" id="hw-cpu-sub" style="color: #cbd5e1; font-weight: 500;">Avg CPU: 63.3% (24-Thread Contention)</div>
-                        </div>
-
-                        <div class="stage-connector">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-
-                        <!-- Box 2: System RAM (16GB) -->
-                        <div class="stage-box" id="hw-stage-2">
-                            <div class="stage-top">
-                                <span class="stage-num">SYSTEM RAM</span>
-                                <span class="stage-badge" id="hw-ram-badge" style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">99% LOAD</span>
-                            </div>
-                            <h5 class="stage-title">RAM Memory (16 GB)</h5>
-                            <div class="stage-tech">15.72 GB Total Physical Memory</div>
-                            <div class="stage-stat-row">
-                                <span class="stat-lbl">Peak Used:</span>
-                                <strong class="stat-val text-red" id="hw-ram-val">15.56 / 15.72 GB</strong>
-                            </div>
-                            <div class="stage-sub" id="hw-ram-sub">Avg RAM: 15.37 GB (98% Saturated)</div>
-                        </div>
-
-                        <div class="stage-connector">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-
-                        <!-- Box 3: GPU VRAM -->
-                        <div class="stage-box" id="hw-stage-3">
-                            <div class="stage-top">
-                                <span class="stage-num">VRAM POOL</span>
-                                <span class="stage-badge" id="hw-vram-badge" style="background:rgba(245, 158, 11, 0.2); color:#fbbf24; border:1px solid rgba(245, 158, 11, 0.4);">13% UTILIZED</span>
-                            </div>
-                            <h5 class="stage-title">GPU VRAM (RTX 4050)</h5>
-                            <div class="stage-tech">6,141 MB Dedicated GDDR6</div>
-                            <div class="stage-stat-row">
-                                <span class="stat-lbl">Allocated:</span>
-                                <strong class="stat-val text-orange" id="hw-vram-val">794 / 6,141 MB</strong>
-                            </div>
-                            <div class="stage-sub" id="hw-vram-sub">87% GPU VRAM Idle (5.3 GB Free)</div>
-                        </div>
-
-                        <div class="stage-connector">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-
-                        <!-- Box 4: Inference Time & Sensors -->
-                        <div class="stage-box" id="hw-stage-4">
-                            <div class="stage-top">
-                                <span class="stage-num">INFERENCE TIME</span>
-                                <span class="stage-badge" id="hw-vlm-badge" style="background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">120s+ BOTTLENECK</span>
-                            </div>
-                            <h5 class="stage-title">Qwen3-VL & Sensors</h5>
-                            <div class="stage-tech" id="hw-thermals-sub">RTX 4050 · 62°C · 3.0W</div>
-                            <div class="stage-stat-row">
-                                <span class="stat-lbl">Inference:</span>
-                                <strong class="stat-val text-purple" id="hw-vlm-time-val">120s+</strong>
-                            </div>
-                            <div class="stage-sub" id="hw-thermals-val">Sensor: 62°C · 3.0W (GPU Idle)</div>
-                        </div>
-                    </div>
-
-                    <!-- Target Goals Telemetry Strip -->
-                    <div class="lazy-telemetry-bar">
-                        <div class="telemetry-item">
-                            <span class="telemetry-lbl">CPU Target:</span>
-                            <strong class="telemetry-val text-green">&lt; 5.0% Load (via Tensor Cores)</strong>
-                        </div>
-                        <div class="telemetry-item">
-                            <span class="telemetry-lbl">VRAM Target:</span>
-                            <strong class="telemetry-val text-blue">~3,800 MB (Full Model in GPU)</strong>
-                        </div>
-                        <div class="telemetry-item">
-                            <span class="telemetry-lbl">RAM Target:</span>
-                            <strong class="telemetry-val text-green">&lt; 8.0 GB (No CPU Vision Overflow)</strong>
-                        </div>
-                        <div class="telemetry-item">
-                            <span class="telemetry-lbl">Speed Target:</span>
-                            <strong class="telemetry-val text-purple">&lt; 10.0s (Flash Attention)</strong>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Benchmark Scenario Triggers -->
-                <div class="lazy-benchmark-bar">
-                    <span class="benchmark-label">⚡ Benchmark Test Scenarios:</span>
-                    <button class="benchmark-chip" data-query="white pickup truck parked near yellow tape">🚗 White Truck & Tape</button>
-                    <button class="benchmark-chip" data-query="police officer or uniformed security personnel">👮 Uniformed Officer</button>
-                    <button class="benchmark-chip" data-query="crowd gathered in front of venice hotel">👥 Crowd at Venice Hotel</button>
-                    <button class="benchmark-chip" data-query="camera abruptly pans or shifts to the ground">📹 Camera Blur / Pan</button>
-                </div>
-
-                <!-- Frame-to-Vector Grounding Explorer -->
-                <div class="vector-grounding-section">
-                    <div class="vector-grounding-header">
-                        <div class="vg-title-group">
-                            <h4>
-                                Keyframe-to-Vector Grounding Explorer
-                                <button class="info-btn" data-info="vector_grounding">i</button>
-                            </h4>
-                            <span class="sub-text">Inspect 512-D MobileCLIP vectors associated with each timestamped frame in sample_cctv.mp4</span>
-                        </div>
-                        <div class="vg-actions">
-                            <button id="toggle-vectors-grid-btn" class="btn-secondary btn-sm toggle-collapse-btn" title="Expand or collapse keyframe images grid">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="collapse-arrow collapsed" id="vg-collapse-arrow"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                <span id="vg-toggle-text">Show Images (179)</span>
-                            </button>
-                            <div class="vg-search-wrap" id="vg-search-wrap" style="opacity: 0.5; pointer-events: none;">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                                <input type="text" id="vg-search-input" placeholder="Filter by timestamp (e.g. 00:02:42) or index..." class="dev-input">
-                            </div>
-                            <button id="refresh-vectors-btn" class="btn-primary btn-sm">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
-                                <span>Refresh</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Frame Vector Cards Grid (Collapsed by Default) -->
-                    <div class="frame-vectors-grid collapsed" id="frame-vectors-grid">
-                        <div class="placeholder-text" style="padding: 30px; text-align: center; width: 100%;">
-                            Loading 512-D MobileCLIP vectors from FAISS index…
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TAB 1: Vector Store & Query Execution Trace (512-D MobileCLIP + Qwen3-VL) -->
-            <div class="dev-tab-content" id="tab-vector" style="display: none;">
-                <div class="vector-debug-grid">
-                    <!-- Vector Sample Box -->
-                    <div class="vdebug-card">
-                        <div class="vdebug-card-header">
-                            <h4>
-                                Query Embedding Vector (512-D · MobileCLIP-S2)
-                                <button class="info-btn" data-info="text_embedding">i</button>
-                            </h4>
-                            <button id="copy-vec-btn" class="btn-secondary btn-xs" title="Copy Vector Floats">Copy</button>
-                        </div>
-                        <p class="vdebug-sub">
-                            Model: <code>Apple MobileCLIP-S2</code> · Vector Norm $\|v\|$: <strong id="v-norm" class="text-blue">1.0000</strong>
-                            <button class="info-btn" data-info="vector_norm">i</button>
-                        </p>
-                        <div class="vector-array-box" id="vector-array-display">
-                            [Execute a query to inspect dense 512-D float32 weights from MobileCLIP-S2]
-                        </div>
-                    </div>
-
-                    <!-- Pipeline Execution Timings -->
-                    <div class="vdebug-card">
-                        <h4>
-                            Lazy VLM Pipeline Execution Breakdown
-                            <button class="info-btn" data-info="pipeline_breakdown">i</button>
-                        </h4>
-                        <div class="timing-rows">
-                            <div class="t-row">
-                                <span>
-                                    1. Text Embedding (MobileCLIP-S2, GPU):
-                                    <button class="info-btn" data-info="text_embedding">i</button>
-                                </span>
-                                <strong id="t-embed">0.0 ms</strong>
-                            </div>
-                            <div class="t-row">
-                                <span>
-                                    2. FAISS Multimodal Vector Search (179 Frames):
-                                    <button class="info-btn" data-info="faiss_search">i</button>
-                                </span>
-                                <strong id="t-faiss">0.0 ms</strong>
-                            </div>
-                            <div class="t-row">
-                                <span>
-                                    3. Temporal Context Window Slicer (±15s–30s):
-                                    <button class="info-btn" data-info="temporal_expansion">i</button>
-                                </span>
-                                <strong id="t-expand-timing">0.0 ms</strong>
-                            </div>
-                            <div class="t-row highlight-row">
-                                <span>
-                                    4. Qwen3-VL Multi-Frame Vision Reasoning (GPU):
-                                    <button class="info-btn" data-info="qwen3_vl">i</button>
-                                </span>
-                                <strong id="t-llm" class="text-purple">0.0 ms</strong>
-                            </div>
-                            <div class="t-row highlight-blue-row" style="border-top: 1px dashed var(--border-light); margin-top: 4px; padding-top: 6px;">
-                                <span>
-                                    Total End-to-End Latency:
-                                </span>
-                                <strong id="t-total-trace" class="text-blue">0.0 ms</strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Prompt Context Block Explorer -->
-                <div class="vdebug-card" style="margin-top: 12px;">
-                    <div class="vdebug-card-header">
-                        <h4>
-                            Structured Multimodal Payload Sent to Qwen3-VL
-                            <button class="info-btn" data-info="raw_prompt">i</button>
-                        </h4>
-                    </div>
-                    <pre class="prompt-preview-box" id="prompt-preview-display">Execute a query above to view the chronological multi-frame base64 images and forensic reasoning instructions formatted for local Qwen3-VL.</pre>
-                </div>
-            </div>
-
-            <!-- TAB 2: Edge Frame Hashing & Motion Optimizer -->
-            <div class="dev-tab-content" id="tab-hash" style="display: none;">
+            <!-- TAB 1: Edge Frame Hashing & Motion Optimizer -->
+            <div class="dev-tab-content" id="tab-hash">
                 <div class="dev-controls-bar">
                     <div class="control-group">
                         <label>
@@ -468,10 +111,10 @@
 
                     <div class="control-group">
                         <label>
-                            Hamming Threshold: <strong id="threshold-val" class="text-blue">8</strong>
+                            Hamming Threshold: <strong id="threshold-val" class="text-blue">10</strong>
                             <button class="info-btn" data-info="hamming_threshold">i</button>
                         </label>
-                        <input type="range" id="threshold-range" min="1" max="32" value="8" class="dev-slider">
+                        <input type="range" id="threshold-range" min="1" max="32" value="10" class="dev-slider">
                     </div>
 
                     <button id="run-smart-filter-btn" class="btn-primary btn-sm">
@@ -493,7 +136,7 @@
                         <strong>Hamming Distance</strong> measures bitwise differences: 
                         <code>0</code> = identical duplicate, <code>64</code> = completely inverted image.
                         <br>
-                        🎯 <strong>Current Setting on sample_cctv.mp4 (Threshold = 8):</strong> Sampled 271 frames, kept <strong>179 keyframes</strong>, dropped <strong>92 static frames (33.9% compute saved)</strong>!
+                        🎯 <strong>Optimal Threshold for CCTV (8–12):</strong> Filters 10–25% of static duplicate scenes (empty hallways/roads) while preserving all vehicle & pedestrian activity!
                     </p>
                 </div>
 
@@ -503,28 +146,28 @@
                             Total Frames Sampled
                             <button class="info-btn" data-info="total_frames">i</button>
                         </span>
-                        <span class="kpi-val" id="kpi-total">271</span>
+                        <span class="kpi-val" id="kpi-total">55</span>
                     </div>
                     <div class="kpi-card">
                         <span class="kpi-label">
-                            Keyframes Kept (MobileCLIP)
+                            Keyframes Kept (VLM)
                             <button class="info-btn" data-info="keyframes_kept">i</button>
                         </span>
-                        <span class="kpi-val text-green" id="kpi-kept">179</span>
+                        <span class="kpi-val text-green" id="kpi-kept">48</span>
                     </div>
                     <div class="kpi-card">
                         <span class="kpi-label">
                             Static Frames Skipped
                             <button class="info-btn" data-info="static_frames">i</button>
                         </span>
-                        <span class="kpi-val text-dim" id="kpi-skipped">92</span>
+                        <span class="kpi-val text-dim" id="kpi-skipped">7</span>
                     </div>
                     <div class="kpi-card highlight-blue">
                         <span class="kpi-label">
-                            Compute Saved
+                            LLM Compute Saved
                             <button class="info-btn" data-info="compute_saved">i</button>
                         </span>
-                        <span class="kpi-val text-blue" id="kpi-saved">33.9%</span>
+                        <span class="kpi-val text-blue" id="kpi-saved">12.7%</span>
                     </div>
                 </div>
 
@@ -703,60 +346,60 @@
                         <table class="opt-comp-table" style="width: 100%; border-collapse: collapse; border: 2px solid #0284c7;">
                             <thead>
                                 <tr>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Metric</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Before Optimization (4B Default)</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Current Baseline (4B Trimmed CPU)</th>
-                                    <th style="border: 1.5px solid #10b981; background: #d1fae5; color: #065f46; padding: 10px 12px; font-weight: 800;">Target Profile (1.5B Mobile CPU)</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 14px; font-weight: 700;">Metric</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 14px; font-weight: 700;">Before Optimization (4B Default)</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 14px; font-weight: 700;">Current Baseline (4B Trimmed CPU)</th>
+                                    <th style="border: 1.5px solid #10b981; background: #dcfce7; color: #065f46; padding: 10px 14px; font-weight: 700;">Target Profile (1.5B Mobile CPU)</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Model & mmproj Size</strong></td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">4B Q4_K_M (~2.38 GB + 800MB)</td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">4B Q4_K_M (~2.38 GB + 800MB)</td>
-                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">1.5B Q4_K_M (~900MB + 200MB)</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;"><strong>Model & mmproj Size</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">4B Q4_K_M (~2.38 GB + 800MB)</td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">4B Q4_K_M (~2.38 GB + 800MB)</td>
+                                    <td style="border: 1.5px solid #86efac; background: #f0fdf4; padding: 9px 14px;"><strong class="text-green">1.5B Q4_K_M (~900MB + 200MB)</strong></td>
                                 </tr>
                                 <tr>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Context Limit & Slots</strong></td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">4096 ctx · 4 slots</td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">1536 ctx · 1 slot</td>
-                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">1536 ctx · 1 slot</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;"><strong>Context Limit & Slots</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">4096 ctx · 4 slots</td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">1536 ctx · 1 slot</td>
+                                    <td style="border: 1.5px solid #86efac; background: #f0fdf4; padding: 9px 14px;"><strong class="text-green">1536 ctx · 1 slot</strong></td>
                                 </tr>
                                 <tr>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>KV Cache Type</strong></td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">FP16 (~1.5 GB VRAM)</td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">Q8_0 (~90 MB RAM)</td>
-                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">Q8_0 (~75 MB RAM)</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;"><strong>KV Cache Type</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">FP16 (~1.5 GB VRAM)</td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">Q8_0 (~90 MB RAM)</td>
+                                    <td style="border: 1.5px solid #86efac; background: #f0fdf4; padding: 9px 14px;"><strong class="text-green">Q8_0 (~75 MB RAM)</strong></td>
                                 </tr>
                                 <tr>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Execution Specs</strong></td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">GPU Offloaded (-ngl 99)</td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">CPU-only (6 threads, mmap)</td>
-                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">CPU-only (4–6 ARM threads, mmap)</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;"><strong>Execution Specs</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">GPU Offloaded (-ngl 99)</td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">CPU-only (6 threads, mmap)</td>
+                                    <td style="border: 1.5px solid #86efac; background: #f0fdf4; padding: 9px 14px;"><strong class="text-green">CPU-only (4–6 ARM threads, mmap)</strong></td>
                                 </tr>
                                 <tr>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Peak System RAM</strong></td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">~5.8 GB VRAM</td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">3,060 MB (~3.06 GB RAM)</td>
-                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">~1,150 MB (Mobile Safe ✅)</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;"><strong>Peak System RAM</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">~5.8 GB VRAM</td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">3,060 MB (~3.06 GB RAM)</td>
+                                    <td style="border: 1.5px solid #86efac; background: #f0fdf4; padding: 9px 14px;"><strong class="text-green">~1,150 MB (Mobile Safe ✅)</strong></td>
                                 </tr>
                                 <tr>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>CPU Token Throughput</strong></td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">~45 tok/s (GPU)</td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">2.73 tok/s (CPU)</td>
-                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">~18–24 tok/s (CPU ⚡)</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;"><strong>CPU Token Throughput</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">~45 tok/s (GPU)</td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">2.73 tok/s (CPU)</td>
+                                    <td style="border: 1.5px solid #86efac; background: #f0fdf4; padding: 9px 14px;"><strong class="text-green">~18–24 tok/s (CPU ⚡)</strong></td>
                                 </tr>
                                 <tr>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Time-To-First-Token (TTFT)</strong></td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">~250 ms</td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">~25–30 seconds</td>
-                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">~3–5 seconds</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;"><strong>Time-To-First-Token (TTFT)</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">~250 ms</td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">~25–30 seconds</td>
+                                    <td style="border: 1.5px solid #86efac; background: #f0fdf4; padding: 9px 14px;"><strong class="text-green">~3–5 seconds</strong></td>
                                 </tr>
                                 <tr>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Hallucination / Accuracy</strong></td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">0.00 (Zero Hallucinations)</td>
-                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">0.00 (Zero Hallucinations)</td>
-                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">Target: 0.00 (Zero Hallucinations)</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;"><strong>Hallucination / Accuracy</strong></td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">0.00 (Zero Hallucinations)</td>
+                                    <td style="border: 1.5px solid #38bdf8; padding: 9px 14px;">0.00 (Zero Hallucinations)</td>
+                                    <td style="border: 1.5px solid #86efac; background: #f0fdf4; padding: 9px 14px;"><strong class="text-green">Target: 0.00 (Zero Hallucinations)</strong></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -765,7 +408,7 @@
 
                 <!-- Live Query Telemetry & Resource Evaluation History Log -->
                 <div class="query-eval-card" style="border: 2px solid #0284c7; border-top: 6px solid #0284c7; border-radius: 12px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.08); background: #ffffff; padding: 18px 20px; margin-top: 18px;">
-                    <div class="query-eval-header" style="border-bottom: 2px solid #bae6fd; padding-bottom: 10px; margin-bottom: 14px;">
+                    <div class="query-eval-header" style="border-bottom: 2px solid #0284c7; padding-bottom: 10px; margin-bottom: 14px;">
                         <div class="query-eval-title">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -789,24 +432,24 @@
                         <table class="query-eval-table" style="width: 100%; border-collapse: collapse; border: 2px solid #0284c7;">
                             <thead>
                                 <tr>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800; text-align: center;">#</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Time</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Query Text</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Profile</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Memory (RSS / RAM %)</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">CPU %</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">GPU VRAM</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Edge Gate</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">FAISS / Rerank</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Gen Speed</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Total Latency</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">LLM Response Preview</th>
-                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800; text-align: center; width: 60px;">Action</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">#</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">Time</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">Query Text</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">Profile</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">Memory (RSS / RAM %)</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">CPU %</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">GPU VRAM</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">Edge Gate</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">FAISS / Rerank</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">Gen Speed</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">Total Latency</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">LLM Response Preview</th>
+                                    <th style="text-align: center; width: 60px; border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 700;">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="query-eval-tbody">
                                 <tr>
-                                    <td colspan="13" class="placeholder-text" style="border: 1.5px solid #93c5fd; text-align:center; padding: 24px; color: var(--text-muted);">
+                                    <td colspan="13" class="placeholder-text" style="text-align:center; padding: 24px; color: var(--text-muted); border: 1.5px solid #38bdf8;">
                                         Run a search query to record live memory, CPU, GPU, latency breakdown, and LLM output logs here.
                                     </td>
                                 </tr>
@@ -918,14 +561,14 @@
                 <div class="json-explorer-header">
                     <div class="json-header-left">
                         <h4>
-                            Indexed Visual Keyframes Dataset (<code>sample_cctv.mp4</code>)
+                            Indexed CCTV Event Dataset (<code>data/real_cctv_events.json</code>)
                             <button class="info-btn" data-info="json_explorer">i</button>
                         </h4>
                         <div class="json-stats-chips">
-                            <span class="chip-badge chip-blue" id="json-stat-total">179 Keyframes</span>
-                            <span class="chip-badge chip-green" id="json-stat-cams">1 Camera</span>
-                            <span class="chip-badge chip-purple" id="json-stat-dim">512-D MobileCLIP</span>
-                            <span class="chip-badge chip-dark" id="json-stat-size">0s LLM Wait</span>
+                            <span class="chip-badge chip-blue" id="json-stat-total">11 Events</span>
+                            <span class="chip-badge chip-green" id="json-stat-cams">2 Cameras</span>
+                            <span class="chip-badge chip-purple" id="json-stat-dim">384-D FAISS</span>
+                            <span class="chip-badge chip-dark" id="json-stat-size">~12 KB</span>
                         </div>
                     </div>
                     <div class="json-header-actions">
@@ -934,82 +577,67 @@
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                                 <span>Cards</span>
                             </button>
-                            <button id="json-view-raw-btn" class="toggle-view-btn" title="Raw JSON Metadata View">
+                            <button id="json-view-raw-btn" class="toggle-view-btn" title="Raw JSON Code View">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
                                 <span>Raw JSON</span>
                             </button>
                         </div>
-                        <button id="copy-json-btn" class="btn-secondary btn-sm" title="Copy dataset metadata to clipboard">
+                        <button id="copy-json-btn" class="btn-secondary btn-sm" title="Copy JSON dataset to clipboard">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                             <span>Copy</span>
                         </button>
                         <button id="refresh-json-btn" class="btn-primary btn-sm">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
-                            <span>Refresh Dataset</span>
+                            <span>Refresh JSON Data</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- Dynamic Filter Toolbar: Search -->
+                <!-- Dynamic Filter Toolbar: Camera Pills & Live Search -->
                 <div class="json-filter-toolbar">
                     <div class="json-cam-pills" id="json-camera-filters">
-                        <button class="json-cam-pill active" data-camera="">All Keyframes (179)</button>
-                        <button class="json-cam-pill" data-camera="CAM_01">CAM_01 (179)</button>
+                        <!-- Populated dynamically: All Cameras, CAM_01, CAM_3000... -->
                     </div>
                     <div class="json-search-wrap">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        <input type="text" id="json-search-input" placeholder="Filter by timestamp (e.g. 00:02:42) or index..." class="dev-input">
-                        <span id="json-match-count" class="json-match-count">179 / 179 items</span>
+                        <input type="text" id="json-search-input" placeholder="Filter descriptions or timestamps..." class="dev-input">
+                        <span id="json-match-count" class="json-match-count">11 / 11 items</span>
                     </div>
                 </div>
 
                 <!-- Structured Visual Cards Grid -->
                 <div id="json-cards-container" class="json-cards-grid">
-                    <!-- Keyframe cards rendered here -->
+                    <!-- Event cards rendered here -->
                 </div>
 
                 <!-- Raw JSON Syntax View -->
-                <pre class="json-code-box" id="json-code-display" style="display: none;">Loading indexed keyframe metadata JSON…</pre>
+                <pre class="json-code-box" id="json-code-display" style="display: none;">Loading indexed CCTV events JSON dataset…</pre>
             </div>
 
             <!-- TAB 4: RTSP Live Stream Manager -->
             <div class="dev-tab-content" id="tab-rtsp" style="display: none;">
-                <div class="rtsp-form-bar" style="flex-wrap: wrap; gap: 10px; align-items: flex-end;">
+                <div class="rtsp-form-bar">
                     <div class="control-group">
                         <label>Camera ID:</label>
-                        <input type="text" id="rtsp-cam-id" placeholder="CAM_02" class="dev-input" style="width: 120px;">
+                        <input type="text" id="rtsp-cam-id" placeholder="CAM_NORTH_RTSP" class="dev-input" style="width: 140px;">
                     </div>
 
-                    <div class="control-group" style="flex: 1; min-width: 220px;">
-                        <label>Stream URL (RTSP / RTMP / YouTube):</label>
-                        <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live or https://..." class="dev-input" style="width: 100%;">
-                    </div>
-
-                    <div class="control-group" style="flex: 1; min-width: 280px;">
-                        <label>Local Video File (MP4 / AVI / MKV):</label>
-                        <div style="display: flex; gap: 6px;">
-                            <input type="file" id="rtsp-file-input" accept="video/mp4,video/x-matroska,video/quicktime,video/avi,video/*" style="display: none;">
-                            <input type="text" id="rtsp-local-file" placeholder="data/videos/sample_cctv.mp4" class="dev-input" style="width: 100%;">
-                            <button type="button" id="rtsp-browse-btn" class="btn-secondary btn-sm" title="Select a video file from your computer" style="white-space: nowrap; font-size: 0.72rem; padding: 4px 8px;">
-                                📂 Choose File
-                            </button>
-                            <button type="button" id="rtsp-sample-cctv-btn" class="btn-secondary btn-sm" title="Quick fill sample_cctv.mp4" style="white-space: nowrap; font-size: 0.72rem; padding: 4px 8px;">
-                                📁 Sample CCTV
-                            </button>
-                        </div>
+                    <div class="control-group" style="flex: 1;">
+                        <label>Stream URL (RTSP / RTMP / File):</label>
+                        <input type="text" id="rtsp-url" placeholder="rtsp://192.168.1.100:554/live or Video Footage/sample_cctv.mp4" class="dev-input" style="width: 100%;">
                     </div>
 
                     <div class="control-group">
                         <label>Interval (s):</label>
-                        <input type="number" id="rtsp-interval" value="5.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 65px;">
+                        <input type="number" id="rtsp-interval" value="5.0" min="1.0" max="60.0" step="0.5" class="dev-input" style="width: 70px;">
                     </div>
 
-                    <button id="add-rtsp-btn" class="btn-primary btn-sm" style="height: 34px;">
+                    <button id="add-rtsp-btn" class="btn-primary btn-sm">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                         </svg>
-                        <span>Start Ingestion & Index</span>
+                        <span>Start Async RTSP Capture</span>
                     </button>
                 </div>
 
@@ -1113,24 +741,6 @@
                             <span class="hud-tag" id="hud-cam-id">CAM_01</span>
                             <span class="hud-tag" id="hud-timestamp">00:00:00</span>
                             <span class="hud-tag text-green" id="hud-status">REC ● 1080P</span>
-                        </div>
-                    </div>
-
-                    <!-- 4. Camera Offline / Not Available Screen -->
-                    <div id="cctv-offline-view" class="monitor-screen offline-screen" style="display: none; width: 100%; height: 100%; background: #070b14; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 24px;">
-                        <div class="offline-icon-wrap" style="margin-bottom: 12px; opacity: 0.85;">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.75">
-                                <path d="M23 7l-7 5 7 5V7z"></path>
-                                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                                <line x1="1" y1="1" x2="23" y2="23" stroke="#ef4444" stroke-width="2.5"></line>
-                            </svg>
-                        </div>
-                        <h3 class="offline-title" style="color: #f87171; font-size: 1.15rem; font-weight: 700; margin-bottom: 6px;">Camera Feed Offline / Not Available</h3>
-                        <p class="offline-desc" id="offline-desc-text" style="color: #94a3b8; font-size: 0.85rem; max-width: 380px; line-height: 1.4; margin-bottom: 14px;">This camera feed is not currently transmitting live video. Select CAM_01 to monitor active surveillance footage.</p>
-                        <div class="offline-badges" style="display: flex; gap: 8px; justify-content: center;">
-                            <span class="hud-tag" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);">SIGNAL LOST</span>
-                            <span class="hud-tag" id="offline-cam-tag">CAM_02</span>
-                            <span class="hud-tag text-dim">0 FPS</span>
                         </div>
                     </div>
 
