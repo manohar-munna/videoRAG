@@ -352,16 +352,19 @@ class VLMCaptioner:
                 {
                     "type": "text",
                     "text": (
-                        f"You are an expert CCTV Forensic Intelligence Analyst reviewing chronological surveillance frames from Camera '{cam_id}'.\n"
+                        f"You are an expert CCTV Forensic Security Intelligence Analyst reviewing chronological surveillance frames from Camera '{cam_id}'.\n"
                         f"Target Query: \"{query}\"\n"
                         f"Sequence Time Range: {time_range}\n\n"
                         "Instructions:\n"
-                        "1. First, examine each frame sequentially (Frame 1, Frame 2, Frame 3, etc.) and state your factual observations for each timestamp.\n"
-                        "2. In each frame's description, specifically indicate whether the queried subject or activity is visible or absent.\n"
-                        "3. Conclude with a clear summary determining whether the query is satisfied across the sequence, citing all matching timestamps.\n"
-                        "4. If the subject is confirmed in any frame, include '[CONFIRMED_AT: HH:MM:SS]' for the best matching frame timestamp in your summary.\n"
-                        "5. If the query asks for a count or quantity (e.g. 'number of vehicles', 'how many people'), explicitly tally and state the exact count of unique subjects observed in the confirmed frames in your summary.\n"
-                        "Important Rule: Do NOT make a blanket negative statement at the opening. Examine all frames first before concluding."
+                        "Please analyze each frame sequentially and provide your response in this exact format:\n\n"
+                        "--- Frame 1 (Time: HH:MM:SS) ---\n"
+                        "Observation: [Describe visible subjects, clothing, vehicles, and state if query is visible or absent]\n\n"
+                        "--- Frame 2 (Time: HH:MM:SS) ---\n"
+                        "Observation: [Describe visible subjects, clothing, vehicles, and state if query is visible or absent]\n\n"
+                        "--- Frame 3 (Time: HH:MM:SS) ---\n"
+                        "Observation: [Describe visible subjects, clothing, vehicles, and state if query is visible or absent]\n\n"
+                        "Summary:\n"
+                        "[Provide a concise factual conclusion answering '{query}'. If confirmed, cite timestamp and include '[CONFIRMED_AT: HH:MM:SS]']\n"
                     ),
                 }
             ]

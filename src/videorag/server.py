@@ -1003,9 +1003,8 @@ def search_cctv(req: SearchRequest):
 
     t_embed_ms = round((t1 - t0) * 1000, 2)
     t_faiss_ms = round((t2 - t1) * 1000, 2)
-    t_rerank_ms = round((t3 - t2) * 1000, 2)
-    t_llm_ms = round((t4 - t3) * 1000, 2)
-    t_total_ms = round(t_embed_ms + t_faiss_ms + t_rerank_ms + t_llm_ms, 2)
+    t_llm_ms = round((t3 - t2) * 1000, 2)
+    t_total_ms = round((t4 - t0) * 1000, 2)
 
     debug_trace = {
         "active_profile": cur_prof_id,
@@ -1030,7 +1029,7 @@ def search_cctv(req: SearchRequest):
         "timings_ms": {
             "query_embedding_ms": t_embed_ms,
             "faiss_retrieval_ms": t_faiss_ms,
-            "cross_encoder_rerank_ms": t_rerank_ms,
+            "cross_encoder_rerank_ms": 0.0,
             "llm_generation_ms": t_llm_ms,
             "total_latency_ms": t_total_ms,
         }

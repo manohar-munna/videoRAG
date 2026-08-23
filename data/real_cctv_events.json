@@ -5058,5 +5058,735 @@
     "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_12_43_885.jpg",
     "hash_hex": "0xa84c642c32d2a4c4",
     "motion_pct": 16.44
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:12:57",
+    "seconds": 1787510577.18,
+    "epoch_time": 1787510577.176,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:12:57.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_12_57_1035.jpg",
+    "hash_hex": "0xec4c642c78fcb4c4",
+    "motion_pct": 13.74
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:13:33",
+    "seconds": 1787510613.61,
+    "epoch_time": 1787510613.609,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:13:33.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_13_33_1485.jpg",
+    "hash_hex": "0xa84c642cb4b49c28",
+    "motion_pct": 14.89
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:13:40",
+    "seconds": 1787510620.38,
+    "epoch_time": 1787510620.379,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:13:40.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_13_40_1635.jpg",
+    "hash_hex": "0xa94c642cf4e4accc",
+    "motion_pct": 14.64
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:13:45",
+    "seconds": 1787510625.38,
+    "epoch_time": 1787510625.38,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:13:45.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_13_45_1970.jpg",
+    "hash_hex": "0xa84c642c6aecac68",
+    "motion_pct": 11.81
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:13:50",
+    "seconds": 1787510630.69,
+    "epoch_time": 1787510630.69,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:13:50.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_13_50_2085.jpg",
+    "hash_hex": "0xa94c642e2aa622c8",
+    "motion_pct": 16.35
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:14:04",
+    "seconds": 1787510644.31,
+    "epoch_time": 1787510644.311,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:14:04.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_14_04_2235.jpg",
+    "hash_hex": "0xa84c642c3ad41c78",
+    "motion_pct": 19.66
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:14:34",
+    "seconds": 1787510674.45,
+    "epoch_time": 1787510674.454,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:14:34.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_14_34_2251.jpg",
+    "hash_hex": "0xa94c6d2ed6b229a8",
+    "motion_pct": 29.77
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:14:39",
+    "seconds": 1787510679.98,
+    "epoch_time": 1787510679.976,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:14:39.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_14_39_2685.jpg",
+    "hash_hex": "0xa84c652e2abc2c28",
+    "motion_pct": 15.01
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:14:56",
+    "seconds": 1787510696.26,
+    "epoch_time": 1787510696.265,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:14:56.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_14_56_3285.jpg",
+    "hash_hex": "0xa94c642e2ed45498",
+    "motion_pct": 19.27
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:15:38",
+    "seconds": 1787510738.99,
+    "epoch_time": 1787510738.992,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:15:38.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_15_38_3451.jpg",
+    "hash_hex": "0xa94c6c2c2cb49468",
+    "motion_pct": 10.12
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:15:44",
+    "seconds": 1787510744.57,
+    "epoch_time": 1787510744.573,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:15:44.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_15_44_3885.jpg",
+    "hash_hex": "0xa84c652cace48cc8",
+    "motion_pct": 13.48
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:15:55",
+    "seconds": 1787510755.78,
+    "epoch_time": 1787510755.777,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:15:55.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_15_55_4335.jpg",
+    "hash_hex": "0xe94c642ceaf342a0",
+    "motion_pct": 17.13
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:16:00",
+    "seconds": 1787510760.92,
+    "epoch_time": 1787510760.919,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:16:00.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_16_00_4485.jpg",
+    "hash_hex": "0xa84c642eb6f4c8a8",
+    "motion_pct": 17.16
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:16:14",
+    "seconds": 1787510774.64,
+    "epoch_time": 1787510774.643,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:16:14.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_16_14_4635.jpg",
+    "hash_hex": "0xa94c642e5adcc6a0",
+    "motion_pct": 16.66
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:16:45",
+    "seconds": 1787510805.97,
+    "epoch_time": 1787510805.968,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:16:45.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_16_45_4651.jpg",
+    "hash_hex": "0xa94c642cbee494a8",
+    "motion_pct": 10.04
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:16:52",
+    "seconds": 1787510812.2,
+    "epoch_time": 1787510812.197,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:16:52.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_16_52_5085.jpg",
+    "hash_hex": "0xa94c642ecca44c58",
+    "motion_pct": 18.12
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:16:58",
+    "seconds": 1787510818.13,
+    "epoch_time": 1787510818.126,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:16:58.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_16_58_5235.jpg",
+    "hash_hex": "0xa84c642e1ce4b4c8",
+    "motion_pct": 7.2
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:17:04",
+    "seconds": 1787510824.55,
+    "epoch_time": 1787510824.548,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:17:04.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_17_04_5385.jpg",
+    "hash_hex": "0xa94c652e2aeacada",
+    "motion_pct": 14.09
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:17:09",
+    "seconds": 1787510829.74,
+    "epoch_time": 1787510829.738,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:17:09.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_17_09_5685.jpg",
+    "hash_hex": "0xa84c652c38e4ace8",
+    "motion_pct": 10.69
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:17:23",
+    "seconds": 1787510843.03,
+    "epoch_time": 1787510843.032,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:17:23.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_17_23_5835.jpg",
+    "hash_hex": "0xa94c642c38b4b148",
+    "motion_pct": 10.66
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:17:53",
+    "seconds": 1787510873.23,
+    "epoch_time": 1787510873.229,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:17:53.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_17_53_5851.jpg",
+    "hash_hex": "0xa84c642ceaf4b8cc",
+    "motion_pct": 12.09
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:18:04",
+    "seconds": 1787510884.29,
+    "epoch_time": 1787510884.294,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:18:04.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_18_04_6435.jpg",
+    "hash_hex": "0xa84c642ea4eca4c8",
+    "motion_pct": 9.17
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:18:58",
+    "seconds": 1787510938.09,
+    "epoch_time": 1787510938.093,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:18:58.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_18_58_7051.jpg",
+    "hash_hex": "0xa84c642caaa4b3d2",
+    "motion_pct": 15.81
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:19:03",
+    "seconds": 1787510943.82,
+    "epoch_time": 1787510943.821,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:19:03.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_19_03_7485.jpg",
+    "hash_hex": "0xa90c642eaae1819c",
+    "motion_pct": 17.61
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:19:09",
+    "seconds": 1787510949.67,
+    "epoch_time": 1787510949.673,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:19:09.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_19_09_7635.jpg",
+    "hash_hex": "0xa94c642edab8d198",
+    "motion_pct": 20.47
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:19:15",
+    "seconds": 1787510955.06,
+    "epoch_time": 1787510955.055,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:19:15.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_19_15_7935.jpg",
+    "hash_hex": "0xe84c642e62d69686",
+    "motion_pct": 17.3
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:19:20",
+    "seconds": 1787510960.6,
+    "epoch_time": 1787510960.599,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:19:20.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_19_20_8085.jpg",
+    "hash_hex": "0xa94c652e9ad19786",
+    "motion_pct": 18.15
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:19:34",
+    "seconds": 1787510974.24,
+    "epoch_time": 1787510974.24,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:19:34.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_19_34_8235.jpg",
+    "hash_hex": "0xa84c652e2aec1606",
+    "motion_pct": 16.76
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:20:03",
+    "seconds": 1787511003.75,
+    "epoch_time": 1787511003.753,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:20:03.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_20_03_8251.jpg",
+    "hash_hex": "0xa94c652cbce91c58",
+    "motion_pct": 11.32
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:20:10",
+    "seconds": 1787511010.34,
+    "epoch_time": 1787511010.344,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:20:10.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_20_10_8685.jpg",
+    "hash_hex": "0xa94c642cece41490",
+    "motion_pct": 16.96
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:20:16",
+    "seconds": 1787511016.27,
+    "epoch_time": 1787511016.266,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:20:16.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_20_16_8985.jpg",
+    "hash_hex": "0xac4c642ce8ec8ccc",
+    "motion_pct": 10.4
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:20:22",
+    "seconds": 1787511022.22,
+    "epoch_time": 1787511022.218,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:20:22.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_20_22_9135.jpg",
+    "hash_hex": "0xa84c6c24bac4a4c8",
+    "motion_pct": 7.32
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:20:27",
+    "seconds": 1787511027.54,
+    "epoch_time": 1787511027.544,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:20:27.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_20_27_9285.jpg",
+    "hash_hex": "0x894c642e2ae4ace8",
+    "motion_pct": 7.89
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:20:38",
+    "seconds": 1787511038.95,
+    "epoch_time": 1787511038.954,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:20:38.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_20_38_9435.jpg",
+    "hash_hex": "0xa94c642c6aeaa212",
+    "motion_pct": 14.15
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:21:10",
+    "seconds": 1787511070.52,
+    "epoch_time": 1787511070.525,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:21:10.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_21_10_9451.jpg",
+    "hash_hex": "0xa94c6c2c78e91c38",
+    "motion_pct": 15.96
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:21:15",
+    "seconds": 1787511075.96,
+    "epoch_time": 1787511075.964,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:21:15.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_21_15_9885.jpg",
+    "hash_hex": "0xa94c642eacaa8c98",
+    "motion_pct": 15.56
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:21:27",
+    "seconds": 1787511087.29,
+    "epoch_time": 1787511087.288,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:21:27.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_21_27_10185.jpg",
+    "hash_hex": "0xa94c642c3ca61a30",
+    "motion_pct": 14.65
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:21:32",
+    "seconds": 1787511092.77,
+    "epoch_time": 1787511092.767,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:21:32.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_21_32_10335.jpg",
+    "hash_hex": "0xa94c642e5cf87a74",
+    "motion_pct": 22.74
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:21:43",
+    "seconds": 1787511103.63,
+    "epoch_time": 1787511103.625,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:21:43.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_21_43_10485.jpg",
+    "hash_hex": "0xa84c642eececa1c8",
+    "motion_pct": 11.4
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:22:16",
+    "seconds": 1787511136.34,
+    "epoch_time": 1787511136.343,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:22:16.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_22_16_10501.jpg",
+    "hash_hex": "0xa94c652cbab424c8",
+    "motion_pct": 7.8
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:22:21",
+    "seconds": 1787511141.97,
+    "epoch_time": 1787511141.971,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:22:21.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_22_21_10935.jpg",
+    "hash_hex": "0xa94c652e3aec0e86",
+    "motion_pct": 19.98
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:22:27",
+    "seconds": 1787511147.85,
+    "epoch_time": 1787511147.854,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:22:27.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_22_27_11085.jpg",
+    "hash_hex": "0xa94c652e8ea68d06",
+    "motion_pct": 24.64
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:22:34",
+    "seconds": 1787511154.1,
+    "epoch_time": 1787511154.097,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:22:34.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_22_34_11235.jpg",
+    "hash_hex": "0xa94c652ef8a80c06",
+    "motion_pct": 25.82
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:22:52",
+    "seconds": 1787511172.76,
+    "epoch_time": 1787511172.76,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:22:52.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_22_52_11685.jpg",
+    "hash_hex": "0xa94c642c74e30b9c",
+    "motion_pct": 17.04
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:23:29",
+    "seconds": 1787511209.02,
+    "epoch_time": 1787511209.02,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:23:29.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_23_29_11701.jpg",
+    "hash_hex": "0xa94c642c5cb49c98",
+    "motion_pct": 14.15
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:23:34",
+    "seconds": 1787511214.59,
+    "epoch_time": 1787511214.585,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:23:34.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_23_34_12135.jpg",
+    "hash_hex": "0xa84c642e7ce4a448",
+    "motion_pct": 6.75
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:23:40",
+    "seconds": 1787511220.29,
+    "epoch_time": 1787511220.291,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:23:40.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_23_40_12435.jpg",
+    "hash_hex": "0xa84c652c6eea3248",
+    "motion_pct": 10.9
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:23:54",
+    "seconds": 1787511234.7,
+    "epoch_time": 1787511234.698,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:23:54.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_23_54_12585.jpg",
+    "hash_hex": "0xa84c652c64e49890",
+    "motion_pct": 11.92
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:24:43",
+    "seconds": 1787511283.62,
+    "epoch_time": 1787511283.625,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:24:43.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_24_43_12751.jpg",
+    "hash_hex": "0xa84c642cb6e5c328",
+    "motion_pct": 17.76
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:24:49",
+    "seconds": 1787511289.94,
+    "epoch_time": 1787511289.941,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:24:49.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_24_49_13185.jpg",
+    "hash_hex": "0xe84c642ee6f41458",
+    "motion_pct": 11.84
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:24:55",
+    "seconds": 1787511295.58,
+    "epoch_time": 1787511295.575,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:24:55.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_24_55_13485.jpg",
+    "hash_hex": "0xa84c642eacaca4c8",
+    "motion_pct": 7.59
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:25:51",
+    "seconds": 1787511351.96,
+    "epoch_time": 1787511351.959,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:25:51.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_25_51_13951.jpg",
+    "hash_hex": "0xa84c642ebab420ac",
+    "motion_pct": 14.04
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:26:03",
+    "seconds": 1787511363.49,
+    "epoch_time": 1787511363.492,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:26:03.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_26_03_14535.jpg",
+    "hash_hex": "0xa84c642e7ae456e6",
+    "motion_pct": 20.44
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:26:09",
+    "seconds": 1787511369.76,
+    "epoch_time": 1787511369.761,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:26:09.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_26_09_14685.jpg",
+    "hash_hex": "0x884c642cecd49e0e",
+    "motion_pct": 18.03
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:26:15",
+    "seconds": 1787511375.96,
+    "epoch_time": 1787511375.964,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:26:15.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_26_15_14985.jpg",
+    "hash_hex": "0xa84c652c64e48c88",
+    "motion_pct": 14.36
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:26:59",
+    "seconds": 1787511419.46,
+    "epoch_time": 1787511419.463,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:26:59.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_26_59_15151.jpg",
+    "hash_hex": "0xa84c642efeb4b0c8",
+    "motion_pct": 9.0
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:27:10",
+    "seconds": 1787511430.39,
+    "epoch_time": 1787511430.392,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:27:10.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_27_10_15735.jpg",
+    "hash_hex": "0xa84c642cbaf47366",
+    "motion_pct": 11.7
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "00:27:21",
+    "seconds": 1787511441.48,
+    "epoch_time": 1787511441.48,
+    "description": "Surveillance keyframe captured by CAM_3000 at 00:27:21.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_00_27_21_16035.jpg",
+    "hash_hex": "0xa84c642e3aeaa266",
+    "motion_pct": 12.42
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:02:17",
+    "seconds": 1787513537.65,
+    "epoch_time": 1787513537.654,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:02:17.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_02_17_16201.jpg",
+    "hash_hex": "0xa84c652e8cc58ca4",
+    "motion_pct": 24.36
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:02:23",
+    "seconds": 1787513543.47,
+    "epoch_time": 1787513543.473,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:02:23.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_02_23_16635.jpg",
+    "hash_hex": "0xa84c642e2ae8d0a4",
+    "motion_pct": 22.24
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:02:29",
+    "seconds": 1787513549.93,
+    "epoch_time": 1787513549.929,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:02:29.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_02_29_16935.jpg",
+    "hash_hex": "0xa84c652e3c98343c",
+    "motion_pct": 24.85
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:02:34",
+    "seconds": 1787513554.94,
+    "epoch_time": 1787513554.936,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:02:34.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_02_34_17257.jpg",
+    "hash_hex": "0xa84c652e6ce41c98",
+    "motion_pct": 18.1
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:02:53",
+    "seconds": 1787513573.81,
+    "epoch_time": 1787513573.809,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:02:53.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_02_53_17385.jpg",
+    "hash_hex": "0xa84c642e6ce90b58",
+    "motion_pct": 18.92
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:03:30",
+    "seconds": 1787513610.78,
+    "epoch_time": 1787513610.78,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:03:30.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_03_30_17401.jpg",
+    "hash_hex": "0xa84c642e3cbc7418",
+    "motion_pct": 21.67
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:03:36",
+    "seconds": 1787513616.07,
+    "epoch_time": 1787513616.068,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:03:36.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_03_36_17685.jpg",
+    "hash_hex": "0xa84c642edae2b2c8",
+    "motion_pct": 15.79
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:03:41",
+    "seconds": 1787513621.73,
+    "epoch_time": 1787513621.725,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:03:41.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_03_41_17985.jpg",
+    "hash_hex": "0x884c642ebae6ce98",
+    "motion_pct": 20.83
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:03:53",
+    "seconds": 1787513633.24,
+    "epoch_time": 1787513633.24,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:03:53.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_03_53_18285.jpg",
+    "hash_hex": "0xa84c642e68f49898",
+    "motion_pct": 19.37
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:04:45",
+    "seconds": 1787513685.91,
+    "epoch_time": 1787513685.913,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:04:45.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_04_45_18451.jpg",
+    "hash_hex": "0xa84c6d2e9ca46254",
+    "motion_pct": 26.18
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:04:51",
+    "seconds": 1787513691.32,
+    "epoch_time": 1787513691.315,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:04:51.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_04_51_18885.jpg",
+    "hash_hex": "0xa84c6c2e3aa4b210",
+    "motion_pct": 22.94
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:04:56",
+    "seconds": 1787513696.82,
+    "epoch_time": 1787513696.821,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:04:56.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_04_56_19035.jpg",
+    "hash_hex": "0xa94c6d2edeac8ac0",
+    "motion_pct": 22.13
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:05:02",
+    "seconds": 1787513702.49,
+    "epoch_time": 1787513702.488,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:05:02.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_05_02_19185.jpg",
+    "hash_hex": "0xa94c642edae5c9f0",
+    "motion_pct": 22.07
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:05:07",
+    "seconds": 1787513707.94,
+    "epoch_time": 1787513707.939,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:05:07.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_05_07_19335.jpg",
+    "hash_hex": "0xa94c652e2ae6d6a6",
+    "motion_pct": 21.98
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "01:05:23",
+    "seconds": 1787513723.12,
+    "epoch_time": 1787513723.118,
+    "description": "Surveillance keyframe captured by CAM_3000 at 01:05:23.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_01_05_23_19485.jpg",
+    "hash_hex": "0xa94c642e68e4e0c8",
+    "motion_pct": 15.13
   }
 ]
