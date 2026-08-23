@@ -56,8 +56,8 @@ class RAGPrompter:
         context_lines: List[str] = []
         for idx, chunk in enumerate(retrieved_chunks, start=1):
             meta = chunk.get("metadata", {})
-            camera = meta.get("camera", "Unknown Camera")
-            timestamp = meta.get("start_timestamp", meta.get("timestamp", "Unknown Time"))
+            camera = chunk.get("camera", meta.get("camera", "Unknown Camera"))
+            timestamp = chunk.get("time_range", meta.get("start_timestamp", meta.get("timestamp", "Unknown Time")))
             description = meta.get("description", chunk.get("text", "No description"))
             score = chunk.get("rerank_score", chunk.get("score", None))
             score_str = f" [relevance={score:.3f}]" if score is not None else ""
@@ -273,20 +273,30 @@ class LLMClient:
         return answer.strip()
 
     def _generate_openai(self, prompt: str) -> str:
-        """Call the OpenAI-compatible chat completions API."""
-        logger.info("Sending request to OpenAI backend (model='%s')", self.model)
-        response = self._client.chat.completions.create(  # type: ignore[union-attr]
-            model=self.model,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.2,
-            max_tokens=512,
-        )
-        answer: str = response.choices[0].message.content or ""
-        logger.info("Received response (%d chars)", len(answer))
-        return answer.strip()
+        """Call the OpenAI-compatible chat completions API with retries during server warmup."""
+        import time
+        logger.info("Sending request to OpenAI/local backend (model='%s')", self.model)
+        for attempt in range(1, 15):
+            try:
+                response = self._client.chat.completions.create(  # type: ignore[union-attr]
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": _SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.2,
+                    max_tokens=512,
+                )
+                answer: str = response.choices[0].message.content or ""
+                logger.info("Received response (%d chars)", len(answer))
+                return answer.strip()
+            except Exception as exc:
+                if "503" in str(exc) or "Loading model" in str(exc) or "Connection" in str(exc):
+                    logger.info("Local LLM server still initializing (%s). Retrying in 2s (attempt %d/15)...", exc, attempt)
+                    time.sleep(2.0)
+                else:
+                    raise
+        raise RuntimeError("Local LLM server did not become ready in time.")
 
     def _generate_mock(self, prompt: str) -> str:
         """Return a realistic mock CCTV analysis response.

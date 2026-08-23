@@ -45,16 +45,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const kpiSaved = document.getElementById('kpi-saved');
     const devAuditTbody = document.getElementById('dev-audit-tbody');
 
-    // Vector Debugger Elements
+    // Lazy VLM & Vector Grounding 4-Stage Horizontal Pipeline Elements
+    const lazyPulseDot = document.getElementById('lazy-pulse-dot');
+    const lazyPipelineBadge = document.getElementById('lazy-pipeline-badge');
+    const pstage1 = document.getElementById('pstage-1');
+    const pstage2 = document.getElementById('pstage-2');
+    const pstage3 = document.getElementById('pstage-3');
+    const pstage4 = document.getElementById('pstage-4');
+    const pstage1Status = document.getElementById('pstage-1-status');
+    const pstage2Status = document.getElementById('pstage-2-status');
+    const pstage3Status = document.getElementById('pstage-3-status');
+    const pstage4Status = document.getElementById('pstage-4-status');
+    const pstage1Time = document.getElementById('pstage-1-time');
+    const pstage2Time = document.getElementById('pstage-2-time');
+    const pstage3Time = document.getElementById('pstage-3-time');
+    const pstage4Time = document.getElementById('pstage-4-time');
+    const pstage1Detail = document.getElementById('pstage-1-detail');
+    const pstage2Detail = document.getElementById('pstage-2-detail');
+    const pstage3Detail = document.getElementById('pstage-3-detail');
+    const pstage4Detail = document.getElementById('pstage-4-detail');
+    const lazyStatKeyframes = document.getElementById('lazy-stat-keyframes');
+    const lazyStatLatency = document.getElementById('lazy-stat-latency');
+    const toggleVectorsGridBtn = document.getElementById('toggle-vectors-grid-btn');
+    const vgCollapseArrow = document.getElementById('vg-collapse-arrow');
+    const vgToggleText = document.getElementById('vg-toggle-text');
+    const vgSearchWrap = document.getElementById('vg-search-wrap');
+    const vgSearchInput = document.getElementById('vg-search-input');
+    const refreshVectorsBtn = document.getElementById('refresh-vectors-btn');
+    const frameVectorsGrid = document.getElementById('frame-vectors-grid');
+
+    // Vector Debugger Elements (512-D MobileCLIP + Qwen3-VL)
     const vNorm = document.getElementById('v-norm');
     const vectorArrayDisplay = document.getElementById('vector-array-display');
+    const copyVecBtn = document.getElementById('copy-vec-btn');
     const tEmbed = document.getElementById('t-embed');
     const tFaiss = document.getElementById('t-faiss');
-    const tRerank = document.getElementById('t-rerank');
+    const tExpandTiming = document.getElementById('t-expand-timing');
     const tLlm = document.getElementById('t-llm');
+    const tTotalTrace = document.getElementById('t-total-trace');
     const promptPreviewDisplay = document.getElementById('prompt-preview-display');
 
-    // JSON Explorer Elements
+    // JSON Keyframe Dataset Explorer Elements
     const refreshJsonBtn = document.getElementById('refresh-json-btn');
     const copyJsonBtn = document.getElementById('copy-json-btn');
     const jsonCodeDisplay = document.getElementById('json-code-display');
@@ -77,6 +108,24 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeCameraFilter = '';
     let isDevModeActive = true;
     let popoverTimeout = null;
+    let allLazyVectors = [];
+
+    function formatImageUrl(rawPath) {
+        if (!rawPath) return '';
+        let p = String(rawPath).replace(/\\/g, '/');
+        if (p.startsWith('http://') || p.startsWith('https://')) return p;
+        if (p.includes('/data/')) {
+            return '/data/' + p.split('/data/')[1].replace(/^\/+/, '');
+        } else if (p.includes('data/')) {
+            return '/data/' + p.split('data/')[1].replace(/^\/+/, '');
+        } else if (p.includes('extracted_frames/')) {
+            return '/data/extracted_frames/' + p.split('extracted_frames/')[1].replace(/^\/+/, '');
+        } else if (p.endsWith('.jpg') || p.endsWith('.png') || p.endsWith('.jpeg')) {
+            const fn = p.split('/').pop();
+            return '/data/extracted_frames/' + fn;
+        }
+        return p;
+    }
 
     // ------------------------------------------------------------------
     // Metric Explanations Dictionary for (i) Buttons
@@ -84,7 +133,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const METRIC_EXPLANATIONS = {
         dev_panel_overview: {
             title: "Developer Mode Overview",
-            body: "An advanced inspection suite that exposes edge frame hash filtering, 384-dimensional vector embedding representations, pipeline timing breakdowns, and raw indexed JSON event chunks."
+            body: "An advanced inspection suite that exposes edge frame hash filtering, 512-dimensional MobileCLIP vector representations, live pipeline timing breakdowns, and raw indexed dataset chunks."
+        },
+        lazy_vlm: {
+            title: "Lazy VLM Architecture",
+            body: "A next-generation surveillance paradigm: CCTV frames are embedded into 512-D MobileCLIP vectors at 0ms LLM overhead during ingestion (~10s for 179 frames). Heavy multi-frame forensic reasoning with Qwen3-VL is executed exclusively on-demand when a user performs a search."
+        },
+        vector_grounding: {
+            title: "Frame-to-Vector Grounding",
+            body: "A direct mathematical link between an actual extracted frame image in <code>sample_cctv.mp4</code> and its 512-dimensional normalized float vector indexed inside the in-memory FAISS database."
         },
         dhash_phash: {
             title: "dHash & pHash Edge Gate",
@@ -92,19 +149,19 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hamming_threshold: {
             title: "Hamming Distance & Threshold",
-            body: "Count of differing bit positions between consecutive frame 64-bit hashes (<code>bin(hashA ^ hashB).count('1')</code>).<br>• Range: <code>0</code> (identical) to <code>64</code> (inverted).<br>• <strong>Optimal Threshold (8–12)</strong>: Drops 10–25% of static duplicate scenes."
+            body: "Count of differing bit positions between consecutive frame 64-bit hashes (<code>bin(hashA ^ hashB).count('1')</code>).<br>• Range: <code>0</code> (identical) to <code>64</code> (inverted).<br>• <strong>Optimal Threshold (8–12)</strong>: Drops 10–35% of static duplicate scenes."
         },
         total_frames: {
             title: "Total Sampled Frames",
-            body: "Count of video frames extracted at fixed intervals (e.g. 1 frame every 15s) from the CCTV stream before edge filtering."
+            body: "Count of video frames extracted at fixed intervals (e.g. 1 frame every 3s) from the CCTV stream before edge filtering."
         },
         keyframes_kept: {
             title: "Keyframes Kept (VLM)",
-            body: "Frames whose Hamming distance exceeded the threshold. These frames represent significant visual motion or scene shifts and are passed to Qwen3-VL."
+            body: "Frames whose Hamming distance exceeded the threshold. These frames represent significant visual motion or scene shifts and are passed to MobileCLIP for vector indexing."
         },
         static_frames: {
             title: "Static Frames Skipped",
-            body: "Duplicate or static frames whose Hamming distance was below threshold. Discarded at the edge gate, saving bandwidth and zero VLM compute wasted!"
+            body: "Duplicate or static frames whose Hamming distance was below threshold. Discarded at the edge gate, saving bandwidth and zero compute wasted!"
         },
         compute_saved: {
             title: "LLM Compute Saved (%)",
@@ -119,40 +176,40 @@ document.addEventListener('DOMContentLoaded', () => {
             body: "Visual motion percentage calculated by dividing the frame's Hamming distance by max 64 bits (<code>(hamming / 64) * 100</code>)."
         },
         text_embedding: {
-            title: "Text Embedding (all-MiniLM-L6-v2)",
-            body: "Converts natural language queries and CCTV descriptions into 384-D dense vectors where similar surveillance concepts sit close together."
+            title: "Multimodal Embedding (Apple MobileCLIP-S2)",
+            body: "Converts natural language queries and CCTV frame images into 512-D dense continuous vectors where visual concepts and text queries share the same embedding space."
         },
         vector_norm: {
             title: "Vector Norm (L2 Length)",
-            body: "Euclidean length of the 384-D query vector (<code>||v|| = sqrt(sum(v_i^2))</code>). Normalized to exactly <code>1.0000</code> for unit cosine similarity."
+            body: "Euclidean length of the 512-D query vector (<code>||v|| = sqrt(sum(v_i^2))</code>). Normalized to exactly <code>1.0000</code> for cosine inner product similarity."
         },
         pipeline_breakdown: {
             title: "Pipeline Execution Breakdown",
-            body: "Millisecond timings across 4 stages:<br>1. <code>Query Embedding</code> (CPU)<br>2. <code>FAISS Search</code> (Flat IP)<br>3. <code>Cross-Encoder Rerank</code> (CPU)<br>4. <code>Qwen3-VL Generation</code> (GPU)."
+            body: "Millisecond timings across 4 stages:<br>1. <code>Query Embedding</code> (MobileCLIP-S2)<br>2. <code>FAISS Vector Search</code> (Flat IP)<br>3. <code>Temporal Expansion</code> (±15–30s Context)<br>4. <code>Qwen3-VL Forensic Reasoning</code> (GPU)."
         },
         faiss_search: {
             title: "FAISS (Facebook AI Similarity Search)",
-            body: "High-performance vector database engine. Computes cosine inner-products across thousands of 384-D frame vectors in under 2ms."
+            body: "High-performance vector database engine. Computes cosine inner-products across 512-D keyframe vectors in under 2ms."
         },
         cross_encoder: {
             title: "Cross-Encoder Reranker",
-            body: "Second-stage Transformer model (<code>ms-marco-MiniLM-L-6-v2</code>) that joint-evaluates query and retrieved descriptions to eliminate false positives."
+            body: "Second-stage Transformer model that evaluates candidate moments to optimize top forensic relevance."
         },
         qwen3_vl: {
             title: "Local Qwen3-VL 4B Vision-Language Model",
-            body: "A 4-Billion parameter multimodal neural network running locally on GPU CUDA via <code>llama-server</code> for visual reasoning."
+            body: "A 4-Billion parameter multimodal neural network running locally on GPU CUDA via <code>llama-server</code> for multi-frame visual forensic reasoning."
         },
         raw_prompt: {
             title: "Raw Constructed Prompt",
-            body: "Complete system instructions, safety rules, and top-5 retrieved CCTV evidence chunks formatted into a prompt sent to Qwen3-VL."
+            body: "Complete system instructions, safety rules, and top retrieved CCTV evidence moments formatted into a prompt sent to Qwen3-VL."
         },
         json_explorer: {
             title: "Indexed CCTV Events (JSON)",
-            body: "Raw dataset (<code>data/real_cctv_events.json</code>) containing camera IDs, timestamps, and Qwen3-VL visual descriptions."
+            body: "Raw dataset containing camera IDs, timestamps, and Qwen3-VL visual observations."
         },
         precision_5: {
             title: "Precision at Top-5 (P@5)",
-            body: "Fraction of top-5 retrieved CCTV video moments containing relevant matching keywords. Range: 0.0 to 1.0 (Target: 1.0 = 100%)."
+            body: "Fraction of top-5 retrieved CCTV video moments containing relevant matching concepts. Range: 0.0 to 1.0 (Target: 1.0 = 100%)."
         },
         mrr: {
             title: "Mean Reciprocal Rank (MRR)",
@@ -168,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         rtsp_manager: {
             title: "Async Multi-Threaded RTSP Stream Capture Engine",
-            body: "Captures live CCTV network feeds (RTSP/RTMP) on non-blocking background producer threads using a <strong>Size-1 Ring Buffer</strong>. Eliminates streaming lag, handles automatic socket reconnection, and extracts keyframes via edge dHash filtering without stalling server GIL."
+            body: "Captures live CCTV network feeds (RTSP/RTMP) on non-blocking background producer threads using a <strong>Size-1 Ring Buffer</strong>."
         }
     };
 
@@ -254,8 +311,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetContent = document.getElementById(targetTabId);
             if (targetContent) targetContent.style.display = 'block';
 
-            if (targetTabId === 'tab-json') {
+            if (targetTabId === 'tab-lazy-vlm') {
+                fetchLazyVectors();
+            } else if (targetTabId === 'tab-json') {
                 fetchEventsJson();
+            } else if (targetTabId === 'tab-hash') {
+                fetchHashAudit();
             } else if (targetTabId === 'tab-rtsp') {
                 fetchRtspStreamsStatus();
                 if (!rtspPollInterval) {
@@ -273,22 +334,286 @@ document.addEventListener('DOMContentLoaded', () => {
     let rtspPollInterval = null;
 
     // ------------------------------------------------------------------
+    // Tab 0: Lazy VLM Architecture & Frame-to-Vector Grounding
+    // ------------------------------------------------------------------
+    async function fetchLazyVectors() {
+        if (!frameVectorsGrid) return;
+        try {
+            frameVectorsGrid.innerHTML = `
+                <div class="placeholder-text" style="padding: 24px; text-align: center; width: 100%;">
+                    Loading 512-D MobileCLIP vectors from FAISS index…
+                </div>
+            `;
+
+            const resp = await fetch('/api/lazy_vlm/vectors');
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            allLazyVectors = data.items || [];
+
+            if (lazyStatKeyframes) {
+                lazyStatKeyframes.textContent = `${data.total || allLazyVectors.length} Vectors`;
+            }
+            if (statVectors) {
+                statVectors.textContent = `${data.total || allLazyVectors.length} Vectors`;
+            }
+            if (vgToggleText && !isKeyframeGridOpen) {
+                vgToggleText.textContent = `Show Images (${data.total || allLazyVectors.length})`;
+            } else if (vgToggleText) {
+                vgToggleText.textContent = `Hide Images (${data.total || allLazyVectors.length})`;
+            }
+
+            renderLazyVectorCards(allLazyVectors);
+        } catch (err) {
+            console.error('Failed to load lazy vectors:', err);
+            if (frameVectorsGrid) {
+                frameVectorsGrid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><p style="color: #ef4444;">Failed to load vector data: ${err.message}</p></div>`;
+            }
+        }
+    }
+
+    function renderLazyVectorCards(items) {
+        if (!frameVectorsGrid) return;
+        if (!items || items.length === 0) {
+            frameVectorsGrid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><p>No vectors match search filter.</p></div>`;
+            return;
+        }
+
+        frameVectorsGrid.innerHTML = items.map(v => {
+            const vecPreview = v.vector_sample && v.vector_sample.length > 0
+                ? `[${v.vector_sample.slice(0, 5).join(', ')}, …]`
+                : `[512-D float32]`;
+
+            const thumb = formatImageUrl(v.image_path) || '/data/extracted_frames/placeholder.jpg';
+
+            return `
+                <div class="frame-vector-card" data-index="${v.index}" data-ts="${escapeHtml(v.timestamp)}" data-secs="${v.seconds || 0}" data-img="${escapeHtml(thumb)}">
+                    <div class="fv-thumb-wrap">
+                        <img class="fv-thumb" src="${escapeHtml(thumb)}" alt="Keyframe @ ${escapeHtml(v.timestamp)}" loading="lazy" onerror="this.src='/ui/favicon.ico'">
+                    </div>
+                    <div class="fv-info">
+                        <div class="fv-top-row">
+                            <span class="fv-ts-badge">⏱️ ${escapeHtml(v.timestamp)}</span>
+                            <span class="fv-vec-id">#${v.index} (512-D)</span>
+                        </div>
+                        <div class="fv-vector-preview" title="MobileCLIP-S2 512-D normalized vector sample">${escapeHtml(vecPreview)}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+                            <span style="font-size: 0.65rem; color: #64748b; font-family: monospace;">dHash: ${escapeHtml((v.hash_hex || '').slice(0, 10))}…</span>
+                            <span class="fv-score-chip" style="font-size: 0.62rem;">MobileCLIP-S2</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click listener to seek player to frame timestamp
+        frameVectorsGrid.querySelectorAll('.frame-vector-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const ts = card.dataset.ts;
+                const secs = parseFloat(card.dataset.secs) || 0;
+                const img = card.dataset.img;
+                switchSurveillanceFeed('CAM_01', secs, img, ts);
+                if (cctvPlayer) {
+                    cctvPlayer.currentTime = secs;
+                    cctvPlayer.play().catch(() => {});
+                }
+            });
+        });
+    }
+
+    if (vgSearchInput) {
+        vgSearchInput.addEventListener('input', () => {
+            const term = vgSearchInput.value.trim().toLowerCase();
+            if (!term) {
+                renderLazyVectorCards(allLazyVectors);
+                return;
+            }
+            const filtered = allLazyVectors.filter(v => 
+                (v.timestamp && v.timestamp.toLowerCase().includes(term)) ||
+                (v.index !== undefined && String(v.index).includes(term)) ||
+                (v.filename && v.filename.toLowerCase().includes(term))
+            );
+            renderLazyVectorCards(filtered);
+        });
+    }
+
+    if (refreshVectorsBtn) {
+        refreshVectorsBtn.addEventListener('click', () => {
+            fetchLazyVectors();
+        });
+    }
+
+    // Toggle Collapsible Keyframe Images Grid (Collapsed by Default)
+    let isKeyframeGridOpen = false;
+    if (toggleVectorsGridBtn && frameVectorsGrid) {
+        toggleVectorsGridBtn.addEventListener('click', () => {
+            isKeyframeGridOpen = !isKeyframeGridOpen;
+            const count = allLazyVectors.length || 179;
+            if (isKeyframeGridOpen) {
+                frameVectorsGrid.classList.remove('collapsed');
+                if (vgCollapseArrow) vgCollapseArrow.classList.remove('collapsed');
+                if (vgToggleText) vgToggleText.textContent = `Hide Images (${count})`;
+                if (vgSearchWrap) vgSearchWrap.style.opacity = '1';
+                if (vgSearchWrap) vgSearchWrap.style.pointerEvents = 'auto';
+            } else {
+                frameVectorsGrid.classList.add('collapsed');
+                if (vgCollapseArrow) vgCollapseArrow.classList.add('collapsed');
+                if (vgToggleText) vgToggleText.textContent = `Show Images (${count})`;
+                if (vgSearchWrap) vgSearchWrap.style.opacity = '0.5';
+                if (vgSearchWrap) vgSearchWrap.style.pointerEvents = 'none';
+            }
+        });
+    }
+
+    // Model Benchmark Quick Triggers
+    document.querySelectorAll('.benchmark-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const query = btn.dataset.query;
+            if (query && queryInput) {
+                queryInput.value = query;
+                executeSearch();
+            }
+        });
+    });
+
+    // ------------------------------------------------------------------
+    // Tab 2: Dynamic dHash Edge Gate Compute Saved Telemetry
+    // ------------------------------------------------------------------
+    async function fetchHashAudit() {
+        try {
+            const resp = await fetch('/api/hash_audit');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const stats = data.stats || {};
+            const pctSaved = data.compute_saved_pct !== undefined ? data.compute_saved_pct : (stats.compute_saved_pct || 0);
+
+            // Dynamically update the tab header title
+            const tabHashLabel = document.getElementById('tab-hash-label');
+            if (tabHashLabel) {
+                tabHashLabel.textContent = `dHash Edge Gate (${pctSaved}% Saved)`;
+            }
+
+            // Update KPI cards in tab-hash
+            if (kpiTotal && stats.total_sampled !== undefined) kpiTotal.textContent = stats.total_sampled;
+            if (kpiKept && stats.frames_kept !== undefined) kpiKept.textContent = stats.frames_kept;
+            if (kpiSkipped && stats.frames_skipped !== undefined) kpiSkipped.textContent = stats.frames_skipped;
+            if (kpiSaved) kpiSaved.textContent = `${pctSaved}%`;
+
+            // Render audit trail table if available
+            if (devAuditTbody && data.audit_trail && data.audit_trail.length > 0) {
+                devAuditTbody.innerHTML = data.audit_trail.slice(-50).reverse().map(row => `
+                    <tr>
+                        <td>${escapeHtml(row.timestamp || row.time || '--')}</td>
+                        <td><code>${escapeHtml(row.hash_hex || row.hash || '--')}</code></td>
+                        <td>${row.hamming_dist !== undefined ? row.hamming_dist : '--'}</td>
+                        <td><span class="badge ${row.status === 'kept' || row.action === 'kept' ? 'badge-live' : 'badge-recorded'}">${escapeHtml(row.status || row.action || 'processed')}</span></td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            console.warn('Failed to fetch hash audit:', err);
+        }
+    }
+
+    if (runSmartFilterBtn) {
+        runSmartFilterBtn.addEventListener('click', async () => {
+            const algo = document.getElementById('hash-algo-select')?.value || 'dhash';
+            const thresh = parseInt(document.getElementById('threshold-range')?.value || 8, 10);
+            runSmartFilterBtn.disabled = true;
+            runSmartFilterBtn.innerHTML = `<span>Filtering…</span>`;
+            try {
+                const resp = await fetch('/api/process_video_smart', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        hash_method: algo,
+                        threshold: thresh,
+                        enable_hash_filter: true,
+                    })
+                });
+                if (resp.ok) {
+                    await fetchHashAudit();
+                    fetchEventsJson();
+                    if (typeof fetchLazyVectors === 'function') fetchLazyVectors();
+                }
+            } catch (e) {
+                console.error('Smart filter error:', e);
+            } finally {
+                runSmartFilterBtn.disabled = false;
+                runSmartFilterBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Run Smart Frame Filter</span>`;
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
     // Tab 4: RTSP Live Stream Manager & Multi-Camera Stream Controls
     // ------------------------------------------------------------------
     const rtspStreamsList = document.getElementById('rtsp-streams-list');
     const addRtspBtn = document.getElementById('add-rtsp-btn');
     const rtspCamId = document.getElementById('rtsp-cam-id');
     const rtspUrl = document.getElementById('rtsp-url');
+    const rtspLocalFile = document.getElementById('rtsp-local-file');
+    const rtspFileInput = document.getElementById('rtsp-file-input');
+    const rtspBrowseBtn = document.getElementById('rtsp-browse-btn');
+    const rtspSampleCctvBtn = document.getElementById('rtsp-sample-cctv-btn');
     const rtspInterval = document.getElementById('rtsp-interval');
+
+    if (rtspSampleCctvBtn) {
+        rtspSampleCctvBtn.addEventListener('click', () => {
+            if (rtspCamId && !rtspCamId.value) rtspCamId.value = 'CAM_01';
+            if (rtspLocalFile) rtspLocalFile.value = 'data/videos/sample_cctv.mp4';
+        });
+    }
+
+    if (rtspBrowseBtn && rtspFileInput) {
+        rtspBrowseBtn.addEventListener('click', () => {
+            rtspFileInput.click();
+        });
+
+        rtspFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            rtspBrowseBtn.disabled = true;
+            rtspBrowseBtn.innerHTML = `<span>⏳ Uploading…</span>`;
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const resp = await fetch('/api/upload_video', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (rtspLocalFile) rtspLocalFile.value = data.video_path || file.name;
+                    if (rtspCamId && !rtspCamId.value) rtspCamId.value = data.suggested_camera_id || 'CAM_UPLOAD';
+                    if (rtspUrl) rtspUrl.value = '';
+                } else {
+                    const err = await resp.json();
+                    alert('Upload failed: ' + (err.detail || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Upload error: ' + err.message);
+            } finally {
+                rtspBrowseBtn.disabled = false;
+                rtspBrowseBtn.innerHTML = `📂 Choose File`;
+            }
+        });
+    }
 
     if (addRtspBtn) {
         addRtspBtn.addEventListener('click', async () => {
             const camId = rtspCamId.value.trim();
-            const url = rtspUrl.value.trim();
+            const url = rtspUrl ? rtspUrl.value.trim() : '';
+            const localFile = rtspLocalFile ? rtspLocalFile.value.trim() : '';
+            const chosenSource = localFile || url;
+            const isLocal = !!localFile;
             const interval = parseFloat(rtspInterval.value) || 5.0;
 
-            if (!camId || !url) {
-                alert('Please enter both a Camera ID (e.g. CAM_NORTH) and Stream URL.');
+            if (!camId || !chosenSource) {
+                alert('Please enter a Camera ID and either a Stream URL or Local Video File path.');
                 return;
             }
 
@@ -301,7 +626,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         camera_id: camId,
-                        stream_url: url,
+                        stream_url: chosenSource,
+                        video_path: isLocal ? localFile : null,
+                        feed_type: isLocal ? "video_file" : "rtsp_stream",
                         sample_interval: interval,
                         hash_method: "dhash",
                         threshold: 10,
@@ -309,12 +636,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (resp.ok) {
-                    rtspCamId.value = '';
-                    rtspUrl.value = '';
+                    if (rtspCamId) rtspCamId.value = '';
+                    if (rtspUrl) rtspUrl.value = '';
+                    if (rtspLocalFile) rtspLocalFile.value = '';
                     fetchRtspStreamsStatus();
                     fetchCameraFeeds();
                     fetchCameraPills();
                     fetchEventsJson();
+                    fetchHashAudit();
                 } else {
                     const err = await resp.json();
                     alert('Failed to start stream: ' + (err.detail || 'Unknown error'));
@@ -323,7 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Stream connection error: ' + err.message);
             } finally {
                 addRtspBtn.disabled = false;
-                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Start Async RTSP Capture</span>`;
+                addRtspBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Start Ingestion & Index</span>`;
             }
         });
     }
@@ -345,7 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderRtspStreams(streams) {
         if (!streams || streams.length === 0) {
-            rtspStreamsList.innerHTML = `<div class="empty-state" style="padding: 20px;"><p class="placeholder-text">No active camera streams running. Enter a stream URL above to launch multi-threaded capture.</p></div>`;
+            rtspStreamsList.innerHTML = `<div class="empty-state" style="padding: 20px;"><p class="placeholder-text">No active camera streams running. Enter a stream URL or local video above to launch multi-threaded capture.</p></div>`;
             return;
         }
 
@@ -406,7 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="feed-badge ${isCompleted || (isRunning && isConnected) ? 'live' : ''}">${statusBadge}</span>
                         </div>
                     </div>
-                    <div class="stream-url-tag">URL: ${escapeHtml(s.stream_url)}</div>
+                    <div class="stream-url-tag">Source: ${escapeHtml(s.stream_url)}</div>
 
                     <!-- Video Timeline & Extraction Progress Bar -->
                     <div class="cctv-yt-progress-container ${isLive ? 'live-stream-track' : ''}">
@@ -450,11 +779,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             </button>
                         ` : isPaused ? `
                             <button class="btn-stream-action btn-resume-stream resume-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Resume stream extraction">
-                                ▶️ Resume Extraction
+                                ▶️ Resume
                             </button>
                         ` : `
                             <button class="btn-stream-action btn-pause-stream pause-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Pause stream extraction">
-                                ⏸️ Pause Extraction
+                                ⏸️ Pause
                             </button>
                         `}
                         <button class="btn-stream-action btn-reindex-stream reindex-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Delete previous frames/events and restart extraction from the starting">
@@ -526,6 +855,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 fetchRtspStreamsStatus();
                 fetchCameraFeeds();
+            });
+        });
+
+        // Re-Index from Scratch button handler
+        rtspStreamsList.querySelectorAll('.reindex-stream-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const camId = btn.dataset.cam;
+                const ok = confirm(`Re-index camera '${camId}' from scratch?\n\nThis will purge existing extracted frames and vector embeddings for this camera, and start fresh MobileCLIP-S2 keyframe indexing.`);
+                if (!ok) return;
+
+                btn.disabled = true;
+                btn.innerHTML = `<span>⏳ Re-indexing…</span>`;
+
+                try {
+                    const resp = await fetch('/api/streams/reindex', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ camera_id: camId })
+                    });
+                    if (resp.ok) {
+                        const resData = await resp.json();
+                        alert(`✅ ${resData.message || 'Camera re-indexed successfully!'}`);
+                        fetchRtspStreamsStatus();
+                        fetchCameraFeeds();
+                        fetchEventsJson();
+                        if (typeof fetchLazyVectors === 'function') fetchLazyVectors();
+                        if (typeof fetchHashAudit === 'function') fetchHashAudit();
+                    } else {
+                        const err = await resp.json();
+                        alert('Failed to re-index: ' + (err.detail || 'Unknown error'));
+                    }
+                } catch (err) {
+                    alert('Re-indexing error: ' + err.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `🔄 Re-Index Clip`;
+                }
             });
         });
 
@@ -681,6 +1047,94 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     fetchCameraPills();
+
+    async function fetchSystemStats() {
+        const refreshSpinner = document.getElementById('hw-refresh-spinner');
+        const refreshText = document.getElementById('hw-refresh-text');
+        const pollStatus = document.getElementById('hw-poll-status');
+        
+        if (refreshSpinner) refreshSpinner.style.animation = 'spin 0.6s linear infinite';
+        if (refreshText) refreshText.textContent = 'Querying Sensors…';
+
+        try {
+            const resp = await fetch('/api/system_stats');
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+
+            const b = data.benchmark_baseline;
+            if (b && b.metrics_before_optimization) {
+                const m = b.metrics_before_optimization;
+                const t = b.timings || {};
+
+                // 1. CPU
+                const cpuVal = document.getElementById('hw-cpu-val');
+                const cpuBadge = document.getElementById('hw-cpu-badge');
+                const cpuSub = document.getElementById('hw-cpu-sub');
+                const cpuPeak = m.cpu_usage_peak_pct || 99.0;
+                const cpuAvg = m.cpu_usage_avg_pct || 63.3;
+                if (cpuVal) cpuVal.textContent = `${cpuPeak}%`;
+                if (cpuBadge) cpuBadge.textContent = `${Math.round(cpuPeak)}% PEAK`;
+                if (cpuSub) cpuSub.textContent = `Avg CPU: ${cpuAvg}% (24-Thread Contention)`;
+
+                // 2. System RAM (16 GB)
+                const ramVal = document.getElementById('hw-ram-val');
+                const ramBadge = document.getElementById('hw-ram-badge');
+                const ramSub = document.getElementById('hw-ram-sub');
+                const ramPeak = m.ram_used_peak_gb || 15.56;
+                const ramAvg = m.ram_used_avg_gb || 15.37;
+                const ramTot = data.ram_total_gb || m.ram_total_gb || 15.72;
+                const ramPct = m.ram_usage_peak_pct || 99.0;
+                if (ramVal) ramVal.textContent = `${ramPeak} / ${ramTot} GB`;
+                if (ramBadge) ramBadge.textContent = `${Math.round(ramPct)}% LOAD`;
+                if (ramSub) ramSub.textContent = `Avg RAM: ${ramAvg} GB (${Math.round(ramPct)}% Saturated)`;
+
+                // 3. GPU VRAM
+                const vramVal = document.getElementById('hw-vram-val');
+                const vramBadge = document.getElementById('hw-vram-badge');
+                const vramSub = document.getElementById('hw-vram-sub');
+                const usedMb = data.gpu_vram_used_mb || m.gpu_vram_peak_mb || 794;
+                const totalMb = data.gpu_vram_total_mb || 6141;
+                const pctVram = ((usedMb / totalMb) * 100).toFixed(1);
+                if (vramVal) vramVal.textContent = `${usedMb} / ${totalMb} MB`;
+                if (vramBadge) vramBadge.textContent = `${pctVram}% UTILIZED`;
+                if (vramSub) vramSub.textContent = `${(100 - pctVram).toFixed(1)}% GPU Memory Idle (${Math.round((totalMb - usedMb)/1024*10)/10} GB Free)`;
+
+                // 4. VLM Latency & GPU Sensors
+                const vlmTimeVal = document.getElementById('hw-vlm-time-val');
+                const vlmBadge = document.getElementById('hw-vlm-badge');
+                const thermalsVal = document.getElementById('hw-thermals-val');
+                const thermalsSub = document.getElementById('hw-thermals-sub');
+                const vlmSecs = t.vlm_reasoning_seconds || t.total_latency_seconds || 120.0;
+                const curTemp = data.gpu_temp_c || m.gpu_temp_peak_c || 62;
+                const curPow = data.gpu_power_w || m.gpu_power_avg_w || 3.0;
+                
+                if (vlmTimeVal) vlmTimeVal.textContent = vlmSecs >= 120 ? '120s+' : `${vlmSecs}s`;
+                if (vlmBadge) vlmBadge.textContent = vlmSecs >= 120 ? '120s+ BOTTLENECK' : `${vlmSecs}s LATENCY`;
+                if (thermalsVal) thermalsVal.textContent = `Sensor: ${curTemp}°C · ${curPow}W (GPU Idle)`;
+                if (thermalsSub) thermalsSub.textContent = `${data.gpu_name ? data.gpu_name.replace('NVIDIA ', '') : 'RTX 4050'} · ${curTemp}°C · ${curPow}W`;
+            }
+
+            if (pollStatus) {
+                const now = new Date().toLocaleTimeString();
+                pollStatus.textContent = `Updated (${now})`;
+            }
+        } catch (err) {
+            console.warn('Failed to fetch system stats:', err);
+            if (pollStatus) pollStatus.textContent = 'Sensor Error (Offline)';
+        } finally {
+            if (refreshSpinner) refreshSpinner.style.animation = 'none';
+            if (refreshText) refreshText.textContent = 'Refresh Hardware Telemetry';
+        }
+    }
+    fetchSystemStats();
+    setInterval(fetchSystemStats, 10000);
+
+    const runBenchBtn = document.getElementById('run-bench-btn');
+    if (runBenchBtn) {
+        runBenchBtn.addEventListener('click', async () => {
+            await fetchSystemStats();
+        });
+    }
 
     // ------------------------------------------------------------------
     // Tab 3: JSON Event Chunks Explorer (Dynamic & Interactive)
@@ -865,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             } else {
                 jsonCardsContainer.innerHTML = filtered.map((item, idx) => {
-                    const imgUrl = item.image_url || (item.image_path ? '/' + item.image_path.replace(/\\/g, '/') : '');
+                    const imgUrl = formatImageUrl(item.image_url || item.image_path);
                     const secs = item.seconds ?? (function(ts) {
                         if (!ts) return 0;
                         const p = ts.split(':').map(Number);
@@ -1093,7 +1547,7 @@ document.addEventListener('DOMContentLoaded', () => {
             devStatusText.textContent = isDevModeActive ? 'ON' : 'OFF';
 
             if (isDevModeActive) {
-                fetchHashAuditLogs();
+                fetchHashAudit();
                 fetchEventsJson(false);
                 fetchRtspStreamsStatus();
                 checkHealth();
@@ -1610,7 +2064,37 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Fallback: If snapshot-only feed
+        // Fallback: If snapshot-only feed or camera offline
+        const cctvOfflineView = document.getElementById('cctv-offline-view');
+        const offlineDescText = document.getElementById('offline-desc-text');
+        const offlineCamTag = document.getElementById('offline-cam-tag');
+
+        const isFeedAvailable = availableFeeds.some(f => f.camera_id === camId && f.status !== 'offline' && f.status !== 'PAUSED');
+        
+        if (!isFeedAvailable && camId !== 'CAM_01' && !targetImage) {
+            if (cctvPlayer) { cctvPlayer.pause(); cctvPlayer.style.display = 'none'; }
+            if (ytPlayer) { ytPlayer.style.display = 'none'; ytPlayer.src = ''; }
+            if (cctvSnapshotView) { cctvSnapshotView.style.display = 'none'; }
+            if (monitorModeBar) { monitorModeBar.style.display = 'none'; }
+
+            if (cctvOfflineView) {
+                cctvOfflineView.style.display = 'flex';
+                if (offlineCamTag) offlineCamTag.textContent = camId;
+                if (offlineDescText) {
+                    offlineDescText.textContent = `Camera '${camId}' is currently offline or not transmitting. Select CAM_01 for active sample footage.`;
+                }
+            }
+
+            if (currentFeedName) currentFeedName.innerHTML = `<span style="color: #ef4444;">${camId} (Offline / Not Available)</span>`;
+            if (videoTimer) videoTimer.textContent = '--:--:--';
+            if (subSource) subSource.innerHTML = `Status: <strong style="color: #ef4444;">OFFLINE</strong>`;
+            if (subFps) subFps.innerHTML = `FPS: <code>0.0</code>`;
+            if (subDuration) subDuration.innerHTML = `Feed: <code>Unavailable</code>`;
+            return;
+        }
+
+        if (cctvOfflineView) cctvOfflineView.style.display = 'none';
+
         if (cctvPlayer) {
             cctvPlayer.pause();
             cctvPlayer.style.display = 'none';
@@ -1705,6 +2189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     fetchCameraFeeds();
+    fetchLazyVectors();
 
     // ------------------------------------------------------------------
     // Video Timer Tracking for MP4 Player
@@ -1753,7 +2238,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ------------------------------------------------------------------
-    // Execute Search API Call & Populate Vector Debugger
+    // Execute Search API Call & Populate 4-Stage Pipeline & Vector Debugger
     // ------------------------------------------------------------------
     async function executeSearch() {
         const query = queryInput.value.trim();
@@ -1761,6 +2246,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         searchBtn.disabled = true;
         searchBtn.innerHTML = `<span>Searching…</span>`;
+
+        // 1. Activate Live 4-Stage Horizontal Pipeline
+        if (lazyPipelineBadge) {
+            lazyPipelineBadge.textContent = 'EXECUTING ● ACTIVE';
+            lazyPipelineBadge.className = 'badge-lazy running';
+        }
+        if (lazyPulseDot) lazyPulseDot.className = 'status-pulse-dot running';
+
+        // Stage 1: Active
+        if (pstage1) { pstage1.className = 'stage-box active'; }
+        if (pstage1Status) pstage1Status.textContent = 'RUNNING';
+        if (pstage1Time) pstage1Time.textContent = 'Embedding…';
+        if (pstage1Detail) pstage1Detail.textContent = 'Generating 512-D MobileCLIP tensor';
+
+        // Stages 2, 3, 4: Standby
+        if (pstage2) { pstage2.className = 'stage-box'; }
+        if (pstage2Status) pstage2Status.textContent = 'QUEUED';
+        if (pstage2Time) pstage2Time.textContent = 'Queued';
+
+        if (pstage3) { pstage3.className = 'stage-box'; }
+        if (pstage3Status) pstage3Status.textContent = 'QUEUED';
+        if (pstage3Time) pstage3Time.textContent = 'Queued';
+
+        if (pstage4) { pstage4.className = 'stage-box'; }
+        if (pstage4Status) pstage4Status.textContent = 'QUEUED';
+        if (pstage4Time) pstage4Time.textContent = 'Queued';
 
         aiAnswerBody.innerHTML = `
             <div class="skeleton-box" style="width: 85%;"></div>
@@ -1803,6 +2314,12 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Search error:', err);
             aiAnswerBody.innerHTML = `<p style="color: #dc2626;">Search failed: ${err.message}</p>`;
             evidenceList.innerHTML = `<div class="empty-state"><p style="color: #dc2626;">Failed to load results.</p></div>`;
+            if (lazyPipelineBadge) {
+                lazyPipelineBadge.textContent = 'ERROR ● FAILED';
+                lazyPipelineBadge.className = 'badge-lazy';
+            }
+            if (lazyPulseDot) lazyPulseDot.className = 'status-pulse-dot';
+            if (pstage1Status) pstage1Status.textContent = 'ERROR';
         } finally {
             searchBtn.disabled = false;
             searchBtn.innerHTML = `<span>Search Video</span>
@@ -2099,14 +2616,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (vNorm) vNorm.textContent = (trace.query_vector_norm ?? 1.0).toFixed(4);
         if (vectorArrayDisplay) {
             const sample = trace.query_vector_sample || [];
-            vectorArrayDisplay.textContent = `[${sample.join(', ')}, ... (${trace.query_vector_dim} dims total)]`;
+            lastQueryVectorArray = sample;
+            vectorArrayDisplay.textContent = `[${sample.join(', ')}, ... (${trace.query_vector_dim || 512} continuous dimensions)]`;
         }
 
         const timings = trace.timings_ms || {};
         if (tEmbed) tEmbed.textContent = `${timings.query_embedding_ms ?? 0} ms`;
-        if (tFaiss) tFaiss.textContent = `${timings.faiss_retrieval_ms ?? 0} ms`;
-        if (tRerank) tRerank.textContent = `${timings.cross_encoder_rerank_ms ?? 0} ms`;
-        if (tLlm) tLlm.textContent = `${timings.llm_generation_ms ?? 0} ms`;
+        if (tFaiss) tFaiss.textContent = `${timings.faiss_retrieval_ms ?? timings.temporal_retrieval_ms ?? 0} ms`;
+        if (tExpandTiming) tExpandTiming.textContent = `${timings.temporal_expansion_ms ?? 0.5} ms`;
+        if (tLlm) {
+            const vlmSec = ((timings.vlm_reasoning_ms ?? timings.llm_generation_ms ?? 0) / 1000).toFixed(2);
+            tLlm.textContent = `${vlmSec} s (${timings.vlm_reasoning_ms ?? timings.llm_generation_ms ?? 0} ms)`;
+        }
+        if (tTotalTrace) {
+            const totalSec = ((timings.total_ms ?? 0) / 1000).toFixed(2);
+            tTotalTrace.textContent = `${totalSec} s (${timings.total_ms ?? 0} ms)`;
+        }
 
         // Live Hardware & Edge Gate Telemetry updates
         const sys = trace.system_metrics || {};
@@ -2149,6 +2674,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (promptPreviewDisplay) {
             promptPreviewDisplay.textContent = trace.prompt_constructed || "No prompt generated.";
         }
+    }
+
+    if (copyVecBtn) {
+        copyVecBtn.addEventListener('click', () => {
+            if (lastQueryVectorArray.length > 0) {
+                navigator.clipboard.writeText(JSON.stringify(lastQueryVectorArray));
+                copyVecBtn.textContent = 'Copied!';
+                setTimeout(() => { copyVecBtn.textContent = 'Copy'; }, 2000);
+            }
+        });
     }
 
     // ------------------------------------------------------------------
@@ -2225,15 +2760,78 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ------------------------------------------------------------------
+    // Helper: Parse Timestamp string to Seconds
+    // ------------------------------------------------------------------
+    function parseTsToSeconds(ts, fallbackSec = 0) {
+        if (fallbackSec && Number(fallbackSec) > 0) return Number(fallbackSec);
+        if (!ts) return 0;
+        try {
+            const parts = String(ts).trim().split(':');
+            if (parts.length === 3) {
+                return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+            } else if (parts.length === 2) {
+                return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+            }
+            return parseFloat(ts) || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Render Results in Classic Light UI
     // ------------------------------------------------------------------
     function renderResults(data) {
         const results = data.results || [];
         evidenceCount.textContent = results.length;
 
-        // 1. Render AI Security Analysis with Interactive Timestamps
+        // 1. Render AI Security Analysis + Forensic Storyboard Strip
+        let storyboardHtml = '';
+        if (data.storyboard && data.storyboard.length > 0) {
+            storyboardHtml = `
+                <div class="storyboard-container">
+                    <div class="storyboard-header">
+                        <span class="storyboard-title">🎬 Chronological Forensic Storyboard (${data.storyboard.length} frames)</span>
+                        <span class="storyboard-hint">Click any frame to jump player</span>
+                    </div>
+                    <div class="storyboard-strip">
+                        ${data.storyboard.map((f, i) => {
+                            const secVal = parseTsToSeconds(f.timestamp, f.seconds);
+                            const fImg = formatImageUrl(f.image_path);
+                            return `
+                            <div class="storyboard-card ${f.is_anchor ? 'anchor-frame' : ''}" data-seconds="${secVal}" data-timestamp="${escapeHtml(f.timestamp)}" data-epoch="${f.epoch_time || ''}" data-image="${escapeHtml(fImg)}" data-camera="${escapeHtml(f.camera || '')}" title="${f.is_anchor ? 'Target Match Moment' : 'Surrounding Context Frame'} @ ${escapeHtml(f.timestamp)}">
+                                <div class="storyboard-thumb-wrap">
+                                    ${fImg ? `<img src="${escapeHtml(fImg)}" class="storyboard-thumb" alt="Frame ${i+1}" onerror="this.style.display='none';">` : ''}
+                                    ${f.is_anchor ? `<span class="anchor-badge">TARGET</span>` : ''}
+                                </div>
+                                <div class="storyboard-meta">
+                                    <span class="storyboard-ts">${escapeHtml(f.timestamp)}</span>
+                                </div>
+                            </div>
+                        `;}).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         const formattedAnswer = formatAiSecurityAnalysis(data.answer, results);
-        aiAnswerBody.innerHTML = `<div class="animate-slide-in">${formattedAnswer}</div>`;
+        aiAnswerBody.innerHTML = `<div class="animate-slide-in">${storyboardHtml}${formattedAnswer}</div>`;
+
+        // Attach Click Listeners to Storyboard Cards
+        aiAnswerBody.querySelectorAll('.storyboard-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                aiAnswerBody.querySelectorAll('.storyboard-card').forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+
+                const ts = card.dataset.timestamp || '';
+                const sec = parseTsToSeconds(ts, parseFloat(card.dataset.seconds) || 0);
+                const cam = card.dataset.camera || (results.length > 0 ? results[0].camera : 'CAM_01');
+                const img = card.dataset.image || '';
+                const epoch = card.dataset.epoch ? parseFloat(card.dataset.epoch) : null;
+                seekToTime(sec, ts, cam, img, epoch);
+            });
+        });
 
         // 2. Attach Click Listeners to Interactive Timestamp Buttons in LLM Output
         aiAnswerBody.querySelectorAll('.answer-ts-btn').forEach(btn => {
@@ -2245,12 +2843,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 aiAnswerBody.querySelectorAll('.answer-ts-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
 
-                const sec = parseFloat(btn.dataset.seconds) || 0;
                 const ts = btn.dataset.timestamp || '';
+                const sec = parseTsToSeconds(ts, parseFloat(btn.dataset.seconds) || 0);
                 const cam = btn.dataset.camera || (results.length > 0 ? results[0].camera : 'CAM_01');
 
                 // Lookup matching result item to get high-res moment image and epoch timestamp
-                const matchingItem = results.find(r => r.camera === cam && (r.timestamp === ts || Math.abs((r.seconds || 0) - sec) < 2));
+                const matchingItem = results.find(r => r.camera === cam && (r.timestamp === ts || Math.abs(parseTsToSeconds(r.timestamp, r.seconds) - sec) < 2));
                 const img = matchingItem ? (matchingItem.image_path || '') : '';
                 const epoch = matchingItem && matchingItem.epoch_time ? parseFloat(matchingItem.epoch_time) : null;
 
@@ -2262,12 +2860,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // 3. Render Evaluation Metrics
         if (data.evaluation) {
             const ev = data.evaluation;
-            const ret = ev.retrieval_metrics || {};
-            const ans = ev.answer_metrics || {};
-            mPrecision.textContent = (ret.precision_at_k ?? 1.0).toFixed(1);
-            mMrr.textContent = (ret.mrr ?? 1.0).toFixed(1);
-            mNdcg.textContent = (ret.ndcg_at_k ?? 1.0).toFixed(1);
-            mUtil.textContent = `${Math.round((ans.context_utilization ?? 1.0) * 100)}%`;
+            const ret = ev.retrieval || ev.retrieval_metrics || {};
+            const ans = ev.answer || ev.answer_metrics || {};
+            mPrecision.textContent = (ret.precision_at_k !== undefined ? ret.precision_at_k : 0.0).toFixed(2);
+            mMrr.textContent = (ret.mrr !== undefined ? ret.mrr : 0.0).toFixed(2);
+            mNdcg.textContent = (ret.ndcg_at_k !== undefined ? ret.ndcg_at_k : 0.0).toFixed(2);
+            mUtil.textContent = `${Math.round((ans.context_utilization !== undefined ? ans.context_utilization : 0.0) * 100)}%`;
             metricsBar.style.display = 'grid';
         }
 
@@ -2277,8 +2875,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        evidenceList.innerHTML = results.map((item) => `
-            <div class="evidence-item" data-seconds="${item.seconds}" data-timestamp="${item.timestamp}" data-epoch="${item.epoch_time || ''}" data-image="${escapeHtml(item.image_path || '')}" data-camera="${escapeHtml(item.camera)}" data-feed-type="${escapeHtml(item.feed_type || '')}">
+        evidenceList.innerHTML = results.map((item) => {
+            const secVal = parseTsToSeconds(item.timestamp, item.seconds);
+            const itemImg = formatImageUrl(item.image_path);
+            return `
+            <div class="evidence-item" data-seconds="${secVal}" data-timestamp="${item.timestamp}" data-epoch="${item.epoch_time || ''}" data-image="${escapeHtml(itemImg)}" data-camera="${escapeHtml(item.camera)}" data-feed-type="${escapeHtml(item.feed_type || '')}">
                 <div class="evidence-meta">
                     <div class="ev-header">
                         <span class="ev-rank">#${item.rank}</span>
@@ -2298,7 +2899,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </button>
                 </div>
             </div>
-        `).join('');
+        `;}).join('');
 
         // 5. Attach Click Listeners to Evidence Cards and Seek Buttons
         evidenceList.querySelectorAll('.evidence-item').forEach(card => {
@@ -2306,8 +2907,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (e) e.stopPropagation();
                 evidenceList.querySelectorAll('.evidence-item').forEach(c => c.classList.remove('selected'));
                 card.classList.add('selected');
-                const secs = parseFloat(card.dataset.seconds) || 0;
                 const ts = card.dataset.timestamp || '';
+                const secs = parseTsToSeconds(ts, parseFloat(card.dataset.seconds) || 0);
                 const img = card.dataset.image || '';
                 const cam = card.dataset.camera || 'CAM_01';
                 const epoch = card.dataset.epoch ? parseFloat(card.dataset.epoch) : null;

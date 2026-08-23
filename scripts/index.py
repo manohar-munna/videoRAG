@@ -84,7 +84,8 @@ def run_indexing(config_path: str, data_path: str) -> None:
     cfg_idx = config.get("indexing", {})
 
     effective_data_path = data_path or cfg_data.get("data_path", cfg_data.get("mock_path", "data/real_cctv_events.json"))
-    model_name: str = cfg_idx.get("model_name", "all-MiniLM-L6-v2")
+    model_name: str = cfg_idx.get("model_name", "MobileCLIP-S2")
+    model_path = cfg_idx.get("model_path")
     index_save_path: str = cfg_idx.get("index_save_path", "index/cctv_index")
 
     console.print(f"[bold]Config:[/bold]       {config_path}")
@@ -119,17 +120,61 @@ def run_indexing(config_path: str, data_path: str) -> None:
         console.print(f"  [OK] Created [green]{len(chunks)}[/green] chunks (individual mode)")
 
         # ------------------------------------------------------------------
-        # 4. Embed chunks
+        # 4. Embed chunks (Multimodal CLIP)
         # ------------------------------------------------------------------
-        task_embed = progress.add_task("[cyan]Loading embedding model…", total=1)
-        embedder = TextEmbedder(model_name=model_name)
+        task_embed = progress.add_task("[cyan]Loading MobileCLIP embedder…", total=1)
+        from videorag.indexing.embedder import MultimodalEmbedder
+        embedder = MultimodalEmbedder(model_name=model_name, model_path=model_path)
         progress.update(task_embed, completed=1)
 
-        task_enc = progress.add_task("[cyan]Encoding chunks…", total=1)
-        texts = [c["text"] for c in chunks]
-        embeddings = embedder.embed(texts)
-        progress.update(task_enc, completed=1)
-        console.print(f"  [OK] Produced embeddings of shape [green]{embeddings.shape}[/green]")
+        task_enc = progress.add_task("[cyan]Encoding chunks (images & spatial crops)…", total=len(chunks))
+        import numpy as np
+        embeddings_list = []
+        metadata_list = []
+
+        for c in chunks:
+            img_p = c["metadata"].get("image_path", "")
+            img_embedded = False
+            if img_p:
+                local_img = Path(img_p)
+                if not local_img.is_absolute():
+                    cand1 = _PROJECT_ROOT / img_p.lstrip("/")
+                    cand2 = _PROJECT_ROOT / "data" / img_p.lstrip("/")
+                    local_img = cand1 if cand1.exists() else cand2
+                if local_img.exists():
+                    try:
+                        crop_results = embedder.embed_image_with_crops(local_img)
+                        for cr in crop_results:
+                            embeddings_list.append(cr["embedding"])
+                            meta = dict(c["metadata"])
+                            meta["text"] = c["text"]
+                            meta["chunk_id"] = f"{c['chunk_id']}_{cr['crop_region']}"
+                            meta["crop_region"] = cr["crop_region"]
+                            meta["crop_box"] = cr["crop_box"]
+                            meta["description"] = c["metadata"].get("description", "")
+                            meta["image_path"] = img_p
+                            metadata_list.append(meta)
+                        img_embedded = True
+                    except Exception as exc:
+                        logger.warning("Error embedding image crops for %s: %s", local_img, exc)
+
+            if not img_embedded:
+                # Text embedding fallback
+                v = embedder.embed_query(c["text"])
+                embeddings_list.append(v)
+                meta = dict(c["metadata"])
+                meta["text"] = c["text"]
+                meta["chunk_id"] = c["chunk_id"]
+                meta["crop_region"] = "text_only"
+                meta["crop_box"] = (0.0, 0.0, 1.0, 1.0)
+                meta["description"] = c["metadata"].get("description", "")
+                meta["image_path"] = c["metadata"].get("image_path", "")
+                metadata_list.append(meta)
+
+            progress.advance(task_enc, 1)
+
+        embeddings = np.vstack(embeddings_list)
+        console.print(f"  [OK] Produced multimodal embeddings of shape [green]{embeddings.shape}[/green]")
 
         # ------------------------------------------------------------------
         # 5. Build FAISS index
@@ -137,16 +182,9 @@ def run_indexing(config_path: str, data_path: str) -> None:
         task_index = progress.add_task("[cyan]Building FAISS index…", total=1)
         dim = embeddings.shape[1]
         store = FAISSVectorStore(dim=dim)
-        metadata = [c["metadata"] for c in chunks]
-        # Augment metadata with the full chunk text and chunk_id for retrieval
-        for chunk, meta in zip(chunks, metadata):
-            meta["text"] = chunk["text"]
-            meta["chunk_id"] = chunk["chunk_id"]
-            meta["description"] = chunk["metadata"].get("description", "")
-            meta["image_path"] = chunk["metadata"].get("image_path", "")
-        store.add(embeddings, metadata)
+        store.add(embeddings, metadata_list)
         progress.update(task_index, completed=1)
-        console.print(f"  [OK] Index built with [green]{store.size}[/green] vectors")
+        console.print(f"  [OK] Index built with [green]{store.size}[/green] vectors (global + regional spatial crops)")
 
         # ------------------------------------------------------------------
         # 6. Save index

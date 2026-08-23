@@ -40,7 +40,7 @@ from rich import box
 from rich.rule import Rule
 from rich.text import Text
 
-from videorag.indexing.embedder import TextEmbedder
+from videorag.indexing.embedder import MultimodalEmbedder, TextEmbedder
 from videorag.indexing.vector_store import FAISSVectorStore
 from videorag.retrieval.retriever import CCTVRetriever
 from videorag.retrieval.reranker import CrossEncoderReranker, ScoreReranker
@@ -74,7 +74,8 @@ def _build_pipeline(config: dict):
     cfg_ret = config.get("retrieval", {})
     cfg_llm = config.get("llm", {})
 
-    model_name: str = cfg_idx.get("model_name", "all-MiniLM-L6-v2")
+    model_name: str = cfg_idx.get("model_name", "MobileCLIP-S2")
+    model_path = cfg_idx.get("model_path")
     index_save_path: str = cfg_idx.get("index_save_path", "index/cctv_index")
 
     top_k: int = cfg_ret.get("top_k", 10)
@@ -90,8 +91,8 @@ def _build_pipeline(config: dict):
     if not idx_path.is_absolute():
         idx_path = _PROJECT_ROOT / idx_path
 
-    console.print(f"[dim]Loading embedding model '[cyan]{model_name}[/cyan]'…[/dim]")
-    embedder = TextEmbedder(model_name=model_name)
+    console.print(f"[dim]Loading MobileCLIP embedding model '[cyan]{model_name}[/cyan]'…[/dim]")
+    embedder = MultimodalEmbedder(model_name=model_name, model_path=model_path)
 
     console.print(f"[dim]Loading FAISS index from '[cyan]{idx_path}[/cyan]'…[/dim]")
     store = FAISSVectorStore(dim=embedder.dimension)
@@ -112,12 +113,14 @@ def _build_pipeline(config: dict):
     else:
         reranker = ScoreReranker()
 
+    from videorag.captioning.vlm_captioner import VLMCaptioner
+    vlm_captioner = VLMCaptioner(backend=llm_backend, model=llm_model, base_url=llm_base_url)
     prompter = RAGPrompter()
     llm_client = LLMClient(backend=llm_backend, model=llm_model, base_url=llm_base_url)
     evaluator = RAGEvaluator()
 
     return (
-        retriever, reranker, prompter, llm_client, evaluator,
+        retriever, reranker, prompter, llm_client, vlm_captioner, evaluator,
         top_k, rerank_top_k,
         config.get("evaluation", {}).get("enabled", True),
     )
@@ -129,6 +132,7 @@ def _answer_query(
     reranker,
     prompter: RAGPrompter,
     llm_client: LLMClient,
+    vlm_captioner,
     evaluator: RAGEvaluator,
     top_k: int,
     rerank_top_k: int,
@@ -141,24 +145,31 @@ def _answer_query(
     # ------------------------------------------------------------------
     # 1. Retrieve
     # ------------------------------------------------------------------
-    console.print("[dim]Retrieving…[/dim]")
+    console.print("[dim]Retrieving candidate moments…[/dim]")
     results = retriever.retrieve(query, top_k=top_k)
 
+    has_images = any(r.get("metadata", {}).get("image_path") for r in results)
+
     # ------------------------------------------------------------------
-    # 2. Rerank
+    # 2. Rerank / Context Expansion
     # ------------------------------------------------------------------
-    console.print("[dim]Reranking…[/dim]")
-    # Add 'text' key for cross-encoder (may live in metadata)
-    for r in results:
-        if "text" not in r:
-            r["text"] = r.get("metadata", {}).get("text", "")
-    reranked = reranker.rerank(query, results, top_k=rerank_top_k)
+    if has_images:
+        # In Lazy VLM mode, MobileCLIP-S2 cosine similarity is the true visual match score
+        reranked = sorted(results, key=lambda r: r.get("score", 0.0), reverse=True)[:rerank_top_k]
+        episodes = retriever.retrieve_with_context(query, top_k=min(3, rerank_top_k), context_window=2)
+    else:
+        console.print("[dim]Reranking…[/dim]")
+        for r in results:
+            if "text" not in r:
+                r["text"] = r.get("metadata", {}).get("text", "")
+        reranked = reranker.rerank(query, results, top_k=rerank_top_k)
+        episodes = []
 
     # ------------------------------------------------------------------
     # 3. Display results table
     # ------------------------------------------------------------------
     tbl = Table(
-        title=f"Top {len(reranked)} Retrieved Evidence Chunks",
+        title=f"Top {len(reranked)} Retrieved Video Moments (MobileCLIP-S2)",
         box=box.ROUNDED,
         show_header=True,
         header_style="bold magenta",
@@ -167,31 +178,45 @@ def _answer_query(
     tbl.add_column("#", style="dim", width=3)
     tbl.add_column("Camera", style="cyan", no_wrap=True)
     tbl.add_column("Timestamp", style="yellow", no_wrap=True)
-    tbl.add_column("Description", style="white")
+    tbl.add_column("Image File / Evidence", style="white")
     tbl.add_column("Score", style="green", width=8)
 
     for rank, r in enumerate(reranked, start=1):
         meta = r.get("metadata", {})
         camera = meta.get("camera", "—")
         timestamp = meta.get("start_timestamp", meta.get("timestamp", "—"))
-        description = meta.get("description", r.get("text", "—"))
-        if len(description) > 100:
-            description = description[:97] + "..."
+        img_p = meta.get("image_path", "")
+        if img_p:
+            ev_desc = Path(img_p).name
+        else:
+            ev_desc = meta.get("description", r.get("text", "—"))
+            if len(ev_desc) > 90:
+                ev_desc = ev_desc[:87] + "..."
         score = r.get("rerank_score", r.get("score", 0.0))
-        tbl.add_row(str(rank), camera, timestamp, description, f"{score:.4f}")
+        tbl.add_row(str(rank), camera, timestamp, ev_desc, f"{score:.4f}")
 
     console.print(tbl)
 
     # ------------------------------------------------------------------
-    # 4. Build prompt & generate answer
+    # 4. Multi-Frame Forensic Reasoning (Lazy VLM) or Text LLM
     # ------------------------------------------------------------------
-    console.print("[dim]Generating answer…[/dim]")
-    prompt = prompter.build_prompt(query, reranked)
-    answer = llm_client.generate(prompt)
+    console.print("[dim]Analyzing video frames with VLM…[/dim]")
+    if has_images and episodes:
+        primary_ep = episodes[0]
+        st_frames = primary_ep.get("frames", [])
+        time_seq = " → ".join([
+            f"[bold green]{f['timestamp']}[/bold green]" if f.get("is_anchor") else f['timestamp']
+            for f in st_frames
+        ])
+        console.print(f"[dim]  🎬 Episode Storyboard ({primary_ep.get('camera')}): {time_seq}[/dim]")
+        answer = vlm_captioner.reason_over_episode(query, primary_ep)
+    else:
+        prompt = prompter.build_prompt(query, reranked)
+        answer = llm_client.generate(prompt)
 
     console.print(Panel(
         answer,
-        title="[bold green]Assistant Answer[/bold green]",
+        title="[bold green]Assistant Forensic Answer (Qwen3-VL)[/bold green]",
         border_style="green",
         expand=False,
     ))
@@ -245,7 +270,7 @@ if __name__ == "__main__":
 
     # Build pipeline components
     (
-        retriever, reranker, prompter, llm_client, evaluator,
+        retriever, reranker, prompter, llm_client, vlm_captioner, evaluator,
         top_k, rerank_top_k, eval_enabled,
     ) = _build_pipeline(config)
 
@@ -259,6 +284,7 @@ if __name__ == "__main__":
             reranker=reranker,
             prompter=prompter,
             llm_client=llm_client,
+            vlm_captioner=vlm_captioner,
             evaluator=evaluator,
             top_k=top_k,
             rerank_top_k=rerank_top_k,
@@ -293,6 +319,7 @@ if __name__ == "__main__":
             reranker=reranker,
             prompter=prompter,
             llm_client=llm_client,
+            vlm_captioner=vlm_captioner,
             evaluator=evaluator,
             top_k=top_k,
             rerank_top_k=rerank_top_k,

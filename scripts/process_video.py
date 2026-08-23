@@ -12,7 +12,7 @@ Steps
 
 Usage
 -----
-    python scripts/process_video.py --video "Video Footage/sample_cctv.mp4" --camera-id CAM_01 --interval 15 --enable-hash-filter --hash-method dhash --threshold 10
+    python scripts/process_video.py --video "data/videos/sample_cctv.mp4" --camera-id CAM_01 --interval 15 --enable-hash-filter --hash-method dhash --threshold 10
 """
 
 import argparse
@@ -97,10 +97,19 @@ def process_video_pipeline(
         console.print("[yellow]No keyframes passed the dHash filter threshold. Nothing to caption.[/yellow]")
         return
 
-    # 2. VLM Captioning
-    console.print("\n[bold cyan]Step 2/3: Captioning keyframes with local VLM…[/bold cyan]")
-    captioner = VLMCaptioner(backend=vlm_backend)
-    records = captioner.caption_batch(extracted_frames, show_progress=True)
+    # 2. Keyframe Records Preparation (Lazy VLM or Full Captioning)
+    if vlm_backend in ("lazy", "skip", "none"):
+        console.print("\n[bold cyan]Step 2/3: Fast Lazy VLM Mode (Instant direct visual embedding)…[/bold cyan]")
+        records = []
+        for item in extracted_frames:
+            rec = dict(item)
+            rec["description"] = f"Surveillance keyframe captured by {rec.get('camera', camera_id)} at {rec.get('timestamp', '00:00:00')}."
+            rec["image_path"] = str(rec.get("image_path", "")).replace("\\", "/")
+            records.append(rec)
+    else:
+        console.print("\n[bold cyan]Step 2/3: Captioning keyframes with local VLM…[/bold cyan]")
+        captioner = VLMCaptioner(backend=vlm_backend)
+        records = captioner.caption_batch(extracted_frames, show_progress=True)
 
     out_file = Path(output_json)
     if not out_file.is_absolute():
@@ -149,8 +158,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--video",
-        default=str(_PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4"),
-        help="Path to video file (default: Video Footage/sample_cctv.mp4)",
+        default=str(_PROJECT_ROOT / "data" / "videos" / "sample_cctv.mp4"),
+        help="Path to video file (default: data/videos/sample_cctv.mp4)",
     )
     parser.add_argument(
         "--camera-id",
@@ -170,8 +179,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--backend",
-        default="local",
-        help="VLM backend: local | gemini | heuristic (default: local)",
+        default="lazy",
+        help="VLM backend: lazy | local | gemini | heuristic (default: lazy)",
     )
     parser.add_argument(
         "--config",
@@ -181,7 +190,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--enable-hash-filter",
         action="store_true",
-        help="Enable dHash/pHash frame filtering to skip duplicate/static frames",
+        default=True,
+        help="Enable dHash/pHash frame filtering to skip duplicate/static frames (default: True)",
     )
     parser.add_argument(
         "--hash-method",
@@ -192,8 +202,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--threshold",
         type=int,
-        default=10,
-        help="Hamming distance threshold (default: 10)",
+        default=8,
+        help="Hamming distance threshold (default: 8)",
     )
     return parser.parse_args()
 
