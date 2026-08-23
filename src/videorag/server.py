@@ -809,14 +809,22 @@ def search_cctv(req: SearchRequest):
     query_vec = PIPELINE["embedder"].embed_query(req.query)
     t1 = time.time()
 
-    # 1. Retrieve episodes with temporal context window expansion
-    episodes = retriever.retrieve_with_context(
+    # 1. Retrieve candidate episodes with temporal context window expansion
+    candidate_episodes = retriever.retrieve_with_context(
         req.query,
-        top_k=top_k,
+        top_k=max(top_k * 2, 12),
         context_window=context_window,
         camera_filter=req.camera_filter
     )
     t2 = time.time()
+
+    # 1.5 Apply Second-Stage Cross-Encoder Reranker to rank the most relevant moments to the top
+    reranker = PIPELINE.get("reranker")
+    if reranker and candidate_episodes:
+        episodes = reranker.rerank(req.query, candidate_episodes, top_k=top_k)
+    else:
+        episodes = candidate_episodes[:top_k]
+    t_rerank = time.time()
 
     # 2. Multi-Frame Forensic Reasoning via VLM
     answer = ""
@@ -925,6 +933,8 @@ def search_cctv(req: SearchRequest):
             embed_url = f"https://www.youtube-nocookie.com/embed/{vid_id}?autoplay=1&mute=1"
         epoch_time = meta.get("epoch_time")
 
+        f_score = round(float(ep.get("score", 0.0)), 4)
+        r_score = round(float(ep.get("rerank_score", f_score)), 4)
         items.append({
             "rank": rank,
             "camera": cam,
@@ -932,13 +942,13 @@ def search_cctv(req: SearchRequest):
             "time_range": time_range,
             "seconds": secs,
             "epoch_time": epoch_time,
-            "description": f"Sequence from {cam} ({time_range}) · Primary anchor moment at {ts} (Cosine score: {round(float(ep.get('score', 0.0)), 4)}).",
+            "description": f"Sequence from {cam} ({time_range}) · Primary anchor moment at {ts} (Cross-Encoder: {r_score}, FAISS: {f_score}).",
             "image_path": img_p,
             "feed_type": feed_type,
             "feed_url": feed_url,
             "embed_url": embed_url,
-            "faiss_score": round(float(ep.get("score", 0.0)), 4),
-            "rerank_score": round(float(ep.get("score", 0.0)), 4),
+            "faiss_score": f_score,
+            "rerank_score": r_score,
             "frame_count": ep.get("frame_count", 1),
         })
 
@@ -1003,7 +1013,8 @@ def search_cctv(req: SearchRequest):
 
     t_embed_ms = round((t1 - t0) * 1000, 2)
     t_faiss_ms = round((t2 - t1) * 1000, 2)
-    t_llm_ms = round((t3 - t2) * 1000, 2)
+    t_rerank_ms = round((t_rerank - t2) * 1000, 2) if "t_rerank" in locals() else 0.0
+    t_llm_ms = round((t3 - t_rerank) * 1000, 2) if "t_rerank" in locals() else round((t3 - t2) * 1000, 2)
     t_total_ms = round((t4 - t0) * 1000, 2)
 
     debug_trace = {
@@ -1029,7 +1040,7 @@ def search_cctv(req: SearchRequest):
         "timings_ms": {
             "query_embedding_ms": t_embed_ms,
             "faiss_retrieval_ms": t_faiss_ms,
-            "cross_encoder_rerank_ms": 0.0,
+            "cross_encoder_rerank_ms": t_rerank_ms,
             "llm_generation_ms": t_llm_ms,
             "total_latency_ms": t_total_ms,
         }

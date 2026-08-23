@@ -63,8 +63,24 @@ class CrossEncoderReranker:
 
         passages: List[str] = []
         for r in results:
-            text = r.get("text") or r.get("metadata", {}).get("description", "")
-            passages.append(text)
+            text = (
+                r.get("text")
+                or r.get("description")
+                or r.get("metadata", {}).get("text")
+                or r.get("metadata", {}).get("description", "")
+            )
+            # If this is an expanded episode, aggregate descriptions across all storyboard frames
+            if r.get("frames"):
+                frame_descs = [
+                    f.get("description") or f.get("text") or ""
+                    for f in r.get("frames", [])
+                    if f.get("description") or f.get("text")
+                ]
+                if frame_descs:
+                    extra = " | ".join(frame_descs)
+                    text = f"{text} | {extra}" if text else extra
+
+            passages.append(str(text or ""))
 
         pairs = [(query, passage) for passage in passages]
         logger.info(
