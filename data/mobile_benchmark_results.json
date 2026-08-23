@@ -1,0 +1,64 @@
+[
+  {
+    "error": "Server failed to start"
+  },
+  {
+    "profile_name": "Trimmed Mobile CPU Profile (Qwen3-VL 4B CPU-only)",
+    "n_gpu_layers": 0,
+    "n_ctx": 1536,
+    "n_parallel": 1,
+    "cache_type": "q8_0/q8_0",
+    "threads": 6,
+    "avg_peak_rss_mb": 3060.1,
+    "avg_tokens_per_sec": 2.73,
+    "avg_hallucination_score": 0.0,
+    "camera_accuracy_pct": 75.0,
+    "timestamp_accuracy_pct": 50.0,
+    "query_results": [
+      {
+        "query": "What color shirt was the person wearing at CAM_01 near 00:02:45?",
+        "tokens": 45,
+        "time_sec": 130.77,
+        "tokens_per_sec": 0.34,
+        "peak_rss_mb": 2973.24,
+        "cam_hit": true,
+        "ts_hit": true,
+        "hallucination_score": 0.0,
+        "groundedness": 0.0
+      },
+      {
+        "query": "Did any red pickup truck or vehicle stop at the intersection on CAM_3000?",
+        "tokens": 76,
+        "time_sec": 27.36,
+        "tokens_per_sec": 2.78,
+        "peak_rss_mb": 3027.28,
+        "cam_hit": true,
+        "ts_hit": true,
+        "hallucination_score": 0.0,
+        "groundedness": 0.0
+      },
+      {
+        "query": "Are there pedestrians crossing the street between 02:00:00 and 02:05:00 on CAM_3000?",
+        "tokens": 140,
+        "time_sec": 56.42,
+        "tokens_per_sec": 2.48,
+        "peak_rss_mb": 3089.0,
+        "cam_hit": true,
+        "ts_hit": false,
+        "hallucination_score": 0.0,
+        "groundedness": 0.0
+      },
+      {
+        "query": "Was there any vehicle with a roof rack observed in the CCTV footage?",
+        "tokens": 53,
+        "time_sec": 9.94,
+        "tokens_per_sec": 5.33,
+        "peak_rss_mb": 3150.89,
+        "cam_hit": false,
+        "ts_hit": false,
+        "hallucination_score": 0.0,
+        "groundedness": 0.0
+      }
+    ]
+  }
+]

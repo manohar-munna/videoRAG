@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="/ui/style.css">
+    <link rel="stylesheet" href="/ui/style.css?v=20260823_2058">
 </head>
 <body>
     <div class="app-container">
@@ -44,11 +44,11 @@
                 </div>
                 
                 <!-- Developer Mode Toggle -->
-                <button id="dev-mode-btn" class="btn-dev-toggle" title="Toggle Edge Hash & Vector Inspector">
+                <button id="dev-mode-btn" class="btn-dev-toggle active" title="Toggle Edge Hash & Vector Inspector">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
-                    <span>Dev Mode: <strong id="dev-status-text">OFF</strong></span>
+                    <span>Dev Mode: <strong id="dev-status-text">ON</strong></span>
                 </button>
 
                 <button id="shutdown-btn" class="btn-shutdown" title="Stop Web Server Process">
@@ -62,7 +62,7 @@
         </header>
 
         <!-- Developer Mode Multi-Tab Inspector -->
-        <section class="ui-card dev-panel" id="dev-panel" style="display: none;">
+        <section class="ui-card dev-panel" id="dev-panel" style="display: flex;">
             <div class="dev-panel-header">
                 <div class="dev-panel-title">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue">
@@ -171,35 +171,291 @@
                     </div>
                 </div>
 
-                <div class="dev-table-wrapper">
-                    <table class="dev-audit-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Timestamp</th>
-                                <th>
-                                    64-Bit Fingerprint (Hex)
-                                    <button class="info-btn" data-info="fingerprint_hex">i</button>
-                                </th>
-                                <th>
-                                    Hamming Dist
-                                    <button class="info-btn" data-info="hamming_threshold">i</button>
-                                </th>
-                                <th>
-                                    Motion %
-                                    <button class="info-btn" data-info="motion_pct">i</button>
-                                </th>
-                                <th>Decision & Reason</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dev-audit-tbody">
-                            <tr>
-                                <td colspan="6" class="placeholder-text" style="text-align:center; padding: 20px;">
-                                    Click "Run Smart Frame Filter" to generate live dHash / pHash Hamming distance audit logs.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- 4-Box Edge-to-VLM Architecture & Live Telemetry Flow Chart -->
+                <div class="opt-flowchart-container">
+                    <div class="opt-flowchart-header">
+                        <div class="opt-flowchart-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                <line x1="8" y1="21" x2="16" y2="21"></line>
+                                <line x1="12" y1="17" x2="12" y2="21"></line>
+                            </svg>
+                            <strong>Edge-to-VLM Pipeline Architecture & Resource Telemetry (4-Stage Flow)</strong>
+                        </div>
+                        <div class="opt-profile-badge">
+                            <span class="badge-label">Active Profile:</span>
+                            <span id="opt-profile-name" class="badge-tag">Qwen-VL CPU Mobile Trimmed</span>
+                        </div>
+                    </div>
+
+                    <!-- 4-Stage Flow Chart Boxes (Left to Right) -->
+                    <div class="opt-stage-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: stretch; margin: 16px 0 20px 0;">
+                        <!-- Box 1: Edge Frame Hash & Motion Gate -->
+                        <div class="opt-box" id="opt-box-frames" style="background: #ffffff; border: 2px solid #0284c7; border-top: 6px solid #0284c7; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.08);">
+                            <div>
+                                <div class="opt-box-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span class="opt-box-num" style="background: #0284c7; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800;">1</span>
+                                        <span class="opt-box-title" style="font-size: 0.84rem; font-weight: 800; color: #0f172a;">📹 Edge Hash Gate</span>
+                                    </div>
+                                    <span style="font-size: 0.68rem; font-weight: 700; color: #0284c7; background: #e0f2fe; padding: 2px 6px; border-radius: 4px;">STAGE 1</span>
+                                </div>
+                                <div class="opt-box-body" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.76rem;">
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Timestamp:</span>
+                                        <strong class="opt-v" id="flow-hash-ts" style="color: #0f172a; font-weight: 700; font-family: var(--font-mono);">00:13:30</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Fingerprint:</span>
+                                        <code class="opt-v text-blue" id="flow-hash-hex" style="font-size: 0.68rem; font-weight: 700; color: #0284c7;">0xc0a0d088a8909190</code>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Hamming Dist:</span>
+                                        <strong class="opt-v" id="flow-hash-dist" style="color: #0f172a; font-weight: 700; font-family: var(--font-mono);">10 / 64 (Thresh: 10)</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Motion %:</span>
+                                        <strong class="opt-v text-green" id="flow-hash-motion" style="color: #16a34a; font-weight: 700;">32.7%</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Decision:</span>
+                                        <strong class="opt-v text-green" id="flow-hash-decision" style="color: #16a34a; font-weight: 700; font-size: 0.72rem;">KEYFRAME (Scene shift)</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="opt-metric-sub" style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-size: 0.72rem; color: #64748b;">
+                                <span>Sampled: <strong id="flow-frames-total">406</strong> · Drop: <strong id="flow-frames-dropped" class="text-dim">202 (49.8%)</strong> · Kept: <strong id="flow-frames-kept" class="text-green">204</strong></span>
+                            </div>
+                        </div>
+
+                        <!-- Box 2: Queries & Embeddings -->
+                        <div class="opt-box" id="opt-box-queries" style="background: #ffffff; border: 2px solid #0891b2; border-top: 6px solid #0891b2; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 10px rgba(8, 145, 178, 0.08);">
+                            <div>
+                                <div class="opt-box-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span class="opt-box-num" style="background: #0891b2; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800;">2</span>
+                                        <span class="opt-box-title" style="font-size: 0.84rem; font-weight: 800; color: #0f172a;">🔍 Query & Embeddings</span>
+                                    </div>
+                                    <span style="font-size: 0.68rem; font-weight: 700; color: #0891b2; background: #ecfeff; padding: 2px 6px; border-radius: 4px;">STAGE 2</span>
+                                </div>
+                                <div class="opt-box-body" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.76rem;">
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Last Query:</span>
+                                        <span class="opt-v-query text-blue" id="flow-query-text" style="color: #0284c7; font-weight: 700; font-family: var(--font-mono); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">"person near entrance"</span>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Dim & Norm:</span>
+                                        <span style="color: #0f172a; font-weight: 700; font-family: var(--font-mono);"><strong id="flow-query-dim">384-D</strong> (<span id="flow-query-norm" class="text-blue" style="color: #0284c7;">Norm 1.000</span>)</span>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Retrieved Top-K:</span>
+                                        <strong class="opt-v text-green" id="flow-retrieved-k" style="color: #16a34a; font-weight: 700;">5 Frames</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">FAISS Latency:</span>
+                                        <strong class="opt-v text-blue" id="flow-faiss-time" style="color: #0284c7; font-weight: 700;">14.2 ms</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="opt-metric-sub" style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-size: 0.72rem; color: #64748b;">
+                                <span>Runtime: <strong id="flow-embed-runtime" style="color: #0f172a;">FAISS (384-D Flat IP)</strong></span>
+                            </div>
+                        </div>
+
+                        <!-- Box 3: Prompt & Context Window -->
+                        <div class="opt-box" id="opt-box-prompt" style="background: #ffffff; border: 2px solid #7c3aed; border-top: 6px solid #7c3aed; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 10px rgba(124, 58, 237, 0.08);">
+                            <div>
+                                <div class="opt-box-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span class="opt-box-num" style="background: #7c3aed; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800;">3</span>
+                                        <span class="opt-box-title" style="font-size: 0.84rem; font-weight: 800; color: #0f172a;">📝 Prompt & LLM Context</span>
+                                    </div>
+                                    <span style="font-size: 0.68rem; font-weight: 700; color: #7c3aed; background: #f5f3ff; padding: 2px 6px; border-radius: 4px;">STAGE 3</span>
+                                </div>
+                                <div class="opt-box-body" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.76rem;">
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Context Budget:</span>
+                                        <strong class="opt-v text-blue" id="flow-ctx-size" style="color: #0284c7; font-weight: 700;">1536 tokens</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Slots / KV:</span>
+                                        <strong class="opt-v" id="flow-slots-kv" style="color: #0f172a; font-weight: 700;">1 slot · <span style="color: #7c3aed;">Q8_0 KV</span></strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Prompt Tokens:</span>
+                                        <strong class="opt-v" id="flow-prompt-tokens" style="color: #0f172a; font-weight: 700;">~388 tok</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">LLM Answer:</span>
+                                        <span class="opt-v-query text-body" id="flow-llm-answer" style="font-size: 0.68rem; line-height: 1.25; color: #334155; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%;">[Awaiting query execution...]</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="opt-metric-sub" style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-size: 0.72rem; color: #64748b;">
+                                <span>Target: <strong style="color: #16a34a;">Zero Hallucinations</strong></span>
+                            </div>
+                        </div>
+
+                        <!-- Box 4: Hardware Telemetry & Latency -->
+                        <div class="opt-box" id="opt-box-compute" style="background: #ffffff; border: 2px solid #059669; border-top: 6px solid #059669; border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.08);">
+                            <div>
+                                <div class="opt-box-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span class="opt-box-num" style="background: #059669; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800;">4</span>
+                                        <span class="opt-box-title" style="font-size: 0.84rem; font-weight: 800; color: #0f172a;">🧠 Hardware & Latency</span>
+                                    </div>
+                                    <span style="font-size: 0.68rem; font-weight: 700; color: #059669; background: #ecfdf5; padding: 2px 6px; border-radius: 4px;">STAGE 4</span>
+                                </div>
+                                <div class="opt-box-body" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.76rem;">
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Process / RAM:</span>
+                                        <strong class="opt-v text-red" id="flow-ram-peak" style="color: #dc2626; font-weight: 700;">1,094 MB (76.8%)</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">CPU Usage:</span>
+                                        <strong class="opt-v text-green" id="flow-cpu-util" style="color: #16a34a; font-weight: 700;">0.0%</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">GPU / Mode:</span>
+                                        <strong class="opt-v text-purple" id="flow-gpu-mem" style="color: #9333ea; font-weight: 700;">181.4 MB (RTX 4050)</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Hash Eval:</span>
+                                        <strong class="opt-v text-blue" id="flow-edge-lat" style="color: #0284c7; font-weight: 700;">~0.25 ms/frame</strong>
+                                    </div>
+                                    <div class="opt-metric-row" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="opt-k" style="color: #475569; font-weight: 600;">Query Latency:</span>
+                                        <strong class="opt-v text-blue" id="flow-total-lat" style="color: #0284c7; font-weight: 700;">4,905 ms</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="opt-metric-sub" style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-size: 0.72rem; color: #64748b;">
+                                <span>Speed: <strong id="flow-gen-speed" class="text-blue" style="color: #0284c7;">45.0 tok/s</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Before vs After Optimization Flow Chart Comparison -->
+                <div class="opt-comparison-card" style="border: 2px solid #0284c7; border-top: 6px solid #0284c7; border-radius: 12px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.08); background: #ffffff; padding: 18px 20px; margin-top: 18px;">
+                    <div class="opt-comp-header" style="border-bottom: 2px solid #bae6fd; padding-bottom: 10px; margin-bottom: 14px;">
+                        <strong>📊 Optimization Telemetry: Before vs. After Profile Benchmark</strong>
+                        <span class="opt-comp-note" style="background: #f0f9ff; border: 1px solid #bae6fd; color: #0369a1; padding: 3px 10px; border-radius: 6px; font-weight: 600;">Tracking sample video indexing & query extraction metrics</span>
+                    </div>
+                    <div class="opt-comp-table-wrap" style="border: 2px solid #0284c7; border-radius: 8px; overflow: hidden; background: #ffffff;">
+                        <table class="opt-comp-table" style="width: 100%; border-collapse: collapse; border: 2px solid #0284c7;">
+                            <thead>
+                                <tr>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Metric</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Before Optimization (4B Default)</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Current Baseline (4B Trimmed CPU)</th>
+                                    <th style="border: 1.5px solid #10b981; background: #d1fae5; color: #065f46; padding: 10px 12px; font-weight: 800;">Target Profile (1.5B Mobile CPU)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Model & mmproj Size</strong></td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">4B Q4_K_M (~2.38 GB + 800MB)</td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">4B Q4_K_M (~2.38 GB + 800MB)</td>
+                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">1.5B Q4_K_M (~900MB + 200MB)</strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Context Limit & Slots</strong></td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">4096 ctx · 4 slots</td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">1536 ctx · 1 slot</td>
+                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">1536 ctx · 1 slot</strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>KV Cache Type</strong></td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">FP16 (~1.5 GB VRAM)</td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">Q8_0 (~90 MB RAM)</td>
+                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">Q8_0 (~75 MB RAM)</strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Execution Specs</strong></td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">GPU Offloaded (-ngl 99)</td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">CPU-only (6 threads, mmap)</td>
+                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">CPU-only (4–6 ARM threads, mmap)</strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Peak System RAM</strong></td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">~5.8 GB VRAM</td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">3,060 MB (~3.06 GB RAM)</td>
+                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">~1,150 MB (Mobile Safe ✅)</strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>CPU Token Throughput</strong></td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">~45 tok/s (GPU)</td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">2.73 tok/s (CPU)</td>
+                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">~18–24 tok/s (CPU ⚡)</strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Time-To-First-Token (TTFT)</strong></td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">~250 ms</td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">~25–30 seconds</td>
+                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">~3–5 seconds</strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;"><strong>Hallucination / Accuracy</strong></td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">0.00 (Zero Hallucinations)</td>
+                                    <td style="border: 1.5px solid #93c5fd; padding: 9px 12px;">0.00 (Zero Hallucinations)</td>
+                                    <td style="border: 1.5px solid #6ee7b7; background: #ecfdf5; padding: 9px 12px;"><strong class="text-green">Target: 0.00 (Zero Hallucinations)</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Live Query Telemetry & Resource Evaluation History Log -->
+                <div class="query-eval-card" style="border: 2px solid #0284c7; border-top: 6px solid #0284c7; border-radius: 12px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.08); background: #ffffff; padding: 18px 20px; margin-top: 18px;">
+                    <div class="query-eval-header" style="border-bottom: 2px solid #bae6fd; padding-bottom: 10px; margin-bottom: 14px;">
+                        <div class="query-eval-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                            <strong>🧪 Query Telemetry & Resource Evaluation Benchmark Log</strong>
+                        </div>
+                        <div class="query-eval-actions">
+                            <button id="clear-eval-log-btn" class="btn-secondary" style="padding: 3px 10px; font-size: 0.72rem;">
+                                🗑️ Clear Log
+                            </button>
+                            <button id="export-eval-json-btn" class="btn-primary" style="padding: 3px 10px; font-size: 0.72rem;">
+                                📥 Export Benchmark JSON
+                            </button>
+                        </div>
+                    </div>
+                    <div class="query-eval-table-wrap" style="border: 2px solid #0284c7; border-radius: 8px; overflow: hidden; background: #ffffff;">
+                        <table class="query-eval-table" style="width: 100%; border-collapse: collapse; border: 2px solid #0284c7;">
+                            <thead>
+                                <tr>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800; text-align: center;">#</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Time</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Query Text</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Profile</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Memory (RSS / RAM %)</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">CPU %</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">GPU VRAM</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Edge Gate</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">FAISS / Rerank</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Gen Speed</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">Total Latency</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800;">LLM Response Preview</th>
+                                    <th style="border: 1.5px solid #0284c7; background: #e0f2fe; color: #0369a1; padding: 10px 12px; font-weight: 800; text-align: center; width: 60px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="query-eval-tbody">
+                                <tr>
+                                    <td colspan="13" class="placeholder-text" style="border: 1.5px solid #93c5fd; text-align:center; padding: 24px; color: var(--text-muted);">
+                                        Run a search query to record live memory, CPU, GPU, latency breakdown, and LLM output logs here.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -255,6 +511,36 @@
                                     <button class="info-btn" data-info="qwen3_vl">i</button>
                                 </span>
                                 <strong id="t-llm" class="text-blue">0.0 ms</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Hardware & Edge Gate Telemetry -->
+                    <div class="vdebug-card">
+                        <h4>
+                            System Hardware & Edge Gate Telemetry
+                            <button class="info-btn" data-info="hardware_telemetry">i</button>
+                        </h4>
+                        <div class="timing-rows">
+                            <div class="t-row">
+                                <span>Process RAM / System Used:</span>
+                                <strong id="t-sys-ram" class="text-blue">-- MB / -- GB (--%)</strong>
+                            </div>
+                            <div class="t-row">
+                                <span>CPU Utilization:</span>
+                                <strong id="t-sys-cpu" class="text-green">--%</strong>
+                            </div>
+                            <div class="t-row">
+                                <span>GPU Memory / VRAM:</span>
+                                <strong id="t-sys-gpu" class="text-purple">-- MB</strong>
+                            </div>
+                            <div class="t-row">
+                                <span>dHash / pHash Edge Gate Latency:</span>
+                                <strong id="t-edge-latency" class="text-blue">-- ms / frame</strong>
+                            </div>
+                            <div class="t-row highlight-row">
+                                <span>Total End-to-End Query Latency:</span>
+                                <strong id="t-total-latency" class="text-blue">-- ms</strong>
                             </div>
                         </div>
                     </div>

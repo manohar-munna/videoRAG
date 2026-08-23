@@ -60,6 +60,8 @@ class EdgeFrameFilter:
             "keyframes_kept": 0,
             "frames_skipped": 0,
             "llm_compute_saved_pct": 0.0,
+            "total_eval_time_ms": 0.0,
+            "avg_eval_time_ms": 0.0,
             "audit_trail": [],
         }
         self.last_keyframe_hash = None
@@ -125,8 +127,11 @@ class EdgeFrameFilter:
         """
         Evaluate if a frame is a KEYFRAME or STATIC/SKIP.
         
-        Returns detailed audit dict for developer verification in UI.
+        Returns detailed audit dict with eval_time_ms for developer verification in UI.
         """
+        import time
+        t_start = time.perf_counter()
+
         self.stats["total_frames"] += 1
 
         # 1. Motion Gate check (OpenCV MOG2)
@@ -147,6 +152,9 @@ class EdgeFrameFilter:
             self.last_keyframe_hash = current_hash
             self.last_keyframe_img = image.copy()
             self.stats["keyframes_kept"] += 1
+            eval_time_ms = round((time.perf_counter() - t_start) * 1000, 3)
+            self.stats["total_eval_time_ms"] += eval_time_ms
+            self.stats["avg_eval_time_ms"] = round(self.stats["total_eval_time_ms"] / max(1, self.stats["total_frames"]), 3)
             
             audit_item = {
                 "frame_idx": frame_idx,
@@ -159,6 +167,7 @@ class EdgeFrameFilter:
                 "is_keyframe": True,
                 "status": "KEYFRAME",
                 "reason": "Initial frame — Baseline reference keyframe set",
+                "eval_time_ms": eval_time_ms,
             }
             self.stats["audit_trail"].append(audit_item)
             self._update_reduction_pct()
@@ -179,6 +188,9 @@ class EdgeFrameFilter:
             status_str = "SKIP"
             reason_str = f"Hamming Distance {dist} < Threshold {self.threshold} (Static scene / minor noise)"
 
+        eval_time_ms = round((time.perf_counter() - t_start) * 1000, 3)
+        self.stats["total_eval_time_ms"] += eval_time_ms
+        self.stats["avg_eval_time_ms"] = round(self.stats["total_eval_time_ms"] / max(1, self.stats["total_frames"]), 3)
         self._update_reduction_pct()
 
         audit_item = {
@@ -192,6 +204,7 @@ class EdgeFrameFilter:
             "is_keyframe": is_keyframe,
             "status": status_str,
             "reason": reason_str,
+            "eval_time_ms": eval_time_ms,
         }
         self.stats["audit_trail"].append(audit_item)
         return audit_item

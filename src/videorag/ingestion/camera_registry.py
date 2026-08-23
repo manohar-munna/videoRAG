@@ -58,7 +58,7 @@ class CameraRegistry:
                 "name": "Main Entrance (Video Footage)",
                 "stream_url": "data/videos/sample_cctv.mp4",
                 "type": "video_file",
-                "sample_interval": 15.0,
+                "sample_interval": 2.0,
                 "hash_method": "dhash",
                 "threshold": 10,
                 "status": "stopped",

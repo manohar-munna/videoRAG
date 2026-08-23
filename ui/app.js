@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const popoverBody = document.getElementById('popover-body');
 
     let activeCameraFilter = '';
-    let isDevModeActive = false;
+    let isDevModeActive = true;
     let popoverTimeout = null;
 
     // ------------------------------------------------------------------
@@ -349,6 +349,18 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Update Box 1 Flow Chart Telemetry
+        const totalRead = streams.reduce((acc, s) => acc + (s.total_frames_read || 0), 0);
+        const totalDropped = streams.reduce((acc, s) => acc + (s.total_frames_dropped || 0), 0);
+        const totalKept = streams.reduce((acc, s) => acc + (s.indexed_count || s.keyframes_kept || 0), 0);
+
+        const fTotal = document.getElementById('flow-frames-total');
+        const fDrop = document.getElementById('flow-frames-dropped');
+        const fKept = document.getElementById('flow-frames-kept');
+        if (fTotal && totalRead > 0) fTotal.textContent = totalRead.toLocaleString();
+        if (fDrop && totalDropped > 0) fDrop.textContent = `${totalDropped.toLocaleString()} (${((totalDropped / Math.max(1, totalRead + totalDropped))*100).toFixed(1)}%)`;
+        if (fKept && totalKept > 0) fKept.textContent = totalKept.toLocaleString();
+
         rtspStreamsList.innerHTML = streams.map(s => {
             const isRunning = s.is_running;
             const isPaused = s.is_paused;
@@ -369,9 +381,18 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (camType === 'youtube_video') {
                 typeBadgeClass = 'badge-yt';
                 typeBadgeLabel = '▶️ YT VIDEO';
+            } else if (camType === 'youtube_stream') {
+                typeBadgeClass = 'badge-yt';
+                typeBadgeLabel = '🔴 YT LIVE';
             }
 
-            const progressPct = s.progress_pct != null ? s.progress_pct : (camType === 'video_file' ? 100 : null);
+            const progressPct = s.progress_pct != null ? s.progress_pct : (isCompleted ? 100 : (camType === 'video_file' ? 100 : null));
+            const durationFormatted = s.total_duration_sec 
+                ? `${Math.floor(s.total_duration_sec / 60)}m ${Math.floor(s.total_duration_sec % 60)}s` 
+                : '24/7 LIVE';
+            const posFormatted = s.current_position_sec && s.total_duration_sec 
+                ? ` (${formatSecondsToTs(s.current_position_sec)} / ${formatSecondsToTs(s.total_duration_sec)})`
+                : '';
 
             return `
                 <div class="stream-card ${isRunning ? 'active' : ''}">
@@ -387,16 +408,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="stream-url-tag">URL: ${escapeHtml(s.stream_url)}</div>
 
-                    <!-- YouTube-Style Play & Extraction Progress Bar -->
+                    <!-- Video Timeline & Extraction Progress Bar -->
                     <div class="cctv-yt-progress-container ${isLive ? 'live-stream-track' : ''}">
                         <div class="cctv-yt-progress-header">
-                            <span style="font-size:0.72rem; font-weight:600; color:var(--text-muted);">
-                                ${camType === 'video_file' ? 'Indexing & Playback Timeline' : 'Live Ingestion & Frame Extraction'}
+                            <span class="cctv-yt-progress-title">
+                                ${camType === 'video_file' ? 'Indexing & Playback Timeline' : (camType === 'youtube_video' ? 'YouTube Video Timeline' : 'Live Ingestion & Frame Extraction')}
                             </span>
                             ${isLive ? `
-                                <span class="cctv-yt-live-pulse">● Live Edge Capture</span>
+                                <span class="cctv-yt-live-pulse ${isRunning && isConnected ? '' : 'text-dim'}">
+                                    ${isRunning && isConnected ? '● Live Edge Capture' : (isPaused ? '⏸️ Paused' : '○ Offline')}
+                                </span>
                             ` : `
-                                <span class="cctv-yt-progress-val">${progressPct != null ? progressPct + '%' : '100%'} Processed</span>
+                                <span class="cctv-yt-progress-val">${progressPct != null ? progressPct + '%' : '100%'} Processed${posFormatted}</span>
                             `}
                         </div>
                         <div class="cctv-yt-progress-track ${isLive ? 'live-track' : ''}">
@@ -411,11 +434,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <div class="stream-metrics-grid">
                         <div class="sm-item"><span class="sm-label">Status</span><span class="sm-val ${statusColor}">${statusBadge}</span></div>
-                        <div class="sm-item"><span class="sm-label">FPS</span><span class="sm-val">${s.fps}</span></div>
-                        <div class="sm-item"><span class="sm-label">Duration</span><span class="sm-val">${s.total_duration_sec ? Math.round(s.total_duration_sec) + 's' : '24/7 LIVE'}</span></div>
-                        <div class="sm-item"><span class="sm-label">Ring Dropped</span><span class="sm-val text-dim">${s.total_frames_dropped}</span></div>
+                        <div class="sm-item"><span class="sm-label">FPS</span><span class="sm-val">${s.fps || 30}</span></div>
+                        <div class="sm-item"><span class="sm-label">Duration</span><span class="sm-val">${durationFormatted}</span></div>
+                        <div class="sm-item"><span class="sm-label">Ring Dropped</span><span class="sm-val text-dim">${s.total_frames_dropped || 0}</span></div>
                         <div class="sm-item"><span class="sm-label">Keyframes Indexed</span><span class="sm-val text-blue">${indexedCount}</span></div>
-                        <div class="sm-item"><span class="sm-label">Compute Saved</span><span class="sm-val text-green">${s.llm_compute_saved_pct}%</span></div>
+                        <div class="sm-item"><span class="sm-label">Compute Saved</span><span class="sm-val text-green">${s.llm_compute_saved_pct || 0}%</span></div>
                     </div>
                     <div class="stream-card-actions">
                         <button class="index-stream-btn" data-cam="${escapeHtml(s.camera_id)}" style="padding: 3px 8px; font-size: 0.72rem;" ${indexedCount === 0 ? 'disabled' : ''} title="Manual trigger or sync VLM indexing">
@@ -434,6 +457,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ⏸️ Pause Extraction
                             </button>
                         `}
+                        <button class="btn-stream-action btn-reindex-stream reindex-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Delete previous frames/events and restart extraction from the starting">
+                            🔄 Re-Index
+                        </button>
                         <button class="btn-stream-action btn-remove-stream remove-stream-btn" data-cam="${escapeHtml(s.camera_id)}" title="Remove camera from registry">
                             🗑️ Remove
                         </button>
@@ -441,6 +467,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
         }).join('');
+
+        // Re-Index button handler
+        rtspStreamsList.querySelectorAll('.reindex-stream-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const camId = btn.dataset.cam;
+                const confirmed = confirm(`Are you sure you want to clear all previously extracted frames, JSON events, and reindex ${camId} from the starting?`);
+                if (!confirmed) return;
+
+                btn.disabled = true;
+                btn.textContent = '🔄 Reindexing…';
+                try {
+                    const resp = await fetch('/api/streams/reindex', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ camera_id: camId })
+                    });
+                    if (resp.ok) {
+                        alert(`Successfully cleared previous frames and restarted indexing for ${camId}!`);
+                    } else {
+                        const err = await resp.json();
+                        alert('Re-indexing failed: ' + (err.detail || 'Unknown error'));
+                    }
+                } catch (e) {
+                    alert('Re-indexing error: ' + e.message);
+                } finally {
+                    fetchRtspStreamsStatus();
+                    fetchCameraFeeds();
+                    fetchCameraPills();
+                    fetchEventsJson(false);
+                    checkHealth();
+                }
+            });
+        });
 
         // Pause button handler
         rtspStreamsList.querySelectorAll('.pause-stream-btn').forEach(btn => {
@@ -485,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchRtspStreamsStatus();
                 fetchCameraFeeds();
                 fetchCameraPills();
-                fetchEventsJson();
+                fetchEventsJson(false);
             });
         });
 
@@ -588,6 +647,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     checkHealth();
+    fetchHashAuditLogs();
+    fetchEventsJson(false);
+    fetchQueryEvalHistory();
 
     async function fetchCameraPills() {
         if (!cameraFilterContainer) return;
@@ -895,15 +957,132 @@ document.addEventListener('DOMContentLoaded', () => {
     // ------------------------------------------------------------------
     // Dev Mode Toggle & Controls
     // ------------------------------------------------------------------
+    function renderHashAuditData(data) {
+        if (!data) return;
+        const stats = data.stats || data.filter_stats || {};
+        const trail = data.audit_trail || [];
+
+        if (kpiTotal) kpiTotal.textContent = (stats.total_frames_sampled || 0).toLocaleString();
+        if (kpiKept) kpiKept.textContent = (stats.keyframes_kept || 0).toLocaleString();
+        if (kpiSkipped) kpiSkipped.textContent = (stats.frames_skipped || 0).toLocaleString();
+        if (kpiSaved) kpiSaved.textContent = `${stats.llm_compute_saved_pct ?? 0}%`;
+
+        // Update Box 1 in Flow Chart
+        const fTotal = document.getElementById('flow-frames-total');
+        const fDrop = document.getElementById('flow-frames-dropped');
+        const fKept = document.getElementById('flow-frames-kept');
+        if (fTotal && stats.total_frames_sampled > 0) fTotal.textContent = stats.total_frames_sampled.toLocaleString();
+        if (fDrop && stats.frames_skipped >= 0) fDrop.textContent = `${stats.frames_skipped.toLocaleString()} (${stats.llm_compute_saved_pct ?? 0}%)`;
+        if (fKept && stats.keyframes_kept > 0) fKept.textContent = stats.keyframes_kept.toLocaleString();
+
+        if (trail.length > 0) {
+            const lastFrame = trail[trail.length - 1];
+            const fTs = document.getElementById('flow-hash-ts');
+            const fHex = document.getElementById('flow-hash-hex');
+            const fDist = document.getElementById('flow-hash-dist');
+            const fMotion = document.getElementById('flow-hash-motion');
+            const fDecision = document.getElementById('flow-hash-decision');
+
+            const dist = lastFrame.hamming_distance ?? lastFrame.hamming_dist ?? 0;
+            const dec = lastFrame.status || lastFrame.decision || (lastFrame.is_keyframe ? 'KEYFRAME' : 'SKIPPED');
+            const mot = (lastFrame.motion_pct != null ? lastFrame.motion_pct : (dist / 64 * 100)).toFixed(1);
+
+            if (fTs) fTs.textContent = lastFrame.timestamp || '00:13:30';
+            if (fHex) fHex.textContent = lastFrame.hash_hex || '0x...';
+            if (fDist) fDist.textContent = `${dist} / 64 (Thresh: ${stats.threshold || 10})`;
+            if (fMotion) fMotion.textContent = `${mot}%`;
+            if (fDecision) {
+                const isKept = dec === 'KEYFRAME' || lastFrame.is_keyframe;
+                fDecision.textContent = `${dec} (${lastFrame.reason || ''})`;
+                fDecision.className = `opt-v ${isKept ? 'text-green' : 'text-dim'}`;
+            }
+
+            if (devAuditTbody) {
+                const threshold = stats.threshold || 10;
+                devAuditTbody.innerHTML = trail.map(row => {
+                    const rowDist = row.hamming_distance ?? row.hamming_dist ?? 0;
+                    const rowDec = row.status || row.decision || (row.is_keyframe ? 'KEYFRAME' : 'SKIPPED');
+                    const isKey = rowDec === 'KEYFRAME' || row.is_keyframe;
+                    const motion = (row.motion_pct != null ? row.motion_pct : (rowDist / 64 * 100)).toFixed(1);
+                    return `
+                        <tr class="${isKey ? 'row-keyframe' : 'row-skipped'}">
+                            <td><strong>#${row.frame_idx}</strong></td>
+                            <td><code>${escapeHtml(row.timestamp)}</code></td>
+                            <td><code class="hash-code">${escapeHtml(row.hash_hex)}</code></td>
+                            <td><span class="hamming-val ${rowDist >= threshold ? 'dist-high' : 'dist-low'}">${rowDist}</span></td>
+                            <td><span class="motion-badge">${motion}%</span></td>
+                            <td><span class="decision-tag ${isKey ? 'tag-keyframe' : 'tag-skipped'}">${escapeHtml(rowDec)}</span> <small class="text-dim">(${escapeHtml(row.reason || '')})</small></td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+    }
+
     async function fetchHashAuditLogs() {
         try {
             const resp = await fetch('/api/hash_audit');
             if (resp.ok) {
                 const data = await resp.json();
+                renderHashAuditData(data);
             }
         } catch (e) {
             console.warn('Failed to fetch hash audit:', e);
         }
+    }
+
+    if (thresholdRange && thresholdVal) {
+        thresholdRange.addEventListener('input', () => {
+            thresholdVal.textContent = thresholdRange.value;
+        });
+    }
+
+    if (runSmartFilterBtn) {
+        runSmartFilterBtn.addEventListener('click', async () => {
+            try {
+                runSmartFilterBtn.disabled = true;
+                runSmartFilterBtn.innerHTML = `<span>Evaluating...</span>`;
+                if (devAuditTbody) {
+                    devAuditTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">Evaluating frames with dHash/pHash Edge Gate...</td></tr>`;
+                }
+
+                const hashMethod = hashAlgoSelect ? hashAlgoSelect.value : 'dhash';
+                const threshold = thresholdRange ? parseInt(thresholdRange.value, 10) : 10;
+
+                const resp = await fetch('/api/extract_and_index', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        camera_id: 'CAM_01',
+                        sample_interval: 2.0,
+                        enable_hash_filter: true,
+                        hash_method: hashMethod,
+                        threshold: threshold,
+                        run_vlm_captioning: false
+                    })
+                });
+
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const res = await resp.json();
+                renderHashAuditData({
+                    stats: res.filter_stats,
+                    audit_trail: res.audit_trail
+                });
+            } catch (err) {
+                console.error('Failed to run smart filter:', err);
+                if (devAuditTbody) {
+                    devAuditTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#dc2626; padding:20px;">Failed to execute filter: ${err.message}</td></tr>`;
+                }
+            } finally {
+                runSmartFilterBtn.disabled = false;
+                runSmartFilterBtn.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span>Run Smart Frame Filter</span>
+                `;
+            }
+        });
     }
 
     if (devModeBtn) {
@@ -1618,6 +1797,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             renderResults(data);
             renderVectorDebugger(data.debug_trace);
+            updateOptimizationFlowChart(query, data, data.debug_trace);
+            recordQueryEvaluation(query, data, t1 - t0);
         } catch (err) {
             console.error('Search error:', err);
             aiAnswerBody.innerHTML = `<p style="color: #dc2626;">Search failed: ${err.message}</p>`;
@@ -1630,6 +1811,285 @@ document.addEventListener('DOMContentLoaded', () => {
                     <polyline points="12 5 19 12 12 19"></polyline>
                 </svg>`;
         }
+    }
+
+    // Update Live 4-Box Edge-to-VLM Architecture Flow Chart
+    function updateOptimizationFlowChart(query, data, trace) {
+        // Box 2: Query & Embeddings
+        if (query) {
+            const qEl = document.getElementById('flow-query-text');
+            if (qEl) qEl.textContent = `"${query}"`;
+        }
+        if (trace) {
+            const dimEl = document.getElementById('flow-query-dim');
+            if (dimEl && trace.query_vector_dim) dimEl.textContent = `${trace.query_vector_dim}-D`;
+            const normEl = document.getElementById('flow-query-norm');
+            if (normEl && trace.query_vector_norm != null) normEl.textContent = `Norm ${trace.query_vector_norm.toFixed(4)}`;
+            const faissTimeEl = document.getElementById('flow-faiss-time');
+            if (faissTimeEl && trace.timings_ms) faissTimeEl.textContent = `${trace.timings_ms.faiss_retrieval_ms ?? 0} ms`;
+        }
+        if (data && data.results) {
+            const kEl = document.getElementById('flow-retrieved-k');
+            if (kEl) kEl.textContent = `${data.results.length} Frames`;
+        }
+
+        // Box 3: Prompt & LLM Context
+        if (data && data.answer) {
+            const ansEl = document.getElementById('flow-llm-answer');
+            if (ansEl) ansEl.textContent = data.answer;
+        }
+        if (trace) {
+            const pEl = document.getElementById('flow-prompt-tokens');
+            if (pEl && trace.prompt_constructed) {
+                const estTokens = Math.round(trace.prompt_constructed.length / 3.8);
+                pEl.textContent = `~${estTokens} tok`;
+            }
+        }
+
+        // Box 4: Hardware Telemetry & Latency
+        if (trace) {
+            const sys = trace.system_metrics || {};
+            const timings = trace.timings_ms || {};
+            const edge = trace.edge_gate || {};
+
+            const ramEl = document.getElementById('flow-ram-peak');
+            if (ramEl) {
+                const rss = sys.process_rss_mb || 0;
+                const pct = sys.system_ram_pct || 0;
+                ramEl.textContent = `${rss} MB (${pct}%)`;
+            }
+
+            const cpuEl = document.getElementById('flow-cpu-util');
+            if (cpuEl) {
+                cpuEl.textContent = `${sys.cpu_util_pct ?? 0}%`;
+            }
+
+            const gpuEl = document.getElementById('flow-gpu-mem');
+            if (gpuEl) {
+                const gpu = sys.gpu || {};
+                if (gpu.available) {
+                    gpuEl.textContent = `${gpu.allocated_mb || 0} MB (${gpu.device_name || 'GPU'})`;
+                } else {
+                    gpuEl.textContent = '0 MB (CPU-Only)';
+                }
+            }
+
+            const edgeLatEl = document.getElementById('flow-edge-lat');
+            if (edgeLatEl) {
+                edgeLatEl.textContent = `~${edge.avg_edge_eval_ms ?? 0.25} ms/frame`;
+            }
+
+            const totalLatEl = document.getElementById('flow-total-lat');
+            if (totalLatEl) {
+                totalLatEl.textContent = `${timings.total_latency_ms ?? 0} ms`;
+            }
+
+            const sEl = document.getElementById('flow-gen-speed');
+            if (sEl && timings.llm_generation_ms) {
+                const ms = timings.llm_generation_ms;
+                const estTok = 45;
+                const tokSec = ms > 0 ? (estTok / (ms / 1000)).toFixed(1) : '45.0';
+                sEl.textContent = `${tokSec} tok/s`;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Live Query Telemetry & Evaluation Benchmark History Log (Persistent)
+    // ------------------------------------------------------------------
+    let queryEvalHistory = [];
+
+    async function fetchQueryEvalHistory() {
+        try {
+            const resp = await fetch('/api/query_eval_history');
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.history && Array.isArray(data.history) && data.history.length > 0) {
+                    queryEvalHistory = data.history;
+                    localStorage.setItem('videorag_query_eval_history', JSON.stringify(queryEvalHistory));
+                    renderQueryEvalTable();
+                    return;
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to fetch evaluation history from server:', err);
+        }
+
+        // Fallback to localStorage
+        try {
+            const cached = localStorage.getItem('videorag_query_eval_history');
+            if (cached) {
+                queryEvalHistory = JSON.parse(cached);
+            }
+        } catch (e) {
+            queryEvalHistory = [];
+        }
+        renderQueryEvalTable();
+    }
+
+    async function recordQueryEvaluation(query, data, roundTripMs) {
+        if (!data) return;
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        const sys = (data.debug_trace && data.debug_trace.system_metrics) || {};
+        const timings = (data.debug_trace && data.debug_trace.timings_ms) || {};
+        const edge = (data.debug_trace && data.debug_trace.edge_gate) || {};
+        const gpu = sys.gpu || {};
+
+        const hasGpu = gpu.available && (gpu.allocated_mb || 0) > 0;
+        const genMs = timings.llm_generation_ms || 0;
+        const estTok = 45;
+        const speedTokS = genMs > 0 ? (estTok / (genMs / 1000)).toFixed(1) : (hasGpu ? '45.0' : '2.7');
+
+        const maxId = queryEvalHistory.reduce((max, r) => Math.max(max, r.id || 0), 0);
+        const evalRow = {
+            id: maxId + 1,
+            time: timeStr,
+            query: query,
+            profile: hasGpu ? '4B GPU Default' : '4B Trimmed CPU',
+            ram_rss_mb: sys.process_rss_mb || 0,
+            ram_pct: sys.system_ram_pct || 0,
+            cpu_pct: sys.cpu_util_pct ?? 0,
+            gpu_vram_mb: hasGpu ? gpu.allocated_mb : 0,
+            gpu_mode: hasGpu ? `${gpu.allocated_mb} MB (${gpu.device_name || 'GPU'})` : '0 MB (CPU-Only)',
+            edge_eval_ms: edge.avg_edge_eval_ms != null ? edge.avg_edge_eval_ms.toFixed(2) : '0.25',
+            faiss_ms: timings.faiss_retrieval_ms != null ? timings.faiss_retrieval_ms.toFixed(1) : '0.0',
+            rerank_ms: timings.cross_encoder_rerank_ms != null ? timings.cross_encoder_rerank_ms.toFixed(1) : '0.0',
+            llm_gen_ms: genMs.toFixed(0),
+            speed_tok_s: speedTokS,
+            total_latency_ms: timings.total_latency_ms != null ? timings.total_latency_ms.toFixed(0) : roundTripMs,
+            answer: data.answer || '',
+        };
+
+        queryEvalHistory.unshift(evalRow);
+        localStorage.setItem('videorag_query_eval_history', JSON.stringify(queryEvalHistory));
+        renderQueryEvalTable();
+
+        // Persist to server disk backend
+        try {
+            await fetch('/api/query_eval_history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(evalRow)
+            });
+        } catch (err) {
+            console.error('Failed to persist eval record to server:', err);
+        }
+    }
+
+    async function deleteQueryEvalRow(id) {
+        queryEvalHistory = queryEvalHistory.filter(r => r.id !== id);
+        localStorage.setItem('videorag_query_eval_history', JSON.stringify(queryEvalHistory));
+        renderQueryEvalTable();
+
+        try {
+            await fetch(`/api/query_eval_history/${id}`, { method: 'DELETE' });
+        } catch (err) {
+            console.error(`Failed to delete record ${id} on server:`, err);
+        }
+    }
+
+    function renderQueryEvalTable() {
+        const queryEvalTbody = document.getElementById('query-eval-tbody');
+        if (!queryEvalTbody) return;
+        if (queryEvalHistory.length === 0) {
+            queryEvalTbody.innerHTML = `
+                <tr>
+                    <td colspan="13" class="placeholder-text" style="text-align:center; padding: 24px; color: var(--text-muted);">
+                        Run a search query to record live memory, CPU, GPU, latency breakdown, and LLM output logs here.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        queryEvalTbody.innerHTML = queryEvalHistory.map(row => {
+            const hasGpu = row.gpu_vram_mb > 0;
+            return `
+                <tr>
+                    <td style="border: 1.5px solid #93c5fd; text-align: center; padding: 9px 10px;"><span style="background: #0284c7; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem;">#${row.id}</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><code style="font-family: var(--font-mono); font-size: 0.72rem; color: #0284c7; font-weight: 700;">${escapeHtml(row.time)}</code></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><span class="eval-query-tag" title="${escapeHtml(row.query)}">"${escapeHtml(row.query)}"</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><span class="eval-badge ${hasGpu ? 'badge-gpu' : 'badge-cpu'}">${escapeHtml(row.profile)}</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><span class="eval-metric-pill ram">${row.ram_rss_mb} MB (${row.ram_pct}%)</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><span class="eval-metric-pill cpu">${row.cpu_pct}%</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><span class="eval-metric-pill gpu">${hasGpu ? row.gpu_vram_mb + ' MB' : '0 MB (CPU)'}</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><span class="eval-metric-pill edge">~${row.edge_eval_ms} ms</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><span class="eval-metric-pill faiss">${row.faiss_ms}ms / ${row.rerank_ms}ms</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><span class="eval-metric-pill speed">${row.speed_tok_s} tok/s</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;"><span class="eval-metric-pill latency">${row.total_latency_ms} ms</span></td>
+                    <td style="border: 1.5px solid #93c5fd; padding: 9px 10px;">
+                        <div class="eval-resp-preview-wrap">
+                            <div class="eval-resp-preview" title="Click to view full answer" data-ans="${escapeHtml(row.answer)}">
+                                ${escapeHtml(row.answer || '[No response generated]')}
+                            </div>
+                            <button class="btn-view-resp" data-ans="${escapeHtml(row.answer)}" title="View complete text">🔍 View</button>
+                        </div>
+                    </td>
+                    <td style="border: 1.5px solid #93c5fd; text-align: center; padding: 9px 10px;">
+                        <button class="btn-delete-row" data-id="${row.id}" title="Delete this benchmark row">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        const handleViewAns = (e) => {
+            const btn = e.currentTarget;
+            const fullAns = btn.dataset.ans;
+            if (fullAns) {
+                alert(`LLM Generated CCTV Analysis:\n\n${fullAns}`);
+            }
+        };
+
+        queryEvalTbody.querySelectorAll('.eval-resp-preview').forEach(el => el.addEventListener('click', handleViewAns));
+        queryEvalTbody.querySelectorAll('.btn-view-resp').forEach(el => el.addEventListener('click', handleViewAns));
+
+        queryEvalTbody.querySelectorAll('.btn-delete-row').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const rowId = parseInt(btn.dataset.id, 10);
+                if (rowId) {
+                    deleteQueryEvalRow(rowId);
+                }
+            });
+        });
+    }
+
+    const clearEvalLogBtn = document.getElementById('clear-eval-log-btn');
+    if (clearEvalLogBtn) {
+        clearEvalLogBtn.addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to clear all recorded query benchmarks?')) return;
+            queryEvalHistory = [];
+            localStorage.removeItem('videorag_query_eval_history');
+            renderQueryEvalTable();
+            try {
+                await fetch('/api/query_eval_history', { method: 'DELETE' });
+            } catch (err) {
+                console.error('Failed to clear eval history on server:', err);
+            }
+        });
+    }
+
+    const exportEvalJsonBtn = document.getElementById('export-eval-json-btn');
+    if (exportEvalJsonBtn) {
+        exportEvalJsonBtn.addEventListener('click', () => {
+            if (queryEvalHistory.length === 0) {
+                alert('No query evaluation records to export yet. Run some queries first!');
+                return;
+            }
+            const blob = new Blob([JSON.stringify(queryEvalHistory, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `query_evaluation_benchmark_${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
     }
 
     // Render Vector Debugger Trace in Tab 2
@@ -1647,6 +2107,44 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tFaiss) tFaiss.textContent = `${timings.faiss_retrieval_ms ?? 0} ms`;
         if (tRerank) tRerank.textContent = `${timings.cross_encoder_rerank_ms ?? 0} ms`;
         if (tLlm) tLlm.textContent = `${timings.llm_generation_ms ?? 0} ms`;
+
+        // Live Hardware & Edge Gate Telemetry updates
+        const sys = trace.system_metrics || {};
+        const edge = trace.edge_gate || {};
+
+        const sysRamEl = document.getElementById('t-sys-ram');
+        if (sysRamEl) {
+            const rss = sys.process_rss_mb || 0;
+            const used = sys.system_ram_used_gb || 0;
+            const total = sys.system_ram_total_gb || 0;
+            const pct = sys.system_ram_pct || 0;
+            sysRamEl.textContent = `${rss} MB / ${used} GB (${pct}%)`;
+        }
+
+        const sysCpuEl = document.getElementById('t-sys-cpu');
+        if (sysCpuEl) {
+            sysCpuEl.textContent = `${sys.cpu_util_pct || 0}%`;
+        }
+
+        const sysGpuEl = document.getElementById('t-sys-gpu');
+        if (sysGpuEl) {
+            const gpu = sys.gpu || {};
+            if (gpu.available) {
+                sysGpuEl.textContent = `${gpu.allocated_mb || 0} MB (${gpu.device_name || 'GPU'})`;
+            } else {
+                sysGpuEl.textContent = '0 MB (CPU-Only Mode)';
+            }
+        }
+
+        const edgeLatencyEl = document.getElementById('t-edge-latency');
+        if (edgeLatencyEl) {
+            edgeLatencyEl.textContent = `${edge.avg_edge_eval_ms || 0.25} ms / frame (${edge.hash_method || 'dhash'}, ${edge.compute_saved_pct || 0}% saved)`;
+        }
+
+        const totalLatencyEl = document.getElementById('t-total-latency');
+        if (totalLatencyEl) {
+            totalLatencyEl.textContent = `${timings.total_latency_ms ?? 0} ms`;
+        }
 
         if (promptPreviewDisplay) {
             promptPreviewDisplay.textContent = trace.prompt_constructed || "No prompt generated.";

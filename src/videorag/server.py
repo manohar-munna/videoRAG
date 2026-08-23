@@ -104,6 +104,30 @@ STREAM_MANAGER = MultiCameraStreamManager(
 )
 
 
+def _normalize_image_path(raw_path: Any) -> str:
+    """Normalize frame image paths to clean relative data/cameras/... format."""
+    if not raw_path:
+        return ""
+    p = str(raw_path).replace("\\", "/")
+    if "extracted_frames/" in p:
+        fname = p.split("extracted_frames/")[-1].lstrip("/")
+        if "data/cameras/" in p:
+            cid = p.split("data/cameras/")[-1].split("/")[0]
+            return f"data/cameras/{cid}/extracted_frames/{fname}"
+        elif "/cameras/" in p:
+            cid = p.split("/cameras/")[-1].split("/")[0]
+            return f"data/cameras/{cid}/extracted_frames/{fname}"
+        elif "CAM_" in fname:
+            parts = fname.split("_")
+            if len(parts) >= 2:
+                cid = f"{parts[0]}_{parts[1]}"
+                return f"data/cameras/{cid}/extracted_frames/{fname}"
+        return f"data/extracted_frames/{fname}"
+    if "data/" in p:
+        return "data/" + p.split("data/", 1)[-1].lstrip("/")
+    return p.lstrip("/")
+
+
 def _auto_index_worker_loop() -> None:
     """
     Background worker thread: round-robins across active camera queues so no single camera
@@ -202,9 +226,10 @@ def _auto_index_worker_loop() -> None:
                 except Exception:
                     existing_cam = []
 
-            clean_p = str(img_path).replace("\\", "/")
+            clean_p = _normalize_image_path(img_path)
+            fname = Path(clean_p).name
             # Check if this exact frame is already in per-camera json
-            if not any(str(r.get("image_path", "")).replace("\\", "/") == clean_p for r in existing_cam):
+            if not any(Path(r.get("image_path", "")).name == fname for r in existing_cam):
                 new_rec = {
                     "camera": cam_id,
                     "timestamp": ts_str,
@@ -216,6 +241,7 @@ def _auto_index_worker_loop() -> None:
                     "motion_pct": keyframe.get("motion_pct"),
                 }
                 existing_cam.append(new_rec)
+                existing_cam.sort(key=lambda x: x.get("seconds", 0.0))
                 with open(cam_json_file, "w", encoding="utf-8") as fh:
                     json.dump(existing_cam, fh, indent=2, ensure_ascii=False)
 
@@ -234,11 +260,15 @@ def _auto_index_worker_loop() -> None:
                 seen_k = set()
                 deduped = []
                 for r in all_events:
-                    k = (r.get("camera"), r.get("timestamp"), r.get("description", "")[:30])
+                    r_norm = _normalize_image_path(r.get("image_path"))
+                    r["image_path"] = r_norm
+                    r_fname = Path(r_norm).name if r_norm else ""
+                    k = (r.get("camera"), r.get("timestamp"), r_fname)
                     if k not in seen_k:
                         seen_k.add(k)
                         deduped.append(r)
 
+                deduped.sort(key=lambda x: (x.get("camera", ""), x.get("seconds", 0.0)))
                 with open(out_file, "w", encoding="utf-8") as fh:
                     json.dump(deduped, fh, indent=2, ensure_ascii=False)
 
@@ -400,6 +430,46 @@ def get_health():
     }
 
 
+def _rebuild_faiss_index():
+    """Rebuild FAISS index from data/real_cctv_events.json."""
+    if not (PIPELINE.get("vector_store") and PIPELINE.get("embedder")):
+        return
+    import numpy as np
+    embedder = PIPELINE["embedder"]
+    new_store = FAISSVectorStore(dim=embedder.dimension)
+    
+    data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+    if data_path.exists():
+        try:
+            with open(data_path, "r", encoding="utf-8") as fh:
+                events = json.load(fh)
+            if events:
+                texts = [f"Camera: {e.get('camera')} | Time: {e.get('timestamp')} | Event: {e.get('description', '')}" for e in events]
+                embs = embedder.embed_batch(texts, show_progress=False)
+                metas = []
+                for idx, e in enumerate(events):
+                    metas.append({
+                        "camera": e.get("camera"),
+                        "timestamp": e.get("timestamp"),
+                        "seconds": e.get("seconds", 0.0),
+                        "epoch_time": e.get("epoch_time"),
+                        "description": e.get("description"),
+                        "text": texts[idx],
+                        "image_path": str(e.get("image_path", "")).replace("\\", "/"),
+                        "chunk_id": f"{e.get('camera')}_{str(e.get('timestamp','')).replace(':', '_')}",
+                    })
+                new_store.add(embs, metas)
+        except Exception as exc:
+            logger.error("Failed to rebuild FAISS index: %s", exc)
+
+    PIPELINE["vector_store"] = new_store
+    if PIPELINE.get("retriever"):
+        PIPELINE["retriever"].vector_store = new_store
+    idx_path = _PROJECT_ROOT / "index" / "cctv_index"
+    new_store.save(str(idx_path))
+    logger.info("Rebuilt FAISS index with %d vectors", new_store.size)
+
+
 def _sync_disk_events() -> List[Dict[str, Any]]:
     """Synchronize events bidirectionally between master real_cctv_events.json and all data/cameras/*/events.json."""
     data_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
@@ -419,7 +489,10 @@ def _sync_disk_events() -> List[Dict[str, Any]]:
                     for r in loaded:
                         cam = r.get("camera")
                         if cam and cam in existing_dir_cams:
-                            k = (cam, r.get("timestamp"), str(r.get("image_path", "")).replace("\\", "/"))
+                            img_norm = _normalize_image_path(r.get("image_path"))
+                            r["image_path"] = img_norm
+                            fname = Path(img_norm).name if img_norm else ""
+                            k = (cam, r.get("timestamp"), fname)
                             if k not in seen_keys:
                                 seen_keys.add(k)
                                 records.append(r)
@@ -439,14 +512,20 @@ def _sync_disk_events() -> List[Dict[str, Any]]:
                                 for cr in cam_records:
                                     cam = cr.get("camera")
                                     if cam and cam in existing_dir_cams:
-                                        k = (cam, cr.get("timestamp"), str(cr.get("image_path", "")).replace("\\", "/"))
+                                        img_norm = _normalize_image_path(cr.get("image_path"))
+                                        cr["image_path"] = img_norm
+                                        fname = Path(img_norm).name if img_norm else ""
+                                        k = (cam, cr.get("timestamp"), fname)
                                         if k not in seen_keys:
                                             seen_keys.add(k)
                                             records.append(cr)
                 except Exception as exc:
                     logger.warning("Failed to read %s: %s", cam_events, exc)
 
-    # 3. Write back per-camera events.json
+    # 3. Sort chronologically by seconds
+    records.sort(key=lambda x: (x.get("camera", ""), x.get("seconds", 0.0)))
+
+    # 4. Write back per-camera events.json (sorted by seconds)
     per_cam = collections.defaultdict(list)
     for r in records:
         cam = r.get("camera")
@@ -457,13 +536,14 @@ def _sync_disk_events() -> List[Dict[str, Any]]:
         for cam, recs in per_cam.items():
             cam_dir = cam_base / cam
             cam_dir.mkdir(parents=True, exist_ok=True)
+            recs.sort(key=lambda x: x.get("seconds", 0.0))
             try:
                 with open(cam_dir / "events.json", "w", encoding="utf-8") as fh:
                     json.dump(recs, fh, indent=2, ensure_ascii=False)
             except Exception as exc:
                 logger.warning("Failed to write %s/events.json: %s", cam, exc)
 
-    # 4. Write back master real_cctv_events.json
+    # 5. Write back master real_cctv_events.json (sorted by seconds)
     try:
         with open(data_path, "w", encoding="utf-8") as fh:
             json.dump(records, fh, indent=2, ensure_ascii=False)
@@ -635,17 +715,89 @@ def search_cctv(req: SearchRequest):
     vec_sample = [round(float(val), 4) for val in query_vec[:12]]
     vec_norm = round(float(sum(v*v for v in query_vec)**0.5), 4)
 
+    # 5. Measure System Memory, CPU & GPU telemetry
+    import psutil
+    proc = psutil.Process()
+    rss_mb = round(proc.memory_info().rss / (1024 * 1024), 2)
+    sys_mem = psutil.virtual_memory()
+    cpu_pct = psutil.cpu_percent(interval=None)
+
+    gpu_info = {
+        "available": False,
+        "device_name": "None (CPU Mode)",
+        "allocated_mb": 0.0,
+        "reserved_mb": 0.0,
+    }
+    try:
+        import torch
+        if torch.cuda.is_available():
+            gpu_info["available"] = True
+            gpu_info["device_name"] = torch.cuda.get_device_name(0)
+            gpu_info["allocated_mb"] = round(torch.cuda.memory_allocated(0) / (1024 * 1024), 1)
+            gpu_info["reserved_mb"] = round(torch.cuda.memory_reserved(0) / (1024 * 1024), 1)
+    except Exception:
+        pass
+
+    # 6. Aggregate dHash / pHash Edge Gate Telemetry
+    edge_gate = {
+        "hash_method": "dhash",
+        "threshold": 10,
+        "total_frames_evaluated": 0,
+        "keyframes_kept": 0,
+        "frames_dropped": 0,
+        "compute_saved_pct": 0.0,
+        "avg_edge_eval_ms": 0.25,
+    }
+    try:
+        with STREAM_MANAGER._lock:
+            tot_eval = 0
+            tot_kept = 0
+            tot_drop = 0
+            tot_eval_time = 0.0
+            for s in STREAM_MANAGER.streams.values():
+                st = s.hash_filter.stats
+                tot_eval += st.get("total_frames", 0)
+                tot_kept += st.get("keyframes_kept", 0)
+                tot_drop += st.get("frames_skipped", 0)
+                tot_eval_time += st.get("total_eval_time_ms", 0.0)
+                edge_gate["hash_method"] = s.hash_filter.method
+                edge_gate["threshold"] = s.hash_filter.threshold
+            if tot_eval > 0:
+                edge_gate["total_frames_evaluated"] = tot_eval
+                edge_gate["keyframes_kept"] = tot_kept
+                edge_gate["frames_dropped"] = tot_drop
+                edge_gate["compute_saved_pct"] = round((tot_drop / tot_eval) * 100.0, 1)
+                edge_gate["avg_edge_eval_ms"] = round(tot_eval_time / tot_eval, 3)
+    except Exception:
+        pass
+
+    t_embed_ms = round((t1 - t0) * 1000, 2)
+    t_faiss_ms = round((t2 - t1) * 1000, 2)
+    t_rerank_ms = round((t3 - t2) * 1000, 2)
+    t_llm_ms = round((t4 - t3) * 1000, 2)
+    t_total_ms = round(t_embed_ms + t_faiss_ms + t_rerank_ms + t_llm_ms, 2)
+
     debug_trace = {
         "query_vector_dim": len(query_vec),
         "query_vector_norm": vec_norm,
         "query_vector_sample": vec_sample,
         "faiss_indexed_vectors": PIPELINE["vector_store"].size if PIPELINE.get("vector_store") else 0,
         "prompt_constructed": prompt,
+        "system_metrics": {
+            "process_rss_mb": rss_mb,
+            "system_ram_used_gb": round(sys_mem.used / (1024**3), 2),
+            "system_ram_total_gb": round(sys_mem.total / (1024**3), 2),
+            "system_ram_pct": sys_mem.percent,
+            "cpu_util_pct": cpu_pct,
+            "gpu": gpu_info,
+        },
+        "edge_gate": edge_gate,
         "timings_ms": {
-            "query_embedding_ms": round((t1 - t0) * 1000, 2),
-            "faiss_retrieval_ms": round((t2 - t1) * 1000, 2),
-            "cross_encoder_rerank_ms": round((t3 - t2) * 1000, 2),
-            "llm_generation_ms": round((t4 - t3) * 1000, 2),
+            "query_embedding_ms": t_embed_ms,
+            "faiss_retrieval_ms": t_faiss_ms,
+            "cross_encoder_rerank_ms": t_rerank_ms,
+            "llm_generation_ms": t_llm_ms,
+            "total_latency_ms": t_total_ms,
         }
     }
 
@@ -661,18 +813,32 @@ def search_cctv(req: SearchRequest):
 
 
 @app.post("/api/process_video_smart")
+@app.post("/api/extract_and_index")
 def process_video_smart(req: SmartProcessRequest):
     """
     Run smart video processing with dHash/pHash frame filtering,
     optional VLM keyframe captioning, FAISS index rebuilding, and in-memory pipeline reloading.
     """
-    video_p = req.video_path or str(_PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4")
-    video_file = Path(video_p)
-    if not video_file.is_absolute():
-        video_file = _PROJECT_ROOT / video_file
+    video_p = req.video_path
+    if not video_p:
+        candidates = [
+            _PROJECT_ROOT / "data" / "videos" / "sample_cctv.mp4",
+            _PROJECT_ROOT / "data" / "uploads" / "sample_cctv.mp4",
+            _PROJECT_ROOT / "data" / "sample_cctv.mp4",
+            _PROJECT_ROOT / "Video Footage" / "sample_cctv.mp4",
+        ]
+        video_file = candidates[0]
+        for c in candidates:
+            if c.exists():
+                video_file = c
+                break
+    else:
+        video_file = Path(video_p)
+        if not video_file.is_absolute():
+            video_file = _PROJECT_ROOT / video_file
 
     if not video_file.exists():
-        raise HTTPException(status_code=404, detail=f"Video file not found: {video_p}")
+        raise HTTPException(status_code=404, detail=f"Video file not found: {video_file}")
 
     # 1. Extract frames with EdgeFrameFilter
     extractor = VideoFrameExtractor(output_dir=str(_PROJECT_ROOT / "data" / "extracted_frames"))
@@ -681,7 +847,7 @@ def process_video_smart(req: SmartProcessRequest):
     result = extractor.extract_frames(
         video_path=str(video_file),
         camera_id=req.camera_id or "CAM_01",
-        sample_interval=req.sample_interval or 15.0,
+        sample_interval=req.sample_interval or 2.0,
         hash_filter=hash_filter,
     )
 
@@ -724,6 +890,73 @@ def process_video_smart(req: SmartProcessRequest):
 def get_hash_audit():
     """Return the latest frame hashing audit log for Developer Mode UI inspection."""
     return LATEST_HASH_AUDIT
+
+
+_QUERY_EVAL_FILE = _PROJECT_ROOT / "data" / "query_eval_benchmark_history.json"
+
+
+def _load_query_eval_history() -> List[Dict[str, Any]]:
+    if _QUERY_EVAL_FILE.exists():
+        try:
+            with open(_QUERY_EVAL_FILE, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+                if isinstance(data, list):
+                    return data
+        except Exception as exc:
+            logger.warning("Failed to load query eval history: %s", exc)
+    return []
+
+
+def _save_query_eval_history(history: List[Dict[str, Any]]) -> bool:
+    try:
+        _QUERY_EVAL_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_QUERY_EVAL_FILE, "w", encoding="utf-8") as fh:
+            json.dump(history, fh, indent=2, ensure_ascii=False)
+        return True
+    except Exception as exc:
+        logger.error("Failed to save query eval history: %s", exc)
+        return False
+
+
+@app.get("/api/query_eval_history")
+def get_query_eval_history():
+    """Retrieve all persisted query telemetry evaluation benchmark records."""
+    return {"history": _load_query_eval_history()}
+
+
+@app.post("/api/query_eval_history")
+def record_query_eval_history(record: Dict[str, Any]):
+    """Append a new query evaluation benchmark record to persistent storage."""
+    history = _load_query_eval_history()
+    # Calculate next ID if missing or colliding
+    if "id" not in record or not record["id"]:
+        max_id = max([r.get("id", 0) for r in history], default=0)
+        record["id"] = max_id + 1
+    # Check if existing id needs update or insertion
+    existing_idx = next((i for i, r in enumerate(history) if r.get("id") == record["id"]), None)
+    if existing_idx is not None:
+        history[existing_idx] = record
+    else:
+        history.insert(0, record)
+    _save_query_eval_history(history)
+    return {"status": "ok", "record": record, "total": len(history)}
+
+
+@app.delete("/api/query_eval_history/{row_id}")
+def delete_query_eval_row(row_id: int):
+    """Delete a specific query evaluation record by its ID."""
+    history = _load_query_eval_history()
+    new_history = [r for r in history if r.get("id") != row_id]
+    _save_query_eval_history(new_history)
+    return {"status": "ok", "deleted_id": row_id, "total": len(new_history)}
+
+
+@app.delete("/api/query_eval_history")
+def clear_all_query_eval_history():
+    """Clear all query evaluation benchmark history records."""
+    _save_query_eval_history([])
+    return {"status": "ok", "total": 0}
+
 
 
 @app.post("/api/streams/add")
@@ -784,6 +1017,76 @@ def remove_camera_stream(req: RemoveStreamRequest):
     success = STREAM_MANAGER.remove_camera(req.camera_id)
     _sync_disk_events()
     return {"status": "removed", "camera_id": req.camera_id}
+
+
+@app.post("/api/streams/reindex")
+def reindex_camera_stream(req: RemoveStreamRequest):
+    """
+    Delete all previous frames, JSON events, and vector index entries for the specified camera,
+    and restart stream extraction from the very beginning.
+    """
+    cam_id = req.camera_id
+    logger.info("Initiating complete re-index for camera '%s'...", cam_id)
+
+    # 1. Clear in-memory auto-indexer queues
+    _clear_camera_queue(cam_id)
+
+    # 2. Stop and clear stream from STREAM_MANAGER
+    with STREAM_MANAGER._lock:
+        if cam_id in STREAM_MANAGER.streams:
+            try:
+                STREAM_MANAGER.streams[cam_id].stop()
+            except Exception:
+                pass
+            del STREAM_MANAGER.streams[cam_id]
+
+    # 3. Clean extracted frames directory
+    cam_frames_dir = _PROJECT_ROOT / "data" / "cameras" / cam_id / "extracted_frames"
+    if cam_frames_dir.exists():
+        for f in cam_frames_dir.glob("*.*"):
+            try:
+                f.unlink()
+            except Exception as e:
+                logger.warning("Could not delete %s: %s", f, e)
+
+    # 4. Remove camera events.json
+    cam_events_file = _PROJECT_ROOT / "data" / "cameras" / cam_id / "events.json"
+    if cam_events_file.exists():
+        try:
+            cam_events_file.unlink()
+        except Exception as e:
+            logger.warning("Could not delete %s: %s", cam_events_file, e)
+
+    # 5. Remove camera records from master real_cctv_events.json
+    master_path = _PROJECT_ROOT / "data" / "real_cctv_events.json"
+    if master_path.exists():
+        try:
+            with open(master_path, "r", encoding="utf-8") as fh:
+                all_events = json.load(fh)
+            filtered = [e for e in all_events if e.get("camera") != cam_id]
+            with open(master_path, "w", encoding="utf-8") as fh:
+                json.dump(filtered, fh, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning("Error updating master real_cctv_events.json on reindex: %s", e)
+
+    # 6. Rebuild FAISS index from remaining events
+    _rebuild_faiss_index()
+
+    # 7. Restart the stream capture from beginning
+    cfg = CAMERA_REGISTRY.get(cam_id)
+    if cfg:
+        stream = STREAM_MANAGER.add_camera(
+            camera_id=cam_id,
+            stream_url=cfg["stream_url"],
+            name=cfg.get("name"),
+            sample_interval=cfg.get("sample_interval", 5.0),
+            hash_method=cfg.get("hash_method", "dhash"),
+            threshold=cfg.get("threshold", 10),
+            start_immediately=True,
+        )
+        logger.info("Successfully restarted stream extraction for camera '%s'", cam_id)
+
+    return {"status": "reindexed", "camera_id": cam_id}
 
 
 @app.get("/api/cameras")

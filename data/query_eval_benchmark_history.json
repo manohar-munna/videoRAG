@@ -1,0 +1,38 @@
+[
+  {
+    "id": 2,
+    "time": "20:08:01",
+    "query": "camera mounted on a black color cart",
+    "profile": "4B GPU Default",
+    "ram_rss_mb": 516.21,
+    "ram_pct": 92.4,
+    "cpu_pct": 24.1,
+    "gpu_vram_mb": 181.4,
+    "gpu_mode": "181.4 MB (NVIDIA GeForce RTX 4050)",
+    "edge_eval_ms": "0.25",
+    "faiss_ms": "25.5",
+    "rerank_ms": "71.8",
+    "llm_gen_ms": "8681",
+    "speed_tok_s": "5.2",
+    "total_latency_ms": "9081",
+    "answer": "Camera mounted on a black color cart — **not observed in any of the provided logs**.\n\nAll entries describe film production setups with camera rigs, often on dollies or stationary mounts, but **none specify the camera being mounted on a black cart**. The closest reference is to a “large film camera on a dolly” (CAM_01, 00:10:34), but no mention of the dolly being black or the camera being mounted on a “black color cart.”\n\n**Conclusion**: No evidence supports the presence of a camera mounted on a black cart."
+  },
+  {
+    "id": 1,
+    "time": "20:04:40",
+    "query": "people wearing pink costumes",
+    "profile": "4B GPU Default",
+    "ram_rss_mb": 491.0,
+    "ram_pct": 89.4,
+    "cpu_pct": 0.0,
+    "gpu_vram_mb": 181.4,
+    "gpu_mode": "181.4 MB (NVIDIA GeForce RTX 4050)",
+    "edge_eval_ms": "0.25",
+    "faiss_ms": "25.4",
+    "rerank_ms": "96.5",
+    "llm_gen_ms": "9203",
+    "speed_tok_s": "4.9",
+    "total_latency_ms": "9783",
+    "answer": "People wearing pink costumes were observed in multiple instances:\n\n- **CAM_01 | 00:05:20**: A group of people, including one in a bright pink outfit, were present near a playground structure, with film crew also visible.\n- **CAM_01 | 00:11:52**: Individuals in bright pink and yellow attire were standing near a playground; pink attire was noted among the group.\n- **CAM_01 | 00:09:08**: A person in a bright pink outfit was visible near the center, alongside another in a patterned jumpsuit, near a cordoned-off area.\n- **CAM_01 | 00:11:54**: People wearing bright pink tops were present near the playground, with no other specific details on costume type.\n- **CAM_01 | 00:03:26**: A group in bright, patterned clothing (including pink and blue) was clustered near camera gear.\n\nNote: While some individuals wore pink as part of casual or patterned attire, others clearly wore “pink costumes” as described in the query. The most consistent evidence points to individuals in bright pink outfits or patterned pink attire, particularly in the context of media production or public gathering."
+  }
+]

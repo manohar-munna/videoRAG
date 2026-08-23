@@ -4,10 +4,10 @@
     "name": "Main Entrance (Video Footage)",
     "stream_url": "data/videos/sample_cctv.mp4",
     "type": "video_file",
-    "sample_interval": 15.0,
+    "sample_interval": 2.0,
     "hash_method": "dhash",
     "threshold": 10,
-    "status": "running"
+    "status": "stopped"
   },
   "CAM_3000": {
     "camera_id": "CAM_3000",
@@ -17,6 +17,6 @@
     "sample_interval": 5.0,
     "hash_method": "dhash",
     "threshold": 10,
-    "status": "paused"
+    "status": "running"
   }
 }

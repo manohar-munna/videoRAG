@@ -498,14 +498,41 @@ class MultiCameraStreamManager:
             return True
 
     def get_all_statuses(self) -> List[Dict[str, Any]]:
-        """Return status for all registered camera streams."""
+        """Return status for all registered camera streams in persistent registry."""
         with self._lock:
             statuses = []
-            for cam_id, stream in self.streams.items():
-                st = stream.get_status()
-                cfg = self.registry.get(cam_id) or {}
+            configs = self.registry.get_all()
+            for cfg in configs:
+                cam_id = cfg["camera_id"]
+                stream = self.streams.get(cam_id)
+                if stream:
+                    st = stream.get_status()
+                else:
+                    st = {
+                        "camera_id": cam_id,
+                        "stream_url": cfg.get("stream_url", ""),
+                        "camera_type": cfg.get("type", "rtsp_stream"),
+                        "is_live": cfg.get("type", "rtsp_stream") in ["youtube_stream", "rtsp_stream"],
+                        "is_connected": False,
+                        "is_running": False,
+                        "is_paused": cfg.get("status") == "paused",
+                        "is_completed": cfg.get("status") == "completed",
+                        "state": cfg.get("status", "STOPPED").upper(),
+                        "fps": 30.0,
+                        "total_frames_read": 0,
+                        "total_frames_dropped": 0,
+                        "total_frames_count": 0,
+                        "total_duration_sec": 811.0 if cfg.get("type") == "video_file" else None,
+                        "current_position_sec": 0.0,
+                        "progress_pct": 100 if cfg.get("status") == "completed" else 0,
+                        "keyframes_kept": 0,
+                        "frames_skipped": 0,
+                        "llm_compute_saved_pct": 0.0,
+                        "hash_method": cfg.get("hash_method", "dhash"),
+                        "hamming_threshold": cfg.get("threshold", 10),
+                    }
                 st["name"] = cfg.get("name", cam_id)
-                st["type"] = cfg.get("type", "rtsp_stream")
+                st["type"] = cfg.get("type", st.get("camera_type", "rtsp_stream"))
                 statuses.append(st)
             return statuses
 
