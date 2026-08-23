@@ -1,14 +1,4 @@
 {
-  "CAM_01": {
-    "camera_id": "CAM_01",
-    "name": "Main Entrance (Video Footage)",
-    "stream_url": "data/videos/sample_cctv.mp4",
-    "type": "video_file",
-    "sample_interval": 2.0,
-    "hash_method": "dhash",
-    "threshold": 10,
-    "status": "stopped"
-  },
   "CAM_3000": {
     "camera_id": "CAM_3000",
     "name": "YouTube Live Surveillance Feed",
@@ -18,5 +8,15 @@
     "hash_method": "dhash",
     "threshold": 10,
     "status": "running"
+  },
+  "CAM_01": {
+    "camera_id": "CAM_01",
+    "name": "Main Entrance (Video Footage)",
+    "stream_url": "data/videos/sample_cctv.mp4",
+    "type": "video_file",
+    "sample_interval": 2.0,
+    "hash_method": "dhash",
+    "threshold": 10,
+    "status": "stopped"
   }
 }

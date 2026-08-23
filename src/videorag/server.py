@@ -710,10 +710,11 @@ def search_cctv(req: SearchRequest):
     context_window = 2  # ±2 neighbouring frames (5 frames total per episode)
 
     import time
-    import psutil
-    proc = psutil.Process()
-    proc_cpu_start = proc.cpu_times()
-    sys_cpu_start = psutil.cpu_times()
+    from videorag.monitoring.hardware_telemetry import QueryResourceMonitor, GPU_TRACKER
+
+    res_monitor = QueryResourceMonitor(sample_interval_sec=0.03)
+    res_monitor.start()
+
     t0 = time.time()
     query_vec = PIPELINE["embedder"].embed_query(req.query)
     t1 = time.time()
@@ -864,69 +865,18 @@ def search_cctv(req: SearchRequest):
     vec_norm = round(float(sum(v*v for v in query_vec)**0.5), 4)
 
     # 5. Measure System Memory, CPU & GPU telemetry accurately
-    query_duration = max(time.time() - t0, 0.001)
-    proc_cpu_end = proc.cpu_times()
-    sys_cpu_end = psutil.cpu_times()
+    res_monitor.stop()
+    hw_summary = res_monitor.get_summary()
 
-    # Calculate process CPU % during query duration
-    proc_cpu_delta = (proc_cpu_end.user - proc_cpu_start.user) + (proc_cpu_end.system - proc_cpu_start.system)
-    num_cpus = psutil.cpu_count() or 1
-    proc_cpu_pct = round(min(100.0, max(0.0, ((proc_cpu_delta / query_duration) / num_cpus) * 100.0)), 1)
-
-    # Calculate total system CPU % during query duration
-    sys_user_delta = sys_cpu_end.user - sys_cpu_start.user
-    sys_system_delta = sys_cpu_end.system - sys_cpu_start.system
-    sys_idle_delta = sys_cpu_end.idle - sys_cpu_start.idle
-    sys_total_delta = sys_user_delta + sys_system_delta + sys_idle_delta
-    if sys_total_delta > 0:
-        sys_cpu_pct = round(((sys_user_delta + sys_system_delta) / sys_total_delta) * 100.0, 1)
-    else:
-        sys_cpu_pct = psutil.cpu_percent(interval=None)
-
-    cpu_pct = max(proc_cpu_pct, sys_cpu_pct)
-    if cpu_pct <= 0.0:
-        cpu_pct = round(psutil.cpu_percent(interval=None) or 5.2, 1)
-
-    # Memory telemetry
-    proc_mem = proc.memory_info()
-    rss_mb = round(proc_mem.rss / (1024 * 1024), 1)
-    rss_gb = round(proc_mem.rss / (1024 ** 3), 2)
-    sys_mem = psutil.virtual_memory()
-    sys_ram_used_gb = round(sys_mem.used / (1024 ** 3), 2)
-    sys_ram_total_gb = round(sys_mem.total / (1024 ** 3), 2)
-    sys_ram_pct = round(sys_mem.percent, 1)
-
-    # GPU telemetry (Hardware Total / Used / Allocated)
-    gpu_info = {
-        "available": False,
-        "device_name": "None (CPU Mode)",
-        "allocated_mb": 0.0,
-        "reserved_mb": 0.0,
-        "hardware_used_mb": 0.0,
-        "hardware_total_mb": 0.0,
-        "hardware_used_gb": 0.0,
-        "hardware_total_gb": 0.0,
-        "hardware_pct": 0.0,
-    }
-    try:
-        import torch
-        if torch.cuda.is_available():
-            gpu_info["available"] = True
-            gpu_info["device_name"] = torch.cuda.get_device_name(0)
-            gpu_info["allocated_mb"] = round(torch.cuda.memory_allocated(0) / (1024 * 1024), 1)
-            gpu_info["reserved_mb"] = round(torch.cuda.memory_reserved(0) / (1024 * 1024), 1)
-            try:
-                free_b, total_b = torch.cuda.mem_get_info(0)
-                used_b = max(0, total_b - free_b)
-                gpu_info["hardware_used_mb"] = round(used_b / (1024 * 1024), 1)
-                gpu_info["hardware_total_mb"] = round(total_b / (1024 * 1024), 1)
-                gpu_info["hardware_used_gb"] = round(used_b / (1024 ** 3), 2)
-                gpu_info["hardware_total_gb"] = round(total_b / (1024 ** 3), 2)
-                gpu_info["hardware_pct"] = round((used_b / total_b) * 100.0, 1) if total_b > 0 else 0.0
-            except Exception:
-                pass
-    except Exception:
-        pass
+    rss_mb = hw_summary["process_rss_mb"]
+    peak_rss_mb = hw_summary["peak_process_rss_mb"]
+    rss_gb = round(rss_mb / 1024.0, 2)
+    sys_ram_used_gb = hw_summary["system_ram_used_gb"]
+    sys_ram_total_gb = hw_summary["system_ram_total_gb"]
+    sys_ram_pct = hw_summary["system_ram_pct"]
+    cpu_pct = hw_summary["cpu_util_pct"]
+    peak_cpu_pct = hw_summary["peak_cpu_util_pct"]
+    gpu_info = hw_summary["gpu"]
 
     # 6. Aggregate dHash / pHash Edge Gate Telemetry
     edge_gate = {
@@ -975,13 +925,13 @@ def search_cctv(req: SearchRequest):
         "prompt_constructed": locals().get("prompt") or req.query,
         "system_metrics": {
             "process_rss_mb": rss_mb,
+            "peak_process_rss_mb": peak_rss_mb,
             "process_rss_gb": rss_gb,
             "system_ram_used_gb": sys_ram_used_gb,
             "system_ram_total_gb": sys_ram_total_gb,
             "system_ram_pct": sys_ram_pct,
-            "process_cpu_pct": proc_cpu_pct,
-            "system_cpu_pct": sys_cpu_pct,
             "cpu_util_pct": cpu_pct,
+            "peak_cpu_util_pct": peak_cpu_pct,
             "gpu": gpu_info,
         },
         "edge_gate": edge_gate,

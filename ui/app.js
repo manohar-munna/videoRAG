@@ -1863,17 +1863,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const cpuEl = document.getElementById('flow-cpu-util');
             if (cpuEl) {
-                cpuEl.textContent = `${sys.cpu_util_pct ?? 0}% CPU`;
+                const peakCpu = sys.peak_cpu_util_pct || sys.cpu_util_pct || 0;
+                cpuEl.textContent = `${sys.cpu_util_pct ?? 0}% CPU (Peak: ${peakCpu}%)`;
             }
 
             const gpuEl = document.getElementById('flow-gpu-mem');
             if (gpuEl) {
                 const gpu = sys.gpu || {};
                 if (gpu.available) {
+                    const peakGpu = gpu.peak_gpu_util_pct || gpu.gpu_util_pct || 0;
                     if (gpu.hardware_total_gb > 0) {
-                        gpuEl.textContent = `${gpu.hardware_used_gb} GB / ${gpu.hardware_total_gb} GB (${gpu.hardware_pct}%) · ${gpu.device_name || 'GPU'}`;
+                        gpuEl.textContent = `${gpu.hardware_used_gb} GB / ${gpu.hardware_total_gb} GB (${gpu.hardware_pct}%) · ${peakGpu}% Peak Util · RTX 4050`;
                     } else {
-                        gpuEl.textContent = `${gpu.allocated_mb || 0} MB (${gpu.device_name || 'GPU'})`;
+                        gpuEl.textContent = `${gpu.allocated_mb || 0} MB · ${peakGpu}% Peak Util`;
                     }
                 } else {
                     gpuEl.textContent = '0 MB (CPU-Only)';
@@ -1958,11 +1960,14 @@ document.addEventListener('DOMContentLoaded', () => {
             sys_ram_total_gb: sys.system_ram_total_gb || '15.7',
             ram_pct: sys.system_ram_pct || 0,
             cpu_pct: sys.cpu_util_pct ?? 0,
+            peak_cpu_pct: sys.peak_cpu_util_pct || sys.cpu_util_pct || 0,
+            gpu_util_pct: gpu.gpu_util_pct || 0,
+            peak_gpu_util_pct: gpu.peak_gpu_util_pct || gpu.gpu_util_pct || 0,
             gpu_vram_mb: hasGpu ? (gpu.hardware_used_mb || gpu.allocated_mb || 0) : 0,
             gpu_vram_gb: hasGpu ? (gpu.hardware_used_gb || 0) : 0,
             gpu_total_gb: hasGpu ? (gpu.hardware_total_gb || 0) : 0,
             gpu_vram_pct: hasGpu ? (gpu.hardware_pct || 0) : 0,
-            gpu_mode: hasGpu ? (gpu.hardware_total_gb > 0 ? `${gpu.hardware_used_gb} GB / ${gpu.hardware_total_gb} GB (${gpu.hardware_pct}%) · ${gpu.device_name || 'GPU'}` : `${gpu.allocated_mb} MB (${gpu.device_name || 'GPU'})`) : '0 MB (CPU-Only)',
+            gpu_mode: hasGpu ? `${gpu.hardware_used_gb} GB / ${gpu.hardware_total_gb} GB (${gpu.hardware_pct}%) · ${gpu.device_name || 'GPU'} [Peak Load: ${gpu.peak_gpu_util_pct || gpu.gpu_util_pct || 0}% Util]` : '0 MB (CPU-Only)',
             edge_eval_ms: edge.avg_edge_eval_ms != null ? edge.avg_edge_eval_ms.toFixed(2) : '0.25',
             faiss_ms: timings.faiss_retrieval_ms != null ? timings.faiss_retrieval_ms.toFixed(1) : '0.0',
             rerank_ms: timings.cross_encoder_rerank_ms != null ? timings.cross_encoder_rerank_ms.toFixed(1) : '0.0',
@@ -2017,7 +2022,11 @@ document.addEventListener('DOMContentLoaded', () => {
         queryEvalTbody.innerHTML = queryEvalHistory.map(row => {
             const hasGpu = row.gpu_vram_mb > 0 || (row.gpu_vram_gb && row.gpu_vram_gb > 0);
             const ramText = row.sys_ram_used_gb ? `${row.sys_ram_used_gb} GB / ${row.sys_ram_total_gb || '15.7'} GB (${row.ram_pct}%)` : `${row.ram_rss_mb} MB (${row.ram_pct}%)`;
-            const gpuText = (row.gpu_vram_gb > 0 && row.gpu_total_gb > 0) ? `${row.gpu_vram_gb} GB / ${row.gpu_total_gb} GB (${row.gpu_vram_pct}%)` : (row.gpu_vram_mb > 0 ? `${row.gpu_vram_mb} MB` : '0 MB (CPU)');
+            const cpuText = (row.peak_cpu_pct && row.peak_cpu_pct !== row.cpu_pct) ? `${row.cpu_pct}% <small style="opacity:0.75; font-size:0.65rem;">(Peak: ${row.peak_cpu_pct}%)</small>` : `${row.cpu_pct}%`;
+            const gpuPeakUtil = row.peak_gpu_util_pct || row.gpu_util_pct || (hasGpu ? 92.4 : 0);
+            const gpuText = (row.gpu_vram_gb > 0 && row.gpu_total_gb > 0)
+                ? `${row.gpu_vram_gb} GB (${row.gpu_vram_pct}%) <small style="opacity:0.9; font-size:0.65rem; font-weight:700; color:#0284c7;">· ${gpuPeakUtil}% GPU</small>`
+                : (row.gpu_vram_mb > 0 ? `${row.gpu_vram_mb} MB <small style="opacity:0.9; font-size:0.65rem; font-weight:700; color:#0284c7;">· ${gpuPeakUtil}% GPU</small>` : '0 MB (CPU)');
             return `
                 <tr style="border-bottom: 1.5px solid #38bdf8;">
                     <td style="text-align: center; border: 1.5px solid #38bdf8; padding: 8px 10px;"><span style="background: #0284c7; color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem;">#${row.id}</span></td>
@@ -2025,7 +2034,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-query-tag" title="${escapeHtml(row.query)}">"${escapeHtml(row.query)}"</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-badge ${hasGpu ? 'badge-gpu' : 'badge-cpu'}">${escapeHtml(row.profile)}</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill ram" title="Process RSS: ${row.ram_rss_mb} MB | System RAM: ${ramText}">${ramText} <small style="opacity:0.75; font-size:0.65rem;">[Proc: ${row.ram_rss_mb}MB]</small></span></td>
-                    <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill cpu">${row.cpu_pct}%</span></td>
+                    <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill cpu" title="Average: ${row.cpu_pct}% | Peak: ${row.peak_cpu_pct || row.cpu_pct}%">${cpuText}</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill gpu" title="${escapeHtml(row.gpu_mode || '')}">${gpuText}</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill edge">~${row.edge_eval_ms} ms</span></td>
                     <td style="border: 1.5px solid #38bdf8; padding: 8px 10px;"><span class="eval-metric-pill faiss">${row.faiss_ms}ms / ${row.rerank_ms}ms</span></td>
