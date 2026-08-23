@@ -87,6 +87,15 @@ def _expand_query(query: str) -> List[str]:
             "individuals dressed in pink garments",
         ])
 
+    # T-shirts / Shirts / Clothing & Colors
+    if any(k in q_low for k in ["tshirt", "tshirts", "t-shirt", "t-shirts", "shirt", "shirts", "jacket", "hoodie", "black tshirt", "clothing", "attire", "costume", "color tshirt"]):
+        expansions.extend([
+            "people wearing black t-shirt or dark colored shirt",
+            "pedestrians wearing casual shirts or colored t-shirts",
+            "individuals in varied attire and colored tops",
+            "people wearing black t-shirts or colored clothing in surveillance footage",
+        ])
+
     # Pedestrians / People / Crowd
     if any(k in q_low for k in ["pedestrian", "pedestrians", "person", "people", "crowd", "walking", "gathering"]):
         expansions.extend([

@@ -421,29 +421,42 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
         logger.warning("FAISS index not found at %s. Creating empty %d-D store.", idx_path, embedder.dimension)
         store = FAISSVectorStore(dim=embedder.dimension)
 
-    if store.size == 0:
-        events = _sync_disk_events()
-        if events:
-            try:
-                texts = [e.get("description", "") or e.get("text", "") for e in events]
-                embs = embedder.embed_batch(texts)
-                metas = []
-                for idx, e in enumerate(events):
-                    metas.append({
-                        "camera": e.get("camera"),
-                        "timestamp": e.get("timestamp"),
-                        "seconds": e.get("seconds", 0.0),
-                        "epoch_time": e.get("epoch_time"),
-                        "description": e.get("description"),
-                        "text": texts[idx],
-                        "image_path": str(e.get("image_path", "")).replace("\\", "/"),
-                        "chunk_id": f"{e.get('camera')}_{str(e.get('timestamp','')).replace(':', '_')}",
-                    })
-                store.add(embs, metas)
-                store.save(str(idx_path))
-                logger.info("Auto-indexed %d events into %d-D FAISS index", store.size, embedder.dimension)
-            except Exception as exc:
-                logger.warning("Failed to auto-populate FAISS index: %s", exc)
+    events = _sync_disk_events()
+    indexed_keys = set()
+    with store._lock:
+        for m in store._metadata:
+            indexed_keys.add((m.get("camera"), m.get("timestamp"), Path(m.get("image_path", "")).name))
+
+    missing_events = []
+    for e in events:
+        img_p = e.get("image_path", "")
+        k = (e.get("camera"), e.get("timestamp"), Path(img_p).name)
+        if k not in indexed_keys:
+            missing_events.append(e)
+
+    if missing_events:
+        try:
+            texts = [e.get("description", "") or e.get("text", "") or f"Keyframe at {e.get('timestamp')}" for e in missing_events]
+            embs = embedder.embed_batch(texts)
+            metas = []
+            for idx, e in enumerate(missing_events):
+                metas.append({
+                    "camera": e.get("camera"),
+                    "timestamp": e.get("timestamp"),
+                    "seconds": e.get("seconds", 0.0),
+                    "epoch_time": e.get("epoch_time"),
+                    "description": e.get("description"),
+                    "text": texts[idx],
+                    "image_path": str(e.get("image_path", "")).replace("\\", "/"),
+                    "crop_region": "global",
+                    "crop_box": [0.0, 0.0, 1.0, 1.0],
+                    "chunk_id": f"{e.get('camera')}_{str(e.get('timestamp','')).replace(':', '_')}_global",
+                })
+            store.add(embs, metas)
+            store.save(str(idx_path))
+            logger.info("Auto-synced %d missing events into FAISS index (Total: %d)", len(missing_events), store.size)
+        except Exception as exc:
+            logger.warning("Failed to auto-sync missing events into FAISS index: %s", exc)
 
     retriever = CCTVRetriever(vector_store=store, embedder=embedder)
 
