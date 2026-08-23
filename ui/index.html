@@ -29,6 +29,16 @@
             </div>
 
             <div class="header-stats">
+                <!-- Runtime Engine Profile Switcher -->
+                <div class="profile-toggle-wrap" title="Switch active VLM Runtime Profile (Desktop 4B vs Mobile 2B)">
+                    <button id="profile-desktop-btn" class="btn-profile-toggle active" data-profile="desktop" title="Desktop Profile: Qwen3-VL 4B (GPU CUDA, 4096 ctx, 4 slots, 5-frame temporal context)">
+                        <span>⚡ Desktop 4B (GPU)</span>
+                    </button>
+                    <button id="profile-mobile-btn" class="btn-profile-toggle" data-profile="mobile" title="Mobile Profile: Qwen2-VL 2B (CPU, 2048 ctx, 1 slot, Q8_0 KV, 3-frame storyboard & 512px scaling)">
+                        <span>📱 Mobile 2B (CPU)</span>
+                    </button>
+                </div>
+
                 <div class="stat-pill">
                     <span class="stat-label">Model:</span>
                     <span class="stat-value text-blue" id="stat-model">Local Qwen3-VL</span>

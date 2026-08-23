@@ -53,11 +53,15 @@ class VLMCaptioner:
         model: str = "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
+        profile: str = "desktop",
+        max_img_dim: int = 768,
     ) -> None:
         self.backend = backend
         self.model = model
         self.api_key = api_key
         self.base_url = base_url or "http://127.0.0.1:8080/v1"
+        self.profile = profile
+        self.max_img_dim = max_img_dim
 
         if backend in ("local", "openai"):
             self._init_openai_vlm()
@@ -363,16 +367,28 @@ class VLMCaptioner:
             ]
 
             valid_image_count = 0
+            engine_label = "Mobile Qwen2-VL 2B (CPU Mode)" if self.profile == "mobile" else "Desktop Qwen3-VL 4B (CUDA GPU)"
             prompt_summary_lines = [
                 f"[SYSTEM & FORENSIC TASK INSTRUCTIONS]",
                 f"Role: CCTV Forensic Security Vision Analyst",
+                f"Profile: {self.profile.upper()} (Max Dim: {self.max_img_dim}px)",
                 f"Camera: {cam_id} | Episode Time Range: {time_range}",
                 f"User Query: \"{query}\"",
                 f"Instruction: Analyze multi-frame visual progression and output step-by-step observations.",
-                f"\n[CHRONOLOGICAL MULTI-FRAME PAYLOAD SENT TO QWEN3-VL]"
+                f"\n[CHRONOLOGICAL MULTI-FRAME PAYLOAD SENT TO {engine_label.upper()}]"
             ]
 
-            for idx, frame in enumerate(frames[:5], start=1):
+            # Select frames based on runtime profile:
+            # Desktop: 5 frames ([-2, -1, anchor, +1, +2])
+            # Mobile: 3 frames ([-1, anchor, +1])
+            if self.profile == "mobile":
+                anchor_idx = next((i for i, f in enumerate(frames) if f.get("is_anchor")), 0)
+                start_idx = max(0, anchor_idx - 1)
+                selected_frames = frames[start_idx:start_idx + 3]
+            else:
+                selected_frames = frames[:5]
+
+            for idx, frame in enumerate(selected_frames, start=1):
                 img_p = frame.get("image_path", "")
                 ts = frame.get("timestamp", "00:00:00")
                 is_anchor = frame.get("is_anchor", False)
@@ -393,14 +409,14 @@ class VLMCaptioner:
                     local_path = cand1 if cand1.exists() else cand2
 
                 if local_path.exists():
-                    b64 = _encode_image_base64(str(local_path))
+                    b64 = _encode_image_base64(str(local_path), max_dim=self.max_img_dim)
                     content_blocks.append({
                         "type": "image_url",
                         "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
                     })
                     valid_image_count += 1
 
-            prompt_summary_lines.append(f"\n[VLM ENGINE]: Local Qwen3-VL 4B Instruct via llama-server (CUDA GPU)")
+            prompt_summary_lines.append(f"\n[VLM ENGINE]: {engine_label}")
             self.last_constructed_prompt = "\n".join(prompt_summary_lines)
 
             if valid_image_count == 0:

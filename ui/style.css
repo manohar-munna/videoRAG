@@ -300,6 +300,45 @@ body {
     color: var(--blue-primary);
 }
 
+/* Runtime Profile Switcher Control */
+.profile-toggle-wrap {
+    display: inline-flex;
+    background: #f1f5f9;
+    border: 1.5px solid #bae6fd;
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    gap: 2px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.btn-profile-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: #475569;
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-profile-toggle:hover {
+    color: var(--blue-primary);
+    background: rgba(2, 132, 199, 0.08);
+}
+.btn-profile-toggle.active {
+    background: #0284c7;
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.btn-profile-toggle.switching {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
 .btn-shutdown {
     display: flex;
     align-items: center;

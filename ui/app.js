@@ -602,25 +602,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     syncServerClock(data.server_time, t0, t1);
                 }
 
+                const profId = data.active_profile || 'desktop';
+                const profName = data.profile_name || 'Desktop 4B GPU';
+
                 if (statVectors) {
                     statVectors.textContent = `${data.vector_count || 0} Vectors`;
                 }
                 if (statStatus) {
-                    statStatus.textContent = 'ONLINE (GPU)';
+                    statStatus.textContent = profId === 'mobile' ? 'ONLINE (CPU Mobile)' : 'ONLINE (GPU)';
                     statStatus.className = 'stat-value text-green';
                 }
                 if (statusDot) {
                     statusDot.className = 'status-indicator online';
                 }
-                if (statModel && data.llm_model) {
-                    statModel.textContent = 'Local Qwen3-VL';
+                if (statModel) {
+                    statModel.textContent = profId === 'mobile' ? 'Mobile Qwen2-VL (2B)' : 'Local Qwen3-VL (4B)';
                 }
+                updateProfileButtons(profId);
 
                 const healthDot = document.getElementById('health-indicator');
                 const healthText = document.getElementById('health-status-text');
                 if (healthDot && healthText) {
                     healthDot.className = 'status-dot online';
-                    healthText.textContent = `Online (${data.vector_count || 0} vectors)`;
+                    healthText.textContent = `Online (${data.vector_count || 0} vectors) · ${profName}`;
                 }
                 const vectorCountBadge = document.getElementById('vector-count-badge');
                 if (vectorCountBadge) {
@@ -646,6 +650,69 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // ------------------------------------------------------------------
+    // Dynamic Runtime Profile Switcher (Desktop 4B GPU vs Mobile 2B CPU)
+    // ------------------------------------------------------------------
+    const btnDesktop = document.getElementById('profile-desktop-btn');
+    const btnMobile = document.getElementById('profile-mobile-btn');
+
+    function updateProfileButtons(activeProfile) {
+        if (btnDesktop) btnDesktop.classList.toggle('active', activeProfile === 'desktop');
+        if (btnMobile) btnMobile.classList.toggle('active', activeProfile === 'mobile');
+    }
+
+    async function switchProfile(targetProfile) {
+        if (!targetProfile) return;
+        const currentActive = btnDesktop && btnDesktop.classList.contains('active') ? 'desktop' : 'mobile';
+        if (currentActive === targetProfile) return;
+
+        if (btnDesktop) btnDesktop.classList.add('switching');
+        if (btnMobile) btnMobile.classList.add('switching');
+
+        if (statStatus) {
+            statStatus.textContent = `SWITCHING TO ${targetProfile.toUpperCase()}...`;
+            statStatus.className = 'stat-value text-blue';
+        }
+
+        try {
+            const resp = await fetch('/api/profile/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profile: targetProfile }),
+            });
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                updateProfileButtons(targetProfile);
+                const profInfo = data.profile_info || {};
+                if (statModel) {
+                    statModel.textContent = targetProfile === 'mobile' ? 'Mobile Qwen2-VL (2B)' : 'Local Qwen3-VL (4B)';
+                }
+                if (statStatus) {
+                    statStatus.textContent = targetProfile === 'mobile' ? 'ONLINE (CPU Mobile)' : 'ONLINE (GPU)';
+                    statStatus.className = 'stat-value text-green';
+                }
+                console.log(`Successfully activated ${profInfo.name || targetProfile} in ${data.switch_time_ms}ms`);
+            } else {
+                alert(`Failed to switch profile: ${data.detail || data.error || 'Server error'}`);
+            }
+        } catch (err) {
+            console.error('Failed to switch profile:', err);
+            alert(`Profile switch error: ${err.message}`);
+        } finally {
+            if (btnDesktop) btnDesktop.classList.remove('switching');
+            if (btnMobile) btnMobile.classList.remove('switching');
+            checkHealth();
+        }
+    }
+
+    if (btnDesktop) {
+        btnDesktop.addEventListener('click', () => switchProfile('desktop'));
+    }
+    if (btnMobile) {
+        btnMobile.addEventListener('click', () => switchProfile('mobile'));
+    }
+
     checkHealth();
     fetchHashAuditLogs();
     fetchEventsJson(false);

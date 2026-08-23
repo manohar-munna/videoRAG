@@ -339,6 +339,10 @@ class SmartProcessRequest(BaseModel):
     run_vlm_captioning: Optional[bool] = True
 
 
+class SwitchProfileRequest(BaseModel):
+    profile: str  # 'desktop' | 'mobile'
+
+
 class AddStreamRequest(BaseModel):
     camera_id: str
     feed_type: Optional[str] = None  # 'youtube_stream' | 'rtsp_stream' | 'video_file'
@@ -377,9 +381,11 @@ DEV_INSPECTOR_STATE = {
 LATEST_HASH_AUDIT: Dict[str, Any] = {}
 
 
-def init_pipeline(config_path: str = "config/config.yaml") -> None:
+def init_pipeline(config_path: str = "config/config.yaml", profile: str = "desktop") -> None:
     """Initialize multimodal retriever, reranker, vector store, VLM reasoner, and LLM clients."""
     import yaml
+    from videorag.llm.vlm_process_manager import VLM_MANAGER, RUNTIME_PROFILES
+
     cfg_file = Path(config_path)
     if not cfg_file.is_absolute():
         cfg_file = _PROJECT_ROOT / cfg_file
@@ -408,14 +414,14 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
             store.load(str(idx_path))
             if store._index.d != embedder.dimension:
                 logger.warning(
-                    "Existing FAISS index dimension (%d) does not match embedder dimension (%d). Initializing fresh %d-D store.",
-                    store._index.d, embedder.dimension, embedder.dimension
+                    "Index dimension mismatch (index=%d, model=%d). Recreating index.",
+                    store._index.d, embedder.dimension
                 )
                 store = FAISSVectorStore(dim=embedder.dimension)
             else:
                 logger.info("Loaded FAISS index with %d vectors", store.size)
         except Exception as exc:
-            logger.warning("Failed to load index (%s). Creating fresh %d-D store.", exc, embedder.dimension)
+            logger.warning("Failed to load FAISS index (%s), recreating.", exc)
             store = FAISSVectorStore(dim=embedder.dimension)
     else:
         logger.warning("FAISS index not found at %s. Creating empty %d-D store.", idx_path, embedder.dimension)
@@ -470,24 +476,34 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
     else:
         reranker = ScoreReranker()
 
+    # Active Runtime Profile Setup
+    prof_id = profile.lower()
+    prof_cfg = RUNTIME_PROFILES.get(prof_id, RUNTIME_PROFILES["desktop"])
+
+    # Launch VLM server for initial profile if not healthy
+    if not VLM_MANAGER.is_server_healthy(prof_cfg["port"]):
+        VLM_MANAGER.start_profile(prof_id)
+
     captioner = VLMCaptioner(
         backend=cfg_llm.get("backend", "local"),
-        model=cfg_llm.get("model", "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
-        api_key=cfg_llm.get("api_key"),
-        base_url=cfg_llm.get("base_url"),
+        model=prof_cfg["model_file"],
+        base_url=f"http://127.0.0.1:{prof_cfg['port']}/v1",
+        profile=prof_id,
+        max_img_dim=prof_cfg["max_img_dim"],
     )
 
     llm_client = LLMClient(
         backend=cfg_llm.get("backend", "local"),
-        model=cfg_llm.get("model", "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
-        api_key=cfg_llm.get("api_key"),
-        base_url=cfg_llm.get("base_url"),
+        model=prof_cfg["model_file"],
+        base_url=f"http://127.0.0.1:{prof_cfg['port']}/v1",
     )
 
     prompter = RAGPrompter()
     evaluator = RAGEvaluator()
 
     PIPELINE["config"] = config
+    PIPELINE["profile"] = prof_id
+    PIPELINE["profile_config"] = prof_cfg
     PIPELINE["embedder"] = embedder
     PIPELINE["vector_store"] = store
     PIPELINE["retriever"] = retriever
@@ -504,7 +520,6 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
 
 # ---------------------------------------------------------------------------
 # API Endpoints
-# ---------------------------------------------------------------------------
 
 @app.get("/api/health")
 def get_health():
@@ -513,15 +528,86 @@ def get_health():
     store = PIPELINE.get("vector_store")
     llm = PIPELINE.get("llm_client")
     embedder = PIPELINE.get("embedder")
+    cur_prof = PIPELINE.get("profile", "desktop")
+    prof_cfg = PIPELINE.get("profile_config", {})
     return {
         "status": "online",
         "server_time": round(time.time(), 3),
         "vector_count": store.size if store else 0,
         "vector_dimension": embedder.dimension if embedder else 512,
-        "embedder_model": embedder.model_name if embedder else "clip-ViT-B-32",
+        "embedder_model": embedder.model_name if embedder else "MobileCLIP-S2",
+        "active_profile": cur_prof,
+        "profile_name": prof_cfg.get("name", "Desktop 4B GPU"),
         "llm_backend": llm.backend if llm else "unknown",
         "llm_model": llm.model if llm else "unknown",
         "reranker": PIPELINE.get("reranker").__class__.__name__ if PIPELINE.get("reranker") else "none",
+    }
+
+
+@app.get("/api/profile/current")
+def get_current_profile():
+    """Return the active runtime profile, configuration details, and available profiles."""
+    from videorag.llm.vlm_process_manager import VLM_MANAGER, RUNTIME_PROFILES
+    from videorag.monitoring.hardware_telemetry import GPU_TRACKER
+
+    cur_id = PIPELINE.get("profile", VLM_MANAGER.current_profile_id)
+    cur_prof = RUNTIME_PROFILES.get(cur_id, RUNTIME_PROFILES["desktop"])
+    gpu = GPU_TRACKER.get_gpu_metrics()
+
+    return {
+        "current_profile": cur_id,
+        "profile_info": cur_prof,
+        "available_profiles": RUNTIME_PROFILES,
+        "gpu_metrics": gpu,
+    }
+
+
+@app.post("/api/profile/switch")
+def switch_runtime_profile(req: SwitchProfileRequest):
+    """Dynamically switch between Desktop (4B GPU) and Mobile (2B CPU) profiles with clean VLM unloading."""
+    from videorag.llm.vlm_process_manager import VLM_MANAGER, RUNTIME_PROFILES
+
+    target = req.profile.lower().strip()
+    if target not in RUNTIME_PROFILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid profile '{target}'. Choose from: {list(RUNTIME_PROFILES.keys())}"
+        )
+
+    res = VLM_MANAGER.switch_profile(target)
+    if not res.get("success"):
+        raise HTTPException(
+            status_code=500,
+            detail=res.get("error", "Failed to switch VLM profile")
+        )
+
+    prof = RUNTIME_PROFILES[target]
+    PIPELINE["profile"] = target
+    PIPELINE["profile_config"] = prof
+
+    # Reconnect captioner and LLM client to the active VLM port and profile settings
+    captioner = VLMCaptioner(
+        backend="local",
+        model=prof["model_file"],
+        base_url=f"http://127.0.0.1:{prof['port']}/v1",
+        profile=target,
+        max_img_dim=prof["max_img_dim"],
+    )
+    llm_client = LLMClient(
+        backend="local",
+        model=prof["model_file"],
+        base_url=f"http://127.0.0.1:{prof['port']}/v1",
+    )
+    PIPELINE["captioner"] = captioner
+    PIPELINE["llm_client"] = llm_client
+
+    logger.info("Successfully switched VideoRAG pipeline to '%s' profile.", prof["name"])
+    return {
+        "success": True,
+        "current_profile": target,
+        "profile_info": prof,
+        "switch_time_ms": res.get("switch_time_ms", 0.0),
+        "message": f"Successfully activated {prof['name']}",
     }
 
 
@@ -706,8 +792,12 @@ def search_cctv(req: SearchRequest):
     captioner: Optional[VLMCaptioner] = PIPELINE.get("captioner")
     evaluator: RAGEvaluator = PIPELINE["evaluator"]
 
+    from videorag.llm.vlm_process_manager import RUNTIME_PROFILES
+    cur_prof_id = PIPELINE.get("profile", "desktop")
+    prof_cfg = PIPELINE.get("profile_config") or RUNTIME_PROFILES.get(cur_prof_id, RUNTIME_PROFILES["desktop"])
+
     top_k = req.top_k or 5
-    context_window = 2  # ±2 neighbouring frames (5 frames total per episode)
+    context_window = prof_cfg.get("context_window", 2)  # ±2 for desktop (5 frames), ±1 for mobile (3 frames)
 
     import time
     from videorag.monitoring.hardware_telemetry import QueryResourceMonitor, GPU_TRACKER
@@ -918,6 +1008,8 @@ def search_cctv(req: SearchRequest):
     t_total_ms = round(t_embed_ms + t_faiss_ms + t_rerank_ms + t_llm_ms, 2)
 
     debug_trace = {
+        "active_profile": cur_prof_id,
+        "profile_name": prof_cfg.get("name", "Desktop 4B GPU"),
         "query_vector_dim": len(query_vec),
         "query_vector_norm": vec_norm,
         "query_vector_sample": vec_sample,
@@ -1729,8 +1821,9 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="127.0.0.1", help="Host interface (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Port (default: 8000)")
     parser.add_argument("--config", default="config/config.yaml", help="Path to config file")
+    parser.add_argument("--profile", choices=["desktop", "mobile"], default="desktop", help="Initial VLM profile ('desktop' for 4B GPU or 'mobile' for 2B CPU)")
     args = parser.parse_args()
 
-    init_pipeline(args.config)
-    logger.info("VideoRAG UI running at: http://%s:%d/", args.host, args.port)
+    init_pipeline(args.config, profile=args.profile)
+    logger.info("VideoRAG UI running at: http://%s:%d/ [Profile: %s]", args.host, args.port, args.profile.upper())
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
