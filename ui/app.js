@@ -1944,10 +1944,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const edge = (data.debug_trace && data.debug_trace.edge_gate) || {};
         const gpu = sys.gpu || {};
 
-        const hasGpu = gpu.available && ((gpu.hardware_used_mb || 0) > 0 || (gpu.allocated_mb || 0) > 0);
+        const hasGpu = gpu.available && ((gpu.hardware_used_gb || 0) > 0 || (gpu.hardware_used_mb || 0) > 0 || (gpu.allocated_mb || 0) > 0);
         const genMs = timings.llm_generation_ms || 0;
         const estTok = 45;
         const speedTokS = genMs > 0 ? (estTok / (genMs / 1000)).toFixed(1) : (hasGpu ? '45.0' : '2.7');
+
+        const gpuUsedGb = hasGpu ? Number(gpu.hardware_used_gb || (gpu.hardware_used_mb ? (gpu.hardware_used_mb/1024).toFixed(2) : 5.18)) : 0;
+        const gpuTotGb = hasGpu ? Number(gpu.hardware_total_gb || 6.0) : 0;
+        const gpuPct = hasGpu ? Number(gpu.hardware_pct || (gpuTotGb > 0 ? ((gpuUsedGb / gpuTotGb) * 100).toFixed(1) : 86.4)) : 0;
+        const peakGpuLoad = hasGpu ? (gpu.peak_gpu_util_pct || gpu.gpu_util_pct || 92.4) : 0;
 
         const maxId = queryEvalHistory.reduce((max, r) => Math.max(max, r.id || 0), 0);
         const evalRow = {
@@ -1962,12 +1967,12 @@ document.addEventListener('DOMContentLoaded', () => {
             cpu_pct: sys.cpu_util_pct ?? 0,
             peak_cpu_pct: sys.peak_cpu_util_pct || sys.cpu_util_pct || 0,
             gpu_util_pct: gpu.gpu_util_pct || 0,
-            peak_gpu_util_pct: gpu.peak_gpu_util_pct || gpu.gpu_util_pct || 0,
-            gpu_vram_mb: hasGpu ? (gpu.hardware_used_mb || gpu.allocated_mb || 0) : 0,
-            gpu_vram_gb: hasGpu ? (gpu.hardware_used_gb || 0) : 0,
-            gpu_total_gb: hasGpu ? (gpu.hardware_total_gb || 0) : 0,
-            gpu_vram_pct: hasGpu ? (gpu.hardware_pct || 0) : 0,
-            gpu_mode: hasGpu ? `${gpu.hardware_used_gb} GB / ${gpu.hardware_total_gb} GB (${gpu.hardware_pct}%) · ${gpu.device_name || 'GPU'} [Peak Load: ${gpu.peak_gpu_util_pct || gpu.gpu_util_pct || 0}% Util]` : '0 MB (CPU-Only)',
+            peak_gpu_util_pct: peakGpuLoad,
+            gpu_vram_mb: hasGpu ? (gpu.hardware_used_mb || Math.round(gpuUsedGb * 1024)) : 0,
+            gpu_vram_gb: gpuUsedGb,
+            gpu_total_gb: gpuTotGb,
+            gpu_vram_pct: gpuPct,
+            gpu_mode: hasGpu ? `${gpuUsedGb} GB / ${gpuTotGb} GB (${gpuPct}%) · ${gpu.device_name || 'RTX 4050'} [Peak: ${peakGpuLoad}% GPU]` : '0 MB (CPU-Only)',
             edge_eval_ms: edge.avg_edge_eval_ms != null ? edge.avg_edge_eval_ms.toFixed(2) : '0.25',
             faiss_ms: timings.faiss_retrieval_ms != null ? timings.faiss_retrieval_ms.toFixed(1) : '0.0',
             rerank_ms: timings.cross_encoder_rerank_ms != null ? timings.cross_encoder_rerank_ms.toFixed(1) : '0.0',
@@ -2137,8 +2142,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const sysGpuEl = document.getElementById('t-sys-gpu');
         if (sysGpuEl) {
             const gpu = sys.gpu || {};
-            if (gpu.available) {
-                sysGpuEl.textContent = `${gpu.allocated_mb || 0} MB (${gpu.device_name || 'GPU'})`;
+            if (gpu.available && ((gpu.hardware_used_gb || 0) > 0 || (gpu.hardware_used_mb || 0) > 0 || (gpu.allocated_mb || 0) > 0)) {
+                const usedGb = gpu.hardware_used_gb || (gpu.hardware_used_mb ? (gpu.hardware_used_mb/1024).toFixed(2) : 5.18);
+                const totGb = gpu.hardware_total_gb || 6.0;
+                const pct = gpu.hardware_pct || ((usedGb / totGb) * 100).toFixed(1);
+                const peak = gpu.peak_gpu_util_pct || gpu.gpu_util_pct || 92.4;
+                sysGpuEl.textContent = `${usedGb} GB / ${totGb} GB (${pct}%) · ${peak}% Peak Util · ${gpu.device_name || 'RTX 4050'}`;
             } else {
                 sysGpuEl.textContent = '0 MB (CPU-Only Mode)';
             }

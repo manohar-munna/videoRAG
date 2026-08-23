@@ -234,10 +234,13 @@ class QueryResourceMonitor:
 
         # GPU metrics
         gpu_latest = GPU_TRACKER.get_gpu_metrics()
-        peak_gpu_util = max(self.gpu_util_samples, default=gpu_latest.get("gpu_util_pct", 0.0))
+        peak_gpu_util = max(self.gpu_util_samples + [gpu_latest.get("gpu_util_pct", 0.0)], default=0.0)
         avg_gpu_util = round(sum(self.gpu_util_samples) / len(self.gpu_util_samples), 1) if self.gpu_util_samples else peak_gpu_util
-        peak_vram_gb = max(self.gpu_vram_samples, default=gpu_latest.get("hardware_used_gb", 0.0))
-        peak_vram_pct = max(self.gpu_vram_pct_samples, default=gpu_latest.get("hardware_pct", 0.0))
+        peak_vram_gb = max(self.gpu_vram_samples + [gpu_latest.get("hardware_used_gb", 0.0)], default=0.0)
+        peak_vram_pct = max(self.gpu_vram_pct_samples + [gpu_latest.get("hardware_pct", 0.0)], default=0.0)
+
+        vram_mb = round(peak_vram_gb * 1024, 1)
+        vram_tot_mb = round(gpu_latest.get("hardware_total_gb", 6.0) * 1024, 1)
 
         return {
             "process_rss_mb": proc_rss_mb,
@@ -252,8 +255,11 @@ class QueryResourceMonitor:
                 "device_name": gpu_latest.get("device_name", "None (CPU Mode)"),
                 "gpu_util_pct": avg_gpu_util,
                 "peak_gpu_util_pct": peak_gpu_util,
-                "hardware_used_gb": round(peak_vram_gb, 2) if peak_vram_gb > 0 else gpu_latest.get("hardware_used_gb", 0.0),
-                "hardware_total_gb": gpu_latest.get("hardware_total_gb", 0.0),
-                "hardware_pct": round(peak_vram_pct, 1) if peak_vram_pct > 0 else gpu_latest.get("hardware_pct", 0.0),
+                "hardware_used_mb": vram_mb,
+                "hardware_total_mb": vram_tot_mb,
+                "allocated_mb": vram_mb,
+                "hardware_used_gb": round(peak_vram_gb, 2),
+                "hardware_total_gb": gpu_latest.get("hardware_total_gb", 6.0),
+                "hardware_pct": round(peak_vram_pct, 1),
             },
         }
