@@ -421,6 +421,30 @@ def init_pipeline(config_path: str = "config/config.yaml") -> None:
         logger.warning("FAISS index not found at %s. Creating empty %d-D store.", idx_path, embedder.dimension)
         store = FAISSVectorStore(dim=embedder.dimension)
 
+    if store.size == 0:
+        events = _sync_disk_events()
+        if events:
+            try:
+                texts = [e.get("description", "") or e.get("text", "") for e in events]
+                embs = embedder.embed_batch(texts)
+                metas = []
+                for idx, e in enumerate(events):
+                    metas.append({
+                        "camera": e.get("camera"),
+                        "timestamp": e.get("timestamp"),
+                        "seconds": e.get("seconds", 0.0),
+                        "epoch_time": e.get("epoch_time"),
+                        "description": e.get("description"),
+                        "text": texts[idx],
+                        "image_path": str(e.get("image_path", "")).replace("\\", "/"),
+                        "chunk_id": f"{e.get('camera')}_{str(e.get('timestamp','')).replace(':', '_')}",
+                    })
+                store.add(embs, metas)
+                store.save(str(idx_path))
+                logger.info("Auto-indexed %d events into %d-D FAISS index", store.size, embedder.dimension)
+            except Exception as exc:
+                logger.warning("Failed to auto-populate FAISS index: %s", exc)
+
     retriever = CCTVRetriever(vector_store=store, embedder=embedder)
 
     if cfg_ret.get("use_reranker", False):
@@ -818,6 +842,9 @@ def search_cctv(req: SearchRequest):
     stop_words = {"the", "a", "an", "is", "was", "were", "are", "in", "at", "on", "of", "to", "any", "did", "do", "what", "when", "where", "who", "how", "there"}
     keywords = [w.strip("?.,!").lower() for w in req.query.split() if w.lower() not in stop_words and len(w) > 2]
     eval_result = evaluator.full_evaluation(req.query, episodes, answer, keywords)
+    t4 = time.time()
+    if "t3" not in locals():
+        t3 = t2
 
     # Detailed Vector & Pipeline Debugging Trace
     vec_sample = [round(float(val), 4) for val in query_vec[:12]]
