@@ -369,6 +369,10 @@ class MultimodalEmbedder:
         logger.info("Produced text embeddings of shape %s", result.shape)
         return result
 
+    def embed_batch(self, texts: List[str]) -> np.ndarray:
+        """Alias for embed() to embed a batch of text strings."""
+        return self.embed(texts)
+
 
 class TextEmbedder(MultimodalEmbedder):
     """Backwards-compatibility alias for MultimodalEmbedder."""

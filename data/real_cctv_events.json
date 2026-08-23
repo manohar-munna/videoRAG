@@ -3568,5 +3568,15 @@
     "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_23_05_15_885.jpg",
     "hash_hex": "0xac4c6d2e3aec92b6",
     "motion_pct": 30.09
+  },
+  {
+    "camera": "CAM_3000",
+    "timestamp": "23:05:35",
+    "seconds": 1787506535.89,
+    "epoch_time": 1787506535.887,
+    "description": "Surveillance keyframe captured by CAM_3000 at 23:05:35.",
+    "image_path": "data/cameras/CAM_3000/extracted_frames/CAM_3000_23_05_35_1185.jpg",
+    "hash_hex": "0xa84c6d2e76ec4b5a",
+    "motion_pct": 17.27
   }
 ]
