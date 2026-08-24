@@ -110,7 +110,9 @@ class MainActivity : AppCompatActivity() {
 
             val embedder = orchestrator.getActiveEmbedder()
             for (expandedQ in expandedQueries) {
-                val queryVector = embedder.embedCrop(createTextBitmapPlaceholder(expandedQ))
+                val placeholderBitmap = createTextBitmapPlaceholder(expandedQ)
+                val queryVector = embedder.embedCrop(placeholderBitmap)
+                placeholderBitmap.recycle()
                 val hits = vectorStore.search(queryVector, topK = 15)
 
                 for (hit in hits) {

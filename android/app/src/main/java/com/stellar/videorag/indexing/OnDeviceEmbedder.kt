@@ -15,7 +15,7 @@ class OnDeviceEmbedder(modelPath: String) {
         val options = OrtSession.SessionOptions()
         try {
             // Activate hardware NPU acceleration via NNAPI execution provider
-            options.addNNAPI()
+            options.addNnapi()
         } catch (_: Exception) {
             // Fallback to optimized CPU threads
             options.setIntraOpNumThreads(4)
@@ -29,14 +29,20 @@ class OnDeviceEmbedder(modelPath: String) {
     fun embedCrop(bitmap: Bitmap): FloatArray {
         val resized = Bitmap.createScaledBitmap(bitmap, 224, 224, true)
         val tensorData = preprocessImage(resized)
+        if (resized != bitmap) {
+            resized.recycle()
+        }
         
         val shape = longArrayOf(1, 3, 224, 224)
-        val tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(tensorData), shape)
+        val inputName = session.inputNames.firstOrNull() ?: "input"
         
-        val results = session.run(mapOf("input" to tensor))
-        @Suppress("UNCHECKED_CAST")
-        val output = results[0].value as Array<FloatArray>
-        val rawVec = output[0]
+        val rawVec: FloatArray = OnnxTensor.createTensor(env, FloatBuffer.wrap(tensorData), shape).use { tensor ->
+            session.run(mapOf(inputName to tensor)).use { results ->
+                @Suppress("UNCHECKED_CAST")
+                val output = results.values.first().value as Array<FloatArray>
+                output[0]
+            }
+        }
         return normalize(rawVec)
     }
 
