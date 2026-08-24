@@ -54,69 +54,60 @@ def _normalize_query(query: str) -> str:
 
 
 def _expand_query(query: str) -> List[str]:
-    """Generate focused multimodal query expansions for surveillance retrieval."""
+    """Generate focused, context-aware query expansions for surveillance retrieval.
+    
+    Dynamically expands general terms (vehicles, people, clothing) while strictly 
+    preserving specific modifiers like colors, counts, or attributes to prevent 
+    query dilution and cross-scene contamination.
+    """
     core_q = _normalize_query(query)
     q_low = f"{query.strip().lower()} {core_q}"
     expansions = [query.strip()]
     if core_q != query.strip() and len(core_q) > 2:
         expansions.append(core_q)
 
-    # Vehicles / Trucks / Cars
+    # 1. Dynamically extract color modifiers present in the query
+    known_colors = ["pink", "red", "yellow", "blue", "green", "white", "black", "orange", "grey", "gray", "purple", "brown", "silver"]
+    active_colors = [color for color in known_colors if color in q_low]
+    color_prefix = f"{active_colors[0]} " if active_colors else ""
+
+    # 2. General Vehicles expansion (Dynamic & Non-hallucinatory)
     if any(k in q_low for k in ["vehicle", "vehicles", "car", "cars", "truck", "trucks", "pickup", "van", "vans", "suv", "automobile", "traffic"]):
+        vehicle_types = [v for v in ["pickup", "truck", "van", "suv", "sedan", "car"] if v in q_low]
+        primary_vehicle = vehicle_types[0] if vehicle_types else "vehicle"
+        
         expansions.extend([
-            "white pickup truck parked near yellow caution tape",
-            "automobiles, cars, pickup trucks, and motor vehicles in surveillance frame",
-            "parked cars, utility vehicles, or driving traffic",
-            "dark colored vehicle or SUV in background",
+            f"{color_prefix}{primary_vehicle} in surveillance footage",
+            f"{color_prefix}automobile or motor vehicle in frame",
+            f"traffic containing {color_prefix}{primary_vehicle}"
         ])
 
-    # Camera Crew / Filming / Production
-    if any(k in q_low for k in ["camera crew", "filming", "film crew", "film set", "production crew", "movie", "cinema", "crane"]):
+    # 3. Clothing / Costumes / Apparel expansion
+    if any(k in q_low for k in ["tshirt", "tshirts", "t-shirt", "t-shirts", "shirt", "shirts", "jacket", "hoodie", "clothing", "attire", "costume", "dress", "outfit", "wear"]):
+        clothing_items = [c for c in ["t-shirt", "shirt", "jacket", "hoodie", "dress", "costume", "clothing", "outfit"] if c in q_low]
+        primary_clothing = clothing_items[0] if clothing_items else "clothing"
+        
         expansions.extend([
-            "film production crew with cinema cameras, tripods, and boom mics",
-            "camera operator on crane or tracking dolly cart",
-            "film set with movie cameras and video production equipment",
-            "video production crew working in park",
+            f"person wearing {color_prefix}{primary_clothing}",
+            f"individual dressed in {color_prefix}garments",
+            f"pedestrian in {color_prefix}apparel"
         ])
 
-    # Pink Clothing / Apparel
-    if any(k in q_low for k in ["pink", "pink cloth", "pink dress", "pink shirt", "pink clothing", "pink top"]):
+    # 4. Pedestrians / People / Crowd
+    if any(k in q_low for k in ["pedestrian", "pedestrians", "person", "people", "crowd", "walking", "gathering", "individual"]):
         expansions.extend([
-            "person wearing bright pink clothing",
-            "people in pink top or dress",
-            "individuals dressed in pink garments",
+            f"people or pedestrians in the visual scene",
+            f"individuals present in camera feed",
+            f"person walking or standing"
         ])
 
-    # T-shirts / Shirts / Clothing & Colors
-    if any(k in q_low for k in ["tshirt", "tshirts", "t-shirt", "t-shirts", "shirt", "shirts", "jacket", "hoodie", "black tshirt", "clothing", "attire", "costume", "color tshirt"]):
+    # 5. Bags / Carrying items
+    if any(k in q_low for k in ["bag", "backpack", "package", "luggage", "suitcase"]):
+        bag_items = [b for b in ["backpack", "bag", "package", "luggage", "suitcase"] if b in q_low]
+        primary_bag = bag_items[0] if bag_items else "bag"
         expansions.extend([
-            "people wearing black t-shirt or dark colored shirt",
-            "pedestrians wearing casual shirts or colored t-shirts",
-            "individuals in varied attire and colored tops",
-            "people wearing black t-shirts or colored clothing in surveillance footage",
-        ])
-
-    # Pedestrians / People / Crowd
-    if any(k in q_low for k in ["pedestrian", "pedestrians", "person", "people", "crowd", "walking", "gathering"]):
-        expansions.extend([
-            "pedestrians and people walking in public area",
-            "crowd of people standing outdoors",
-            "group of people walking along path",
-        ])
-
-    # Police / Security / Restraints / Caution Tape
-    if any(k in q_low for k in ["police", "security", "guard", "officer", "caution tape", "restraint", "barrier", "tape"]):
-        expansions.extend([
-            "uniformed security guard or police officer",
-            "yellow caution tape and perimeter barrier",
-            "law enforcement personnel near vehicle",
-        ])
-
-    # Unattended Bags / Backpacks
-    if any(k in q_low for k in ["bag", "backpack", "unattended", "package", "luggage", "suitcase"]):
-        expansions.extend([
-            "unattended backpack or bag on ground",
-            "luggage or package sitting unattended",
+            f"{primary_bag} on the ground or carried",
+            f"person carrying a {primary_bag}"
         ])
 
     # Deduplicate while preserving order

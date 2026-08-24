@@ -213,7 +213,7 @@ class VLMCaptioner:
         self,
         query: str,
         episodes: List[Dict[str, Any]],
-        max_moments: int = 5,
+        max_moments: int = 12,
     ) -> str:
         """Perform comprehensive video-wide forensic synthesis across multiple distinct CCTV moments."""
         if not episodes:
@@ -248,7 +248,7 @@ class VLMCaptioner:
 
             if anchor_f:
                 ts = anchor_f.get("timestamp")
-                if ts and ts not in seen_timestamps and len(selected_frames) < 5:
+                if ts and ts not in seen_timestamps and len(selected_frames) < max_moments:
                     seen_timestamps.add(ts)
                     selected_frames.append({
                         "image_path": anchor_f.get("image_path"),

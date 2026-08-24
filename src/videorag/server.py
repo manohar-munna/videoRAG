@@ -809,24 +809,34 @@ def search_cctv(req: SearchRequest):
     query_vec = PIPELINE["embedder"].embed_query(req.query)
     t1 = time.time()
 
-    # 1. Retrieve candidate episodes with temporal context window expansion
+    # 1. Retrieve candidate episodes with context window expansion
+    # Retrieve a larger list of candidate moments to ensure count queries find all instances
     candidate_episodes = retriever.retrieve_with_context(
         req.query,
-        top_k=max(top_k * 2, 12),
+        top_k=max(top_k * 2, 15),
         context_window=context_window,
         camera_filter=req.camera_filter
     )
     t2 = time.time()
 
-    # 1.5 Apply Second-Stage Cross-Encoder Reranker to rank the most relevant moments to the top
+    # 2. DETECT VISUAL-ONLY INDEX MODE (Lazy VLM Index)
+    # If descriptions contain generic placeholders, bypass the text Cross-Encoder rerank
+    is_visual_index = any(
+        "Surveillance keyframe captured" in (ep.get("frames", [{}])[0].get("description") or "")
+        or "CCTV feed frame at" in (ep.get("frames", [{}])[0].get("description") or "")
+        for ep in candidate_episodes[:3]
+    ) if candidate_episodes else False
+
     reranker = PIPELINE.get("reranker")
-    if reranker and candidate_episodes:
+    if reranker and candidate_episodes and not is_visual_index:
         episodes = reranker.rerank(req.query, candidate_episodes, top_k=top_k)
     else:
+        if is_visual_index:
+            logger.info("[Search] Lazy Index Detected. Bypassing text reranker to retain high-fidelity MobileCLIP scores.")
         episodes = candidate_episodes[:top_k]
     t_rerank = time.time()
 
-    # 2. Multi-Frame Forensic Reasoning via VLM
+    # 3. Multi-Frame Forensic Reasoning via VLM
     answer = ""
     storyboard = []
     if episodes:
@@ -846,12 +856,13 @@ def search_cctv(req: SearchRequest):
         is_global_query = any(w in q_low for w in [
             "total", "all vehicles", "number of vehicles", "how many", "count of",
             "throughout", "across the video", "in the video footage", "in the entire",
-            "all cars", "all people", "summary of", "every vehicle"
-        ])
+            "all cars", "all people", "summary of", "every vehicle", "vehicles visible"
+        ]) or (any(c in q_low for c in ["pink", "red", "yellow", "blue", "green", "white"]) and any(x in q_low for x in ["people", "person", "car", "vehicle", "count"]))
 
-        if is_global_query and len(episodes) > 1:
-            logger.info("[Search] Running video-wide cross-moment forensic synthesis across %d candidate episodes...", len(episodes))
-            answer = captioner.reason_video_wide_synthesis(req.query, episodes)
+        if is_global_query and len(candidate_episodes) > 1:
+            episodes_for_synthesis = candidate_episodes[:12]
+            logger.info("[Search] Running video-wide cross-moment forensic synthesis across %d candidate episodes...", len(episodes_for_synthesis))
+            answer = captioner.reason_video_wide_synthesis(req.query, episodes_for_synthesis, max_moments=12)
         else:
             logger.info("[Search] Running multi-frame forensic reasoning on top episode (%s, %s)...",
                         top_episode.get("camera"), top_episode.get("time_range"))
