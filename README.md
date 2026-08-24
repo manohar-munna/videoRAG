@@ -1,229 +1,176 @@
 <div align="center">
 
 # VideoRAG — CCTV Intelligence Platform
-### Lazy Multi-Frame VLM & Temporal Grounding Architecture for Surveillance Video
+### Multimodal Edge RAG, 2-Stage Cross-Encoder Reranking & Dynamic Dual-Profile VLM (Desktop 4B GPU ⇄ Mobile 2B CPU)
 
-**Instant keyframe ingestion, 512-D multimodal vector search, and on-demand multi-frame forensic video reasoning powered by Apple MobileCLIP-S2 & Local Qwen3-VL (CUDA Accelerated).**
+**Instant CCTV keyframe ingestion, 512-D Apple MobileCLIP-S2 vector search, deep Transformer cross-attention reranking, and on-demand multi-frame forensic surveillance reasoning.**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![Edge Filter](https://img.shields.io/badge/Edge%20Filter-dHash%20%7C%20pHash-38bdf8)]()
-[![RAG Architecture](https://img.shields.io/badge/FAISS-384--D%20Inner%20Product-0284c7)]()
-[![LLM Backend](https://img.shields.io/badge/VLM-Qwen3--VL%204B%20(Local%20GPU)-green)]()
-[![UI](https://img.shields.io/badge/UI-Surveillance%20Control%20Center-darkred)]()
+[![Edge Filter](https://img.shields.io/badge/Edge%20Gate-dHash%20%7C%20pHash%20(<0.2ms)-38bdf8)]()
+[![Embedder](https://img.shields.io/badge/Embedder-Apple%20MobileCLIP--S2%20(512--D)-0284c7)]()
+[![Vector Store](https://img.shields.io/badge/FAISS-IndexFlatIP%20(Cosine)-0369a1)]()
+[![Reranker](https://img.shields.io/badge/Reranker-MS--MARCO%20Cross--Encoder-purple)]()
+[![VLM Engine](https://img.shields.io/badge/VLM-Qwen3--VL%204B%20%26%20Qwen2--VL%202B-green)]()
 
 </div>
 
 ---
 
 ## 📑 Table of Contents
-- [📌 Architecture: Eager VLM vs. Lazy Multi-Frame VLM](#-architecture-eager-vlm-vs-lazy-multi-frame-vlm)
-- [🚀 Key Innovations & Capabilities](#-key-innovations--capabilities)
-- [🖥️ UI & Control Center Walkthrough](#️-ui--control-center-walkthrough)
-- [🛠️ 60-Second Quickstart](#️-60-second-quickstart)
-- [🔌 Complete REST API Reference](#-complete-rest-api-reference)
-- [⚙️ Configuration Reference (`config.yaml`)](#️-configuration-reference-configyaml)
-- [💻 Standalone CLI Tools](#-standalone-cli-tools)
-- [🧪 Benchmark Test Matrix](#-benchmark-test-matrix)
-- [❓ Troubleshooting & FAQ](#-troubleshooting--faq)
-- [📁 Project Layout](#-project-layout)
+- [📌 System Architecture & Pipeline Overview](#-system-architecture--pipeline-overview)
+- [⚡ Dynamic Dual-Profile VLM Execution (Desktop 4B vs. Mobile 2B)](#-dynamic-dual-profile-vlm-execution-desktop-4b-vs-mobile-2b)
+- [🔍 Two-Stage Retrieval: FAISS Cosine + Cross-Encoder Reranking](#-two-stage-retrieval-faiss-cosine--cross-encoder-reranking)
+- [📹 Edge-Gate Frame Filtering (dHash / pHash)](#-edge-gate-frame-filtering-dhash--phash)
+- [🖥️ Surveillance Command Center Web UI](#️-surveillance-command-center-web-ui)
+- [🛠️ Quickstart & Installation](#️-quickstart--installation)
+- [🔌 REST API Reference](#-rest-api-reference)
+- [⚙️ Configuration Reference (config.yaml)](#️-configuration-reference-configyaml)
+- [🧪 Benchmark Telemetry & Test Matrix](#-benchmark-telemetry--test-matrix)
+- [📂 Project Directory Layout](#-project-directory-layout)
 - [📄 License](#-license)
 
 ---
 
-## 📂 Complete Project Directory Structure
+## 📌 System Architecture & Pipeline Overview
 
-If starting from scratch or after cleaning the repository, this is the exact layout the application expects:
+VideoRAG replaces computationally prohibitive *eager video captioning* with an ultra-efficient **Lazy Multimodal Retrieval + On-Demand Multi-Frame Forensic Reasoning** architecture:
 
 ```text
-VideoRAG-main/
-│
-├── config/
-│   └── config.yaml                     # Primary configuration (LLM backend, retrieval top-k, FAISS paths)
-│
-├── models/
-│   └── qwen3_vl/                       # Local Qwen3-VL 4B GGUF Model & Vision Projector
-│       ├── Qwen3VL-4B-Instruct-Q4_K_M.gguf          # ~2.38 GB (4-bit quantized VLM weights)
-│       └── mmproj-Qwen3VL-4B-Instruct-F16.gguf      # ~797 MB (Multimodal vision projector)
-│
-├── tools/
-│   └── llama/                          # llama.cpp server binaries & CUDA 12 dependencies
-│       ├── llama-server.exe            # Local OpenAI-compatible high-speed inference server
-│       ├── cublas64_12.dll             # NVIDIA cuBLAS runtime
-│       ├── cudart64_12.dll             # NVIDIA CUDA runtime
-│       ├── ggml-cuda.dll               # GGML CUDA backend
-│       └── (additional ggml/llama DLLs)
-│
-├── data/
-│   ├── real_cctv_events.json           # Master CCTV surveillance events database
-│   ├── cameras_registry.json           # Registered cameras (RTSP, YouTube Live, MP4 feeds)
-│   ├── videos/                         # Stored MP4 recordings (e.g. sample_cctv.mp4)
-│   └── cameras/                        # Per-camera extracted keyframes and isolated event logs
-│       ├── CAM_01/
-│       │   ├── events.json
-│       │   └── extracted_frames/       # Sampled keyframes (e.g. CAM_01_00_01_15_451.jpg)
-│       └── CAM_3000/
-│           ├── events.json
-│           └── extracted_frames/
-│
-├── index/
-│   ├── cctv_index.faiss                # Dense vector index (384-D FAISS Flat)
-│   └── cctv_index.meta.json            # Chunk metadata mapping vector IDs to timestamps/cameras
-│
-├── src/
-│   └── videorag/
-│       ├── captioning/                 # VLM frame captioning (VLMCaptioner)
-│       ├── evaluation/                 # Groundedness & relevance evaluation metrics
-│       ├── indexing/                   # TextEmbedder, Chunker, FAISSVectorStore
-│       ├── ingestion/                  # RTSP stream capture, dHash/pHash EdgeFrameFilter
-│       ├── llm/                        # Prompt builder & LLMClient (local llama-server / Gemini)
-│       ├── retrieval/                  # CCTVRetriever & CrossEncoderReranker
-│       └── server.py                   # FastAPI application & background auto-indexer worker
-│
-├── ui/
-│   ├── index.html                      # CCTV Surveillance Command Center UI
-│   ├── app.js                          # Real-time DVR seeking, search, and live stream telemetry
-│   └── style.css                       # Control room interface styling
-│
-├── scripts/
-│   ├── download_models.py              # Automated downloader for Qwen3-VL GGUF weights
-│   ├── index.py                        # Indexing script to compile FAISS database
-│   ├── reindex_real.py                 # Quick helper to re-embed data/real_cctv_events.json
-│   └── query.py                        # CLI test query utility
-│
-├── .env.example                        # Template for API keys (optional fallback)
-├── .gitignore                          # Git ignore rules (*.gguf, temporary files)
-└── requirements.txt                    # Python dependencies
+ CCTV Camera Stream (MP4 / RTSP / YouTube Live DVR)
+      │
+      ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │  STAGE 1: Edge Hash Gate (<0.2ms / frame)                   │
+ │  • 64-bit dHash / pHash gradient fingerprinting            │
+ │  • Drops 50–85% static/duplicate scenes before LLM ingestion│
+ └─────────────────────────────────────────────────────────────┘
+      │ (Significant scene shifts & motion keyframes)
+      ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │  STAGE 2: Apple MobileCLIP-S2 Embedder (512-D)              │
+ │  • Fast zero-shot vision-text embedding                     │
+ │  • Stored in FAISS IndexFlatIP (Unit Cosine Normalized)     │
+ └─────────────────────────────────────────────────────────────┘
+      │
+      ▼ (User Natural Language Query)
+ ┌─────────────────────────────────────────────────────────────┐
+ │  STAGE 3: 2-Stage Multimodal Retrieval                      │
+ │  1. FAISS Cosine Search: Retrieves top candidate episodes   │
+ │  2. Cross-Encoder Reranker (ms-marco-MiniLM-L-6-v2):        │
+ │     Joint query-passage attention promotes true targets     │
+ └─────────────────────────────────────────────────────────────┘
+      │ (Top-1 Reranked Chronological Episode)
+      ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │  STAGE 4: Dynamic VLM Forensic Reasoning                    │
+ │  • Desktop Profile: Qwen3-VL 4B (CUDA GPU, 5-frame window) │
+ │  • Mobile Profile:  Qwen2-VL 2B (CPU Q8_0, 3-frame window) │
+ │  • Verifies target pixels & outputs [CONFIRMED_AT: HH:MM:SS]│
+ └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ⚡ Setup & Installation From Scratch
+## ⚡ Dynamic Dual-Profile VLM Execution (Desktop 4B vs. Mobile 2B)
 
-Follow these steps to restore and run the complete system even after deleting model/data caches:
+VideoRAG features runtime switching between high-throughput **Desktop GPU** and lightweight **Mobile/Edge CPU** execution modes with zero process leakage. Switching cleanly unloads model weights and releases VRAM before initializing the target runtime.
+
+| Feature / Metric | ⚡ Desktop 4B (GPU) Profile | 📱 Mobile 2B (CPU) Profile |
+| :--- | :--- | :--- |
+| **Model** | `Qwen3-VL-4B-Instruct-Q4_K_M.gguf` | `Qwen2-VL-2B-Instruct-Q4_K_M.gguf` |
+| **Vision Projector** | `mmproj-Qwen3VL-4B-Instruct-F16.gguf` | `mmproj-Qwen2-VL-2B-Instruct-f16.gguf` |
+| **Compute Device** | NVIDIA CUDA GPU (`-ngl 99`) | CPU-Only (`-ngl 0`, 6 threads) |
+| **Context Window** | 4,096 tokens (4 slots) | 2,048 tokens (1 slot) |
+| **KV Cache Type** | `FP16` | **`Q8_0` Quantized** |
+| **Storyboard Window** | 5 frames (`[-2, -1, 0, +1, +2]`) | **3 frames (`[-1, 0, +1]`)** |
+| **Inference Scaling** | 768 px max dimension | **512 px max dimension (In-Memory)** |
+| **GPU Dedicated VRAM** | `5.31 GB / 6.00 GB (88.5%)` | **`0 MB (CPU Mode Safe ✅)`** |
+| **Process RSS Memory** | ~1.85 GB | **~1.50 – 1.95 GB** |
+| **Token Throughput** | **`~42 – 45 tok/s`** | **`~10 – 18 tok/s`** |
+| **Switch Latency** | — | **~3.5 seconds** |
+
+---
+
+## 🔍 Two-Stage Retrieval: FAISS Cosine + Cross-Encoder Reranking
+
+Dense vector dot-products can sometimes rank generic frames close to target frames (e.g. difference of `< 0.002` in cosine score). VideoRAG implements a **2-Stage Retrieval Pipeline**:
+
+1. **Stage 1 (FAISS Vector Search)**:
+   - Uses Apple MobileCLIP-S2 to embed queries and image keyframes into a 512-D unit hypersphere ($\|v\| = 1.0000$).
+   - Retrieves a candidate pool of `12+` chronological candidate episodes in `< 100 ms`.
+2. **Stage 2 (Transformer Cross-Encoder Reranking)**:
+   - Uses `cross-encoder/ms-marco-MiniLM-L-6-v2` to jointly score the user natural language query against multi-frame forensic episode descriptions.
+   - Genuine target moments receive high positive logit scores (`+0.2998`), while irrelevant candidate frames are penalized (`-1.3047`), promoting the exact target sequence to **Rank #1**.
+
+---
+
+## 📹 Edge-Gate Frame Filtering (dHash / pHash)
+
+To eliminate redundant computation on continuous CCTV surveillance streams, VideoRAG uses 64-bit difference hashing (`dHash`) and perceptual hashing (`pHash`) directly at ingestion:
+
+- **Execution Speed**: `< 0.25 ms` per frame on CPU.
+- **Compute Reduction**: Drops **50% to 85%** of duplicate frames at the edge gate before reaching the VLM or vector store.
+- **Configurable Threshold**: Interactive slider (Optimal: `8–12`) to preserve motion while discarding static frames.
+
+---
+
+## 🖥️ Surveillance Command Center Web UI
+
+The built-in web control room at `http://127.0.0.1:8000/` includes:
+
+1. **Dual Profile Switcher**: Interactive `[ ⚡ Desktop 4B (GPU) ]` ⇄ `[ 📱 Mobile 2B (CPU) ]` toggle buttons in the top navigation bar.
+2. **Multi-Camera Monitor**: Synchronized DVR player supporting local MP4 footage, RTSP streams, and YouTube Live feeds with frame-accurate seeking.
+3. **Forensic Storyboard**: Chronological keyframe display citing exact timestamps (`[CONFIRMED_AT: HH:MM:SS]`).
+4. **Developer Mode Multi-Tab Inspector**:
+   - **Edge Gate & Hash Filter**: Live Hamming distance distribution and motion percentage KPIs.
+   - **Vector & Execution Trace**: Real-time breakdown of embedding, FAISS retrieval, Cross-Encoder reranking, and VLM generation latencies.
+   - **JSON Event Chunks Explorer**: Live viewer and search tool for indexed surveillance chunks.
+   - **RTSP Live Stream Manager**: Register and monitor live camera streams.
+   - **Query Telemetry & Evaluation Benchmark Log**: Persistent history tracking Process RSS, RAM %, dedicated GPU VRAM, token speed, and full model responses.
+
+---
+
+## 🛠️ Quickstart & Installation
 
 ### 1. Environment Setup
-
-Clone the repository and install required Python packages:
-
-### 2. 👁️ Apple MobileCLIP-S2 Multimodal Embedder (512-D)
-- Fast, state-of-the-art zero-shot multimodal vision-language model.
-- Unit-normalized ($\|v\| = 1.0000$) vector representations optimized for FAISS Inner Product cosine ranking.
-
-### 3. 🧠 Local Multi-Frame Qwen3-VL Forensic Reasoning (GPU)
-- Runs completely on-premise / offline using `llama-server.exe` with CUDA GPU acceleration.
-- Takes ordered base64 image sequences and applies structured **Chain-of-Thought (CoT)** reasoning:
-  1. *Frame-by-Frame Evaluation*: Details presence or absence of target query with exact timestamps.
-  2. *Forensic Summary Synthesis*: Generates non-contradictory security intelligence reports.
-
-### 4. 🕒 Timezone-Invariant Synchronized DVR & Video Player
-- Calculates client-to-server clock drift (`serverTimeOffsetMs`) via `/api/health` roundtrip telemetry.
-- Jump seeks effortlessly across local MP4 recordings, RTSP surveillance feeds, and high-resolution archived evidence snapshots.
-
----
-
-## 🖥️ UI & Control Center Walkthrough
-
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ [VideoRAG DEFENCE]   Model: Qwen3-VL   Index: 179 Vectors   Status: ONLINE (GPU)  [Dev Mode]│
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│  🔍 [ Search Video: "white pickup truck parked near yellow tape"                     ] │
-│  Camera: [All Feeds] [CAM_01]  Quick: [Vehicles & Trucks] [Caution Tape] [Pedestrians] │
-├──────────────────────────────────────────┬─────────────────────────────────────────────┤
-│  📹 SURVEILLANCE FEED MONITOR            │  🤖 LOCAL QWEN3-VL FORENSIC ANALYSIS        │
-│  ┌────────────────────────────────────┐  │  🎬 Forensic Storyboard (5 Frames)          │
-│  │                                    │  │  [00:02:33] [00:02:39] [00:02:42]* [00:02:48]│
-│  │   1080p CCTV Live Player / DVR     │  │  ───────────────────────────────────────────│
-│  │   • Frame-Accurate Jump Seeking    │  │  ▪ 00:02:33 (Frame 1): Crowd gathered near  │
-│  │   • HUD: CAM_01 @ 00:02:42         │  │    white truck and yellow caution tape.     │
-│  └────────────────────────────────────┘  │  ▪ 00:02:42 (Frame 3): Uniformed security.  │
-│  Feed Switcher: [ALL FEEDS] [CAM_01]     │  ───────────────────────────────────────────│
-│                                          │  Precision@5: 1.00 | MRR: 1.00 | NDCG: 1.00 │
-├──────────────────────────────────────────┴─────────────────────────────────────────────┤
-│  ⚡ DEVELOPER HUB (Live 4-Stage Operating Stepper & 512-D Vector Inspector)            │
-│  ┌───────────────┐   ┌───────────────┐   ┌───────────────┐   ┌───────────────┐         │
-│  │ STAGE 1: Done │──>│ STAGE 2: Done │──>│ STAGE 3: Done │──>│ STAGE 4: Done │         │
-│  │ Query Embed   │   │ FAISS Search  │   │ Time Slicer   │   │ Qwen3-VL      │         │
-│  │ ~33 ms        │   │ Cosine: 0.098 │   │ ±15s–30s      │   │ GPU Vision    │         │
-│  └───────────────┘   └───────────────┘   └───────────────┘   └───────────────┘         │
-│  Tabs: [⚡ Lazy VLM Pipeline] [Vector & Execution Trace] [Visual Keyframes Dataset (179)]│
-└────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🛠️ 60-Second Quickstart
-
-### 1. Clone the Repository
-```bash
+```powershell
+# Clone the repository
 git clone https://github.com/manohar-munna/videoRAG.git
 cd videoRAG
-python -m venv venv
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-# source venv/bin/activate
 
+# Create and activate virtual environment
+python -m venv venv
+venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Download LLM & Vision Projector Models
+### 2. Model Downloads
 
-Run the included automated model downloader:
+VideoRAG uses local GGUF models for zero cloud dependency:
 
-```bash
-python scripts/download_models.py
-```
+#### Desktop 4B Model (Qwen3-VL 4B Instruct):
+- Model: `models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf` (~2.38 GB)
+- Vision Projector: `models/qwen3_vl/mmproj-Qwen3VL-4B-Instruct-F16.gguf` (~797 MB)
 
-This places the following files into `models/qwen3_vl/`:
-1. `Qwen3VL-4B-Instruct-Q4_K_M.gguf` (~2.38 GB)
-2. `mmproj-Qwen3VL-4B-Instruct-F16.gguf` (~797 MB)
+#### Mobile 2B Model (Qwen2-VL 2B Instruct):
+- Model: `models/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf` (~940 MB)
+- Vision Projector: `models/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-f16.gguf` (~1.27 GB)
 
-*(Alternatively, you can manually place compatible Qwen2.5-VL / Qwen3-VL 4B GGUF weights into `models/qwen3_vl/`)*.
+*(Download models automatically using `python scripts/download_models.py` or place existing weights into the respective `models/` folders)*.
 
-### 3. Ensure Llama Server Binaries are Present
+### 3. Ensure Llama Server Binaries
+Place `llama-server.exe` and CUDA DLLs into `tools/llama/`. VideoRAG automatically manages the lifecycle of `llama-server.exe`.
 
-Place `llama-server.exe` and its supporting DLLs in `tools/llama/`.
-- VideoRAG uses `llama-server.exe` with CUDA 12 GPU acceleration.
-- When the application starts, `server.py` automatically detects and launches `llama-server.exe` on port `8080` with `-ngl 99` (full GPU layer offloading).
-
-### 4. Build or Rebuild the FAISS Vector Index
-
-Compile the surveillance vector store from `data/real_cctv_events.json`:
-
-```bash
-python scripts/reindex_real.py
-```
-
-This generates `index/cctv_index.faiss` and `index/cctv_index.meta.json`.
-
----
-
-## 🚀 Running the Web Server & Control Center
-
-Start the unified VideoRAG backend:
-
-```
-videoRAG/
-├── models/
-│   ├── mobileclip_s2/
-│   │   ├── open_clip_model.safetensors        # Apple MobileCLIP-S2 weights
-│   │   └── open_clip_config.json              # Model configuration
-│   └── qwen3_vl/
-│       ├── Qwen3VL-4B-Instruct-Q4_K_M.gguf    # Quantized Qwen3-VL 4B Instruct
-│       └── mmproj-Qwen3VL-4B-Instruct-F16.gguf # Multimodal vision projector
-├── data/
-│   └── videos/
-│       └── sample_cctv.mp4                    # Sample 24/7 CCTV surveillance footage
-└── tools/llama/
-    └── llama-server.exe                       # llama.cpp server binary
-```
-
-### 4. Launch the Server
+### 4. Start the Application
 ```powershell
-$env:PYTHONUTF8=1
+# Launch in default Desktop (GPU) mode:
 python src/videorag/server.py --port 8000
+
+# Or launch directly in Mobile (CPU) mode:
+python src/videorag/server.py --profile mobile --port 8000
 ```
 Open **`http://127.0.0.1:8000/`** in your browser.
 
@@ -238,71 +185,45 @@ Open **`http://127.0.0.1:8000/`** in your browser.
 {
   "query": "people wearing pink cloths",
   "top_k": 5,
-  "camera_filter": "CAM_01"
-}
-```
-- **Response Structure**:
+  "camera_f### 2. Runtime Profile Switching
+- **Endpoint**: `POST /api/profile/switch`
+- **Request Body**:
 ```json
 {
-  "query": "people wearing pink cloths",
-  "answer": "--- Frame 1 (00:08:33) ---\nObservation: ...\n--- Frame 2 (00:08:39) ---\nObservation: Two individuals in pink tops visible.",
-  "storyboard": [
-    {
-      "camera": "CAM_01",
-      "timestamp": "00:08:33",
-      "seconds": 513.0,
-      "image_path": "/data/extracted_frames/CAM_01_00_08_33_15390.jpg",
-      "is_anchor": false,
-      "score": 0.0
-    },
-    {
-      "camera": "CAM_01",
-      "timestamp": "00:08:42",
-      "seconds": 522.0,
-      "image_path": "/data/extracted_frames/CAM_01_00_08_42_15660.jpg",
-      "is_anchor": true,
-      "score": 0.0993
-    }
-  ],
-  "evaluation": {
-    "retrieval": { "precision_at_k": 1.0, "mrr": 1.0, "ndcg_at_k": 1.0 },
-    "answer": { "context_utilization": 1.0, "has_timestamp": true, "has_camera": true }
-  },
-  "debug_trace": {
-    "query_vector_dim": 512,
-    "query_vector_norm": 1.0,
-    "timings_ms": {
-      "query_embedding_ms": 32.5,
-      "faiss_retrieval_ms": 0.4,
-      "temporal_expansion_ms": 0.5,
-      "vlm_reasoning_ms": 14200.0,
-      "total_ms": 14233.4
-    }
-  }
+  "profile": "mobile"
+}
+```
+- **Response**:
+```json
+{
+  "status": "switched",
+  "active_profile": "mobile",
+  "name": "Mobile 2B CPU",
+  "llm_backend": "local",
+  "model": "models/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
+  "base_url": "http://127.0.0.1:8080/v1"
 }
 ```
 
-### 2. System Health & System Info
+### 3. System Health & System Info
 - **Endpoint**: `GET /api/health`
 - **Response**:
 ```json
 {
   "status": "online",
-  "vector_count": 179,
+  "vector_count": 2238,
   "vector_dimension": 512,
   "embedder_model": "MobileCLIP-S2",
-  "llm_backend": "local",
-  "server_time": 1771440000.123
+  "active_profile": "desktop",
+  "profile_name": "Desktop 4B GPU",
+  "reranker": "CrossEncoderReranker",
+  "server_time": 1787590454.123
 }
 ```
 
-### 3. Keyframe Vectors List (Lazy VLM Grounding)
-- **Endpoint**: `GET /api/lazy_vlm/vectors?limit=179`
+### 4. Keyframe Vectors List (Lazy VLM Grounding)
+- **Endpoint**: `GET /api/lazy_vlm/vectors?limit=100`
 - **Response**: List of 512-D unit vector samples, thumbnail image paths, and timestamp metadata.
-
-### 4. Visual Keyframes Dataset Metadata
-- **Endpoint**: `GET /api/events?detailed=true`
-- **Response**: Returns total count (`179 Keyframes`), camera breakdown, and complete metadata payload.
 
 ### 5. Camera Feeds & RTSP Registry
 - **Endpoint**: `GET /api/cameras/feeds` / `GET /api/cameras`
@@ -315,38 +236,30 @@ Open **`http://127.0.0.1:8000/`** in your browser.
 Edit [`config/config.yaml`](file:///C:/Users/manoh/Downloads/git%20repos/VideoRAG-main/config/config.yaml) to customize pipeline parameters:
 
 ```yaml
-# Data & Video Paths
-data:
-  mock_path: "data/mock_cctv.json"
-  sample_video: "Video Footage/sample_cctv.mp4"
-
 # Edge Frame Extraction & dHash Filtering
 edge_filter:
   enabled: true
   hash_method: "dhash"          # Options: "dhash", "phash", "average_hash"
-  hamming_threshold: 12         # Min bitwise difference to keep frame
+  hamming_threshold: 10         # Min bitwise difference to keep frame
   min_motion_percent: 1.5
 
 # Multimodal Indexing & Embedding
 indexing:
   model_name: "MobileCLIP-S2"   # Apple MobileCLIP-S2 (512-D)
-  checkpoint_path: "models/mobileclip_s2/open_clip_model.safetensors"
   dimension: 512
   index_type: "flat_ip"         # FAISS IndexFlatIP for normalized cosine similarity
-  index_save_path: "index/cctv_index.faiss"
-  meta_save_path: "index/cctv_index.meta.json"
+  index_save_path: "index/cctv_index"
 
 # Retrieval & Temporal Episode Bundling
 retrieval:
   top_k: 10
-  context_window: 2             # ±2 neighbouring frames (5 frames total per episode)
-  use_reranker: false
+  context_window: 2             # ±2 neighbouring frames (5 frames total for Desktop)
+  use_reranker: true            # Enables Cross-Encoder second-stage reranking
 
 # Vision-Language Model (Forensic Engine)
 llm:
   backend: "local"              # Options: "local" (llama-server), "openai", "gemini"
   model: "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
-  mmproj: "models/qwen3_vl/mmproj-Qwen3VL-4B-Instruct-F16.gguf"
   base_url: "http://127.0.0.1:8080/v1"
   temperature: 0.1
   max_tokens: 1024
@@ -365,27 +278,28 @@ python scripts/index.py --data "data/videos/sample_cctv.mp4" --camera CAM_01
 ### 2. Interactive CLI Forensic Query Loop
 Run natural-language queries directly in the terminal with colored tables and panels:
 ```powershell
-python scripts/query.py --query "white pickup truck parked near yellow tape"
+python scripts/query.py --query "people wearing pink color costumes"
 ```
 
 ---
 
-## 🧪 Benchmark Test Matrix
+## 🧪 Benchmark Telemetry & Test Matrix
 
-| Benchmark Scenario | Natural Language Query | Ground-Truth Video Timeline | Expected Forensic Output |
-| :--- | :--- | :--- | :--- |
-| **🚗 Vehicle Inspection** | `white pickup truck parked near yellow tape` | `00:02:33` | Identifies parked white pickup truck and crowd behind tape. |
-| **👮 Security Personnel** | `police officer or uniformed security personnel` | `00:02:42` | Cites uniformed officer / security member at anchor timestamp. |
-| **👥 Crowd Gathering** | `crowd gathered in front of venice hotel` | `00:02:33 → 00:02:48` | Details crowd dynamics near Venice V Hotel signage. |
-| **📹 Anomaly Detection** | `camera abruptly pans or shifts to the ground` | `00:02:42` | Captures blurred ground-level camera anomaly (Frame 3). |
-| **👗 Specific Subjects** | `people wearing pink cloths` | `00:08:39 → 00:08:42` | Accurately identifies 2 individuals wearing pink tops. |
+Tested on NVIDIA GeForce RTX 4050 Laptop GPU (6.00 GB Dedicated VRAM) + Intel Core i7 (15.73 GB RAM):
+
+| Natural Language Query | Camera | Promoted Rank #1 Timestamp | Cross-Encoder Score | FAISS Score | Total Pipeline Latency | Accuracy |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `people wearing pink color costumes` | `CAM_01` | **`00:07:36`** | **`+0.2998`** | `0.2505` | **2,428 ms** | 100% (Verified) |
+| `white pickup truck parked near yellow tape` | `CAM_01` | **`00:08:50`** | **`+0.3421`** | `0.2612` | **2,150 ms** | 100% (Verified) |
+| `police officer or uniformed security personnel` | `CAM_01` | **`00:10:14`** | **`+0.2845`** | `0.2480` | **2,380 ms** | 100% (Verified) |
+| `camera mounted on a black color cart` | `CAM_01` | None (Absent) | **`-2.9319`** | `0.2010` | **1,980 ms** | 100% (Accurate Refusal) |
 
 ---
 
 ## ❓ Troubleshooting & FAQ
 
 ### Q1: `llama-server.exe` fails to start or says CUDA out of memory
-- **Solution**: In `src/videorag/llm/prompter.py`, adjust the `-ngl` (number of GPU layers) parameter. Default is `-ngl 99` (all layers in VRAM). Set `-ngl 24` or `-ngl 16` if your GPU has 4GB–6GB VRAM.
+- **Solution**: Switch to the **Mobile 2B CPU** profile via the UI navigation header or pass `--profile mobile` on startup.
 
 ### Q2: Port 8000 or 8080 is already occupied
 - **Solution**: Terminate the previous process or specify custom ports:
@@ -394,7 +308,7 @@ python src/videorag/server.py --port 8005
 ```
 
 ### Q3: Why does a query say "No visual evidence" for objects not present?
-- **Answer**: This is intentional! Unlike legacy generative models that hallucinate content, Qwen3-VL performs strict pixel verification and accurately refutes absent entities.
+- **Answer**: This is intentional! Unlike legacy generative models that hallucinate content, Qwen3-VL and Qwen2-VL perform strict pixel verification and accurately refutes absent entities.
 
 ### Q4: How do I add live RTSP CCTV camera feeds?
 - **Answer**: Open the **RTSP Live Stream Manager** tab in the Developer Hub, enter your RTSP URL (e.g. `rtsp://admin:pass@192.168.1.100:554/stream1`), assign a Camera ID (`CAM_02`), and click **Register Stream**.
@@ -403,62 +317,65 @@ python src/videorag/server.py --port 8005
 
 ## 📁 Project Layout
 
-```
+```text
 VideoRAG/
 ├── config/
 │   └── config.yaml                     # Pipeline & model configuration parameters
 ├── data/
-│   ├── cameras/                        # Per-camera frame storage & events
 │   ├── cameras_registry.json           # Live & recorded camera registry
-│   └── extracted_frames/               # Extracted visual keyframes
+│   ├── real_cctv_events.json           # Master CCTV surveillance events database
+│   └── cameras/                        # Per-camera frame storage & events
+│       ├── CAM_01/
+│       │   ├── events.json
+│       │   └── extracted_frames/
+│       └── CAM_3000/
+│           ├── events.json
+│           └── extracted_frames/
 ├── index/
 │   ├── cctv_index.faiss                # 512-D MobileCLIP FAISS vector index
-│   └── cctv_index.meta.json            # 179 keyframe metadata records
+│   └── cctv_index.meta.json            # Keyframe chunk metadata records
 ├── models/
-│   └── mobileclip_s2/                  # Apple MobileCLIP-S2 weights (safetensors)
+│   ├── qwen3_vl/                       # Desktop 4B VLM GGUF weights & vision projector
+│   └── qwen2_vl_2b/                    # Mobile 2B VLM GGUF weights & vision projector
+├── tools/
+│   └── llama/                          # llama.cpp server binaries & CUDA 12 runtimes
 ├── src/
 │   └── videorag/
 │       ├── captioning/
-│       │   └── vlm_captioner.py        # Multi-frame forensic VLM client (Qwen3-VL)
+│       │   └── vlm_captioner.py        # Multi-frame forensic VLM client & in-memory resizing
 │       ├── evaluation/
-│       │   └── evaluator.py            # Multimodal retrieval & answer evaluator
+│       │   └── evaluator.py            # Precision@5, MRR, NDCG retrieval evaluator
 │       ├── indexing/
-│       │   ├── embedder.py             # MobileCLIP-S2 multimodal embedder (512-D)
+│       │   ├── embedder.py             # Apple MobileCLIP-S2 multimodal embedder (512-D)
 │       │   └── vector_store.py         # FAISS vector store (Cosine IP)
 │       ├── ingestion/
-│       │   ├── hash_filter.py          # dHash / pHash edge frame filter
-│       │   ├── stream_capture.py       # Multi-camera stream manager
-│       │   └── video_processor.py      # Frame extractor with FPS downsampling
+│       │   ├── hash_filter.py          # dHash / pHash edge frame filter (<0.2ms)
+│       │   └── stream_capture.py       # Multi-camera RTSP/YouTube Live stream capture
+│       ├── llm/
+│       │   ├── vlm_process_manager.py  # Lifecycle & clean switching for Desktop/Mobile profiles
+│       │   └── prompter.py             # Security-specialized prompt templates
+│       ├── monitoring/
+│       │   └── hardware_telemetry.py   # NVML GPU VRAM, CPU utilization & RSS memory tracker
 │       ├── retrieval/
-│       │   ├── reranker.py             # Cross-encoder reranker
+│       │   ├── reranker.py             # MS-MARCO Cross-Encoder reranker
 │       │   └── retriever.py            # Multimodal anchor + temporal episode retriever
 │       └── server.py                   # FastAPI backend server & REST API
 ├── ui/
-│   ├── app.js                          # Control center frontend logic & telemetry
+│   ├── app.js                          # Control center frontend logic, profile switching & telemetry
 │   ├── index.html                      # Forensic surveillance web application
-│   └── style.css                       # Modern dark/light surveillance CSS design
+│   └── style.css                       # Modern surveillance CSS design
+├── requirements.txt                    # Python package dependencies
+└── README.md                           # Comprehensive documentation & architecture guide
+```
+
 ├── requirements.txt                    # Python package dependencies
 └── README.md                           # Comprehensive documentation & architecture guide
 ```
 
 ---
 
-## 🧠 System Architecture & GPU VRAM Allocation
-
-- **VLM Inference Engine**: Qwen3-VL 4B running locally on GPU via `llama-server.exe` at `http://127.0.0.1:8080/v1`.
-- **GPU Memory Pre-Allocation (~95% VRAM)**:
-  - VideoRAG pre-allocates model weights and unified Key-Value (KV) cache slots directly in VRAM.
-  - Keeping weights resident in VRAM prevents SSD read bottlenecks, delivering sub-millisecond query retrieval and fast image frame captioning.
-  - When idle, **GPU Compute Utilization is 0%**, drawing minimal power.
-- **RAG Pipeline**:
-  - **Dense Embedding**: `sentence-transformers/all-MiniLM-L6-v2` (384-D).
-  - **Cross-Encoder Reranker**: `cross-encoder/ms-marco-MiniLM-L-6-v2`.
-  - **Vector Retrieval**: FAISS Inner-Product similarity search.
-- **Edge Compute Filter**: Bitwise XOR Hamming Distance (< 0.2ms) drops 80–90% of redundant CCTV frames before they reach the VLM.
-
----
-
 ## 📄 License
 
-MIT License. Built for high-security environments requiring local edge video intelligence and zero-cloud dependency.
+MIT License. Built for high-security environments requiring real-time multimodal CCTV intelligence and zero cloud dependency.
+
 
