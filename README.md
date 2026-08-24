@@ -20,6 +20,7 @@
 ## 📑 Table of Contents
 - [📌 System Architecture & Pipeline Overview](#-system-architecture--pipeline-overview)
 - [⚡ Dynamic Dual-Profile VLM Execution (Desktop 4B vs. Mobile 2B)](#-dynamic-dual-profile-vlm-execution-desktop-4b-vs-mobile-2b)
+- [📱 Android On-Device Native System (Kotlin & C++ NPU/GPU Execution)](#-android-on-device-native-system-kotlin--c-npugpu-execution)
 - [🔍 Two-Stage Retrieval: FAISS Cosine + Cross-Encoder Reranking](#-two-stage-retrieval-faiss-cosine--cross-encoder-reranking)
 - [📹 Edge-Gate Frame Filtering (dHash / pHash)](#-edge-gate-frame-filtering-dhash--phash)
 - [🖥️ Surveillance Command Center Web UI](#️-surveillance-command-center-web-ui)
@@ -89,6 +90,82 @@ VideoRAG features runtime switching between high-throughput **Desktop GPU** and 
 | **Process RSS Memory** | ~1.85 GB | **~1.50 – 1.95 GB** |
 | **Token Throughput** | **`~42 – 45 tok/s`** | **`~10 – 18 tok/s`** |
 | **Switch Latency** | — | **~3.5 seconds** |
+
+---
+
+## 📱 Android On-Device Native System (Kotlin & C++ NPU/GPU Execution)
+
+VideoRAG includes a **100% standalone, zero-dependency native Android application** that performs full surveillance video decoding, 64-bit dHash keyframe filtering, 6-region spatial pyramid embedding, cosine vector indexing, and VLM timeline reasoning entirely on physical mobile device hardware (Snapdragon, Dimensity, Tensor).
+
+### 🛡️ Strict 6GB Mobile RAM Budget Orchestration
+On a typical 6GB RAM phone, Android OS + system services consume ~2.8 GB, leaving **~2.5 GB of usable active RAM headroom**. To prevent Low Memory Killer (LMK) termination:
+- **Sequential Model Orchestration (`MemoryOrchestrator.kt`)**: The ONNX Runtime feature embedder (NPU) and Qwen2-VL 2B (Vulkan GPU) **never co-exist in active RAM**.
+- **Auto-Closing Native Tensors**: `OnnxTensor` and `OrtSession.Result` closures are scoped in Kotlin `.use { ... }` blocks for immediate native heap reclamation.
+- **Query-Time Bitmap Recycling**: Temporary placeholder bitmaps generated for expanded query embeddings are explicitly recycled.
+
+### 🏗️ Android Project Architecture (`/android`)
+```text
+android/
+├── app/src/main/
+│   ├── AndroidManifest.xml             # Camera & storage permissions
+│   ├── cpp/
+│   │   ├── CMakeLists.txt              # Native C++ build config (-O3 -ffast-math)
+│   │   └── native-lib.cpp              # JNI wrapper for Vulkan/GPU VLM & fast dHash
+│   ├── java/com/stellar/videorag/
+│   │   ├── MainActivity.kt             # UI Controller, RAG lifecycle & query expander
+│   │   ├── ingestion/
+│   │   │   ├── VideoFrameDecoder.kt   # Video & CameraX stream decoder
+│   │   │   └── MobileFrameFilter.kt   # 64-bit grayscale dHash & Hamming Distance
+│   │   ├── indexing/
+│   │   │   ├── OnDeviceEmbedder.kt    # ONNX Runtime NNAPI MobileCLIP-S2 embedder
+│   │   │   ├── MobileVectorStore.kt   # Thread-safe in-memory flat Cosine scanner
+│   │   │   └── SpatialCropper.kt      # 6-region spatial pyramid subdivider
+│   │   └── llm/
+│   │       ├── OnDeviceVLM.kt         # JNI bridge for on-device Qwen2-VL 2B
+│   │       └── MemoryOrchestrator.kt  # Strict sequential Mutex RAM loader
+│   └── res/
+│       ├── layout/activity_main.xml   # Modern dark surveillance control center layout
+│       └── values/                    # Strings, colors, and themes
+├── build.gradle.kts                    # Root build script
+└── settings.gradle.kts                 # Project settings
+```
+
+### 📱 Build, Install & Sideload Model Weights
+
+#### Step 1: Open in Android Studio
+1. Open **Android Studio** and select **Open**.
+2. Navigate to the `/android` directory inside the repository.
+3. Sync Gradle dependencies and verify CMake links `libllama_jni.so`.
+
+#### Step 2: Build the Standalone APK
+```bash
+cd android
+./gradlew assembleRelease
+```
+The compiled installer will be located at:
+`android/app/build/outputs/apk/release/app-release.apk`
+
+#### Step 3: Install via ADB
+```bash
+adb install -r android/app/build/outputs/apk/release/app-release.apk
+```
+
+#### Step 4: Transfer Model Weights to App Sandbox
+Stage weights to SD storage, then move them into the application's isolated sandbox (`filesDir`):
+```bash
+# 1. Stage models to shared storage
+adb push models/mobileclip_s2.onnx /sdcard/
+adb push models/qwen2_vl_2b /sdcard/
+
+# 2. Move files securely into application sandbox
+adb shell "run-as com.stellar.videorag mkdir -p /data/user/0/com.stellar.videorag/files/qwen2_vl_2b"
+adb shell "run-as com.stellar.videorag cp /sdcard/mobileclip_s2.onnx /data/user/0/com.stellar.videorag/files/"
+adb shell "run-as com.stellar.videorag cp /sdcard/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf /data/user/0/com.stellar.videorag/files/qwen2_vl_2b/"
+adb shell "run-as com.stellar.videorag cp /sdcard/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-f16.gguf /data/user/0/com.stellar.videorag/files/qwen2_vl_2b/"
+
+# 3. Clean up staging area
+adb shell rm -rf /sdcard/mobileclip_s2.onnx /sdcard/qwen2_vl_2b
+```
 
 ---
 
