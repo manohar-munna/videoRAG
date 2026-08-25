@@ -1,13 +1,28 @@
 <resources>
-    <color name="primary">#0284c7</color>
-    <color name="primary_dark">#0369a1</color>
-    <color name="accent">#38bdf8</color>
-    <color name="bg_dark">#0f172a</color>
-    <color name="card_bg">#1e293b</color>
-    <color name="card_border">#334155</color>
-    <color name="text_main">#f8fafc</color>
-    <color name="text_muted">#94a3b8</color>
-    <color name="success">#22c55e</color>
-    <color name="warning">#f59e0b</color>
-    <color name="danger">#ef4444</color>
+    <!-- Web Theme Palette (Light Modern Surveillance) -->
+    <color name="primary">#2563eb</color>
+    <color name="primary_dark">#1d4ed8</color>
+    <color name="primary_light">#eff6ff</color>
+    <color name="primary_border">#bfdbfe</color>
+    
+    <color name="accent">#3b82f6</color>
+    <color name="bg_light">#f8fafc</color>
+    <color name="bg_window">#f1f5f9</color>
+    <color name="card_bg">#ffffff</color>
+    <color name="card_border">#e2e8f0</color>
+    <color name="card_inner_bg">#f8fafc</color>
+    
+    <color name="text_title">#0f172a</color>
+    <color name="text_main">#1e293b</color>
+    <color name="text_muted">#64748b</color>
+    <color name="text_light">#94a3b8</color>
+    
+    <color name="input_bg">#ffffff</color>
+    <color name="input_border">#cbd5e1</color>
+    
+    <color name="success">#16a34a</color>
+    <color name="success_light">#f0fdf4</color>
+    <color name="warning">#d97706</color>
+    <color name="danger">#dc2626</color>
+    <color name="danger_light">#fef2f2</color>
 </resources>

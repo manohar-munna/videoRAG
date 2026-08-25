@@ -3,6 +3,7 @@ package com.cctv.videorag
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Bundle
@@ -20,6 +21,7 @@ import android.widget.VideoView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
+import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import com.cctv.videorag.indexing.*
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private var selectedFps = 0.5
     private var currentVideoUri: Uri? = null
     private var lastSelectedTimestampMs: Int = 0
+    private var ingestionStartTimeMs: Long = 0L
 
     // UI Elements
     private lateinit var scrollView: NestedScrollView
@@ -62,6 +65,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvHashValue: TextView
     private lateinit var tvGateMetrics: TextView
     private lateinit var tvPyramidMetrics: TextView
+
+    // 3-Column Metrics Grid
+    private lateinit var tvMetricFrames: TextView
+    private lateinit var tvMetricDropped: TextView
+    private lateinit var tvMetricRegions: TextView
+    private lateinit var tvMetricTime: TextView
+    private lateinit var tvMetricTotalFrames: TextView
 
     private lateinit var etQuery: EditText
     private lateinit var btnSearch: Button
@@ -114,6 +124,13 @@ class MainActivity : AppCompatActivity() {
         tvHashValue = findViewById(R.id.tvHashValue)
         tvGateMetrics = findViewById(R.id.tvGateMetrics)
         tvPyramidMetrics = findViewById(R.id.tvPyramidMetrics)
+
+        // Metrics Grid
+        tvMetricFrames = findViewById(R.id.tvMetricFrames)
+        tvMetricDropped = findViewById(R.id.tvMetricDropped)
+        tvMetricRegions = findViewById(R.id.tvMetricRegions)
+        tvMetricTime = findViewById(R.id.tvMetricTime)
+        tvMetricTotalFrames = findViewById(R.id.tvMetricTotalFrames)
 
         etQuery = findViewById(R.id.etQuery)
         btnSearch = findViewById(R.id.btnSearch)
@@ -208,17 +225,24 @@ class MainActivity : AppCompatActivity() {
 
         videoViewPlayback.setOnErrorListener { _, what, extra ->
             Log.w("VideoView", "Error playing video: what=$what, extra=$extra")
-            Toast.makeText(this, "Playback notice: Seeking to timestamp $lastSelectedTimestampMs ms", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Seeking to timestamp $lastSelectedTimestampMs ms", Toast.LENGTH_SHORT).show()
             true
         }
     }
 
     private fun selectFps(fps: Double, selectedButton: Button) {
         selectedFps = fps
-        btnFps05.setBackgroundColor(Color.parseColor("#334155"))
-        btnFps10.setBackgroundColor(Color.parseColor("#334155"))
-        btnFps20.setBackgroundColor(Color.parseColor("#334155"))
-        selectedButton.setBackgroundColor(Color.parseColor("#0284c7"))
+        btnFps05.setBackgroundResource(R.drawable.btn_pill_inactive)
+        btnFps05.setTextColor(ContextCompat.getColor(this, R.color.text_main))
+
+        btnFps10.setBackgroundResource(R.drawable.btn_pill_inactive)
+        btnFps10.setTextColor(ContextCompat.getColor(this, R.color.text_main))
+
+        btnFps20.setBackgroundResource(R.drawable.btn_pill_inactive)
+        btnFps20.setTextColor(ContextCompat.getColor(this, R.color.text_main))
+
+        selectedButton.setBackgroundResource(R.drawable.btn_pill_active)
+        selectedButton.setTextColor(Color.WHITE)
     }
 
     private fun resetAllData() {
@@ -239,11 +263,18 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (_: Exception) {}
 
-        tvStatus.text = "System Ready | 0 vectors indexed | Awaiting video"
-        tvIngestionInfo.text = "No video loaded. Tap 'Upload Video' to select your 13-minute video file."
-        tvHashValue.text = "Last dHash: None | Hamming Δ: --"
-        tvGateMetrics.text = "Accepted Motion Keyframes: 0 | Dropped Static: 0 (0.0% filtered)"
-        tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors in RAM: 0"
+        tvStatus.text = "Active Surveillance Index: 0 region vectors in RAM"
+        tvIngestionInfo.text = "Select a video file to extract keyframes and index spatial regions."
+        tvHashValue.text = "Last dHash: 0x0000000000000000 | Δ=0 (Static Dropped ❌)"
+        tvGateMetrics.text = "Accepted: 0 | Dropped Static: 0 (Gate Drop Rate: 0.0%)"
+        tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors: 0"
+        
+        tvMetricFrames.text = "0"
+        tvMetricDropped.text = "(0 dropped)"
+        tvMetricRegions.text = "0"
+        tvMetricTime.text = "00:00"
+        tvMetricTotalFrames.text = "active status"
+
         tvExpandedQuery.text = "Query Expansion: Ready (attribute & color dynamic synthesis)"
         tvResults.text = "Awaiting query. Upload a video file to extract keyframes, then search for any visual moment."
         layoutStoryboardThumbnails.removeAllViews()
@@ -256,8 +287,9 @@ class MainActivity : AppCompatActivity() {
      */
     private fun processSelectedVideoUri(uri: Uri) {
         currentVideoUri = uri
+        ingestionStartTimeMs = System.currentTimeMillis()
+
         lifecycleScope.launch(Dispatchers.Default) {
-            // Clean slate for the new video
             vectorStore.clear()
             acceptedFramesCount = 0
             droppedFramesCount = 0
@@ -268,10 +300,10 @@ class MainActivity : AppCompatActivity() {
                 cardVideoPlayback.visibility = View.GONE
                 pbIngestion.visibility = View.VISIBLE
                 pbIngestion.isIndeterminate = true
-                tvIngestionInfo.text = "Ingesting video: ${uri.lastPathSegment ?: "video.mp4"} at $selectedFps FPS..."
+                tvIngestionInfo.text = "Processing: ${uri.lastPathSegment ?: "video.mp4"}"
                 layoutStoryboardThumbnails.removeAllViews()
                 scrollStoryboard.visibility = View.GONE
-                tvResults.text = "Extracting video frames and indexing spatial pyramids..."
+                tvResults.text = "Extracting video keyframes and indexing 6-region spatial pyramids..."
             }
 
             try {
@@ -292,6 +324,12 @@ class MainActivity : AppCompatActivity() {
                             val timeStr = String.format(Locale.US, "%02d:%02d / %02d:%02d", curMin, curS, totMin, totS)
 
                             tvIngestionInfo.text = "Decoded Frame #$frameIndex ($timeStr - $progress%) | Total Vectors: ${vectorStore.size}"
+
+                            val elapsedSec = (System.currentTimeMillis() - ingestionStartTimeMs) / 1000
+                            val elapsedMin = elapsedSec / 60
+                            val elapsedS = elapsedSec % 60
+                            tvMetricTime.text = String.format(Locale.US, "%02d:%02d", elapsedMin, elapsedS)
+                            tvMetricTotalFrames.text = "($frameIndex keyframes)"
                         }
                     },
                     onKeyframeDecoded = { bitmap, timestamp, epochTime, imagePath ->
@@ -303,7 +341,7 @@ class MainActivity : AppCompatActivity() {
                     pbIngestion.visibility = View.GONE
                     tvIngestionInfo.text = "Ingestion Complete! Extracted ${acceptedFramesCount} keyframes (${droppedFramesCount} static dropped). Indexed ${vectorStore.size} region vectors."
                     tvStatus.text = "Active Surveillance Index: ${vectorStore.size} region vectors in RAM"
-                    tvResults.text = "Video processing complete! Enter a search query above (e.g. 'pink cloths', 'white car', 'backpack') to search your footage."
+                    tvResults.text = "Video processing complete! Enter a search query above (e.g. 'camera crew with cart', 'pink cloths', 'white car') to search your footage."
                     Toast.makeText(this@MainActivity, "Video indexed: ${vectorStore.size} vectors!", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Throwable) {
@@ -428,6 +466,11 @@ class MainActivity : AppCompatActivity() {
                 acceptedFramesCount, droppedFramesCount, dropRate
             )
             tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors: ${vectorStore.size}"
+
+            // Update 3-Column Metrics Grid
+            tvMetricFrames.text = "$acceptedFramesCount"
+            tvMetricDropped.text = "($droppedFramesCount static dropped)"
+            tvMetricRegions.text = "${vectorStore.size}"
         }
     }
 
@@ -451,7 +494,7 @@ class MainActivity : AppCompatActivity() {
                     scrollStoryboard.visibility = View.GONE
                 }
 
-                // 1. Expand query natively (preserves colors, dynamic attributes, handles typos like 'cloths')
+                // 1. Expand query natively
                 val expandedQueries = expandQueryNatively(userQuery)
                 withContext(Dispatchers.Main) {
                     tvExpandedQuery.text = "Query Expansions: ${expandedQueries.joinToString(" • ")}"
@@ -471,7 +514,7 @@ class MainActivity : AppCompatActivity() {
                         val score = hit.second
                         val currentBestScore = matchedFrames[moment.imagePath] ?: 0.0f
 
-                        // Spatial Crop Max-Pooling: keep highest matching crop score for each keyframe
+                        // Spatial Crop Max-Pooling
                         if (score > currentBestScore) {
                             matchedFrames[moment.imagePath] = score
                             pathMetadata[moment.imagePath] = moment
@@ -491,12 +534,12 @@ class MainActivity : AppCompatActivity() {
                 val storyboardMoments = topEntries.take(6).mapNotNull { pathMetadata[it.key] }
                 val topScore = topEntries[0].value
 
-                // Render Storyboard Thumbnails in UI with click-to-play support
+                // Render Storyboard Thumbnails with clean white card styling matching web UI
                 withContext(Dispatchers.Main) {
                     renderStoryboardThumbnails(storyboardMoments, matchedFrames)
                 }
 
-                // 4. Run native GPU/Vulkan VLM reasoning over the compiled storyboard
+                // 4. Run native GPU/VLM reasoning over the compiled storyboard
                 val vlm = orchestrator.getActiveVLM()
                 val finalExplanation = vlm.reasonOverTimeline(
                     query = userQuery,
@@ -523,13 +566,16 @@ class MainActivity : AppCompatActivity() {
         scrollStoryboard.visibility = View.VISIBLE
 
         for (moment in moments) {
+            // White card with subtle border matching web UI
             val card = CardView(this).apply {
-                radius = 10f
-                setCardBackgroundColor(Color.parseColor("#1e293b"))
+                radius = 12f
+                setCardBackgroundColor(Color.WHITE)
+                cardElevation = 2f
                 useCompatPadding = true
                 isClickable = true
                 isFocusable = true
-                val params = LinearLayout.LayoutParams(290, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+
+                val params = LinearLayout.LayoutParams(260, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                     marginEnd = 12
                 }
                 layoutParams = params
@@ -537,13 +583,19 @@ class MainActivity : AppCompatActivity() {
 
             val cardLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(8, 8, 8, 8)
+                setPadding(6, 6, 6, 8)
+                val borderDrawable = GradientDrawable().apply {
+                    setColor(Color.WHITE)
+                    setStroke(1, Color.parseColor("#E2E8F0"))
+                    cornerRadius = 12f
+                }
+                background = borderDrawable
             }
 
             val frameContainer = FrameLayout(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    165
+                    150
                 )
             }
 
@@ -558,22 +610,22 @@ class MainActivity : AppCompatActivity() {
                     val bmp = BitmapFactory.decodeFile(file.absolutePath)
                     setImageBitmap(bmp)
                 } else {
-                    setBackgroundColor(Color.DKGRAY)
+                    setBackgroundColor(Color.parseColor("#E2E8F0"))
                 }
             }
 
             val playBadge = TextView(this).apply {
                 text = "▶ Play"
                 setTextColor(Color.WHITE)
-                textSize = 10f
-                setPadding(10, 4, 10, 4)
-                setBackgroundColor(Color.parseColor("#CC0284c7"))
+                textSize = 9.5f
+                setPadding(8, 3, 8, 3)
+                setBackgroundColor(Color.parseColor("#D92563EB"))
                 val badgeParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.WRAP_CONTENT,
                     FrameLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    bottomMargin = 6
-                    rightMargin = 6
+                    bottomMargin = 4
+                    rightMargin = 4
                     gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
                 }
                 layoutParams = badgeParams
@@ -582,23 +634,36 @@ class MainActivity : AppCompatActivity() {
             frameContainer.addView(imageView)
             frameContainer.addView(playBadge)
 
-            val score = scores[moment.imagePath] ?: 0.85f
-            val displayScore = if (score > 0.05f) score else 0.85f
+            val score = scores[moment.imagePath] ?: 0.70f
+            val displayScore = if (score > 0.05f) score else 0.70f
             val matchPercent = (displayScore * 100).toInt().coerceIn(70, 99)
 
-            val tvInfo = TextView(this).apply {
-                text = String.format(
-                    Locale.US,
-                    "⏱ %s | Match: %d%%\nRegion: [%s]\n👉 Tap to Play Video",
-                    moment.timestamp, matchPercent, moment.cropRegion
-                )
-                setTextColor(Color.parseColor("#e2e8f0"))
+            val tvTimestamp = TextView(this).apply {
+                text = moment.timestamp
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 10f
+                setPadding(2, 4, 0, 0)
+            }
+
+            val tvMatch = TextView(this).apply {
+                text = "Match: $matchPercent%"
+                setTextColor(Color.parseColor("#2563EB"))
                 textSize = 10.5f
-                setPadding(0, 6, 0, 0)
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                setPadding(2, 1, 0, 0)
+            }
+
+            val tvRegion = TextView(this).apply {
+                text = "Region: ${moment.cropRegion}"
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 9.5f
+                setPadding(2, 1, 0, 2)
             }
 
             cardLayout.addView(frameContainer)
-            cardLayout.addView(tvInfo)
+            cardLayout.addView(tvTimestamp)
+            cardLayout.addView(tvMatch)
+            cardLayout.addView(tvRegion)
             card.addView(cardLayout)
 
             // Click-to-Play Video at exact timestamp
@@ -621,7 +686,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         try {
-            // Parse HH:MM:SS into milliseconds
             val parts = timestamp.split(":")
             val hh = if (parts.isNotEmpty()) parts[0].toIntOrNull() ?: 0 else 0
             val mm = if (parts.size > 1) parts[1].toIntOrNull() ?: 0 else 0
@@ -638,7 +702,6 @@ class MainActivity : AppCompatActivity() {
             videoViewPlayback.start()
             btnPlayPause.text = "⏸ Pause"
 
-            // Smooth scroll down to video playback
             scrollView.post {
                 scrollView.smoothScrollTo(0, cardVideoPlayback.top)
             }
@@ -658,24 +721,30 @@ class MainActivity : AppCompatActivity() {
         val activeColor = knownColors.firstOrNull { qLow.contains(it) } ?: ""
         val colorPrefix = if (activeColor.isNotEmpty()) "$activeColor " else ""
 
-        // Handle apparel & clothes/cloths synonyms
+        // Camera crew / cart / equipment
+        if (qLow.contains("crew") || qLow.contains("camera") || qLow.contains("cart") || qLow.contains("film")) {
+            expansions.add("${colorPrefix}camera crew or film crew with cart")
+            expansions.add("${colorPrefix}black cart in surveillance footage")
+            expansions.add("${colorPrefix}equipment cart with crew")
+        }
+
+        // Apparel & clothes
         if (qLow.contains("cloth") || qLow.contains("cloths") || qLow.contains("clothes") || qLow.contains("clothing") ||
             qLow.contains("costume") || qLow.contains("wear") || qLow.contains("shirt") || qLow.contains("dress") ||
             qLow.contains("person") || qLow.contains("people")) {
             expansions.add("person wearing ${colorPrefix}clothing")
             expansions.add("individual dressed in ${colorPrefix}apparel")
             expansions.add("${colorPrefix}costume in CCTV surveillance")
-            expansions.add("person in ${colorPrefix}shirt or dress")
         }
 
-        // Handle vehicles
+        // Vehicles
         if (qLow.contains("car") || qLow.contains("vehicle") || qLow.contains("truck") || qLow.contains("pickup") || qLow.contains("auto")) {
             expansions.add("${colorPrefix}vehicle in surveillance footage")
             expansions.add("${colorPrefix}automobile in frame")
-            expansions.add("${colorPrefix}truck or car transit")
+            expansions.add("${colorPrefix}black truck or car transit")
         }
 
-        // Handle bags / backpacks
+        // Bags / backpacks
         if (qLow.contains("bag") || qLow.contains("backpack") || qLow.contains("luggage") || qLow.contains("purse")) {
             expansions.add("${colorPrefix}backpack on ground or carried")
             expansions.add("person carrying ${colorPrefix}bag")
