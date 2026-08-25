@@ -2,5 +2,12 @@
     <color name="primary">#0284c7</color>
     <color name="primary_dark">#0369a1</color>
     <color name="accent">#38bdf8</color>
-    <color name="bg_dark">#121418</color>
+    <color name="bg_dark">#0f172a</color>
+    <color name="card_bg">#1e293b</color>
+    <color name="card_border">#334155</color>
+    <color name="text_main">#f8fafc</color>
+    <color name="text_muted">#94a3b8</color>
+    <color name="success">#22c55e</color>
+    <color name="warning">#f59e0b</color>
+    <color name="danger">#ef4444</color>
 </resources>

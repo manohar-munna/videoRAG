@@ -111,7 +111,7 @@ android/
 │   ├── cpp/
 │   │   ├── CMakeLists.txt              # Native C++ build config (-O3 -ffast-math)
 │   │   └── native-lib.cpp              # JNI wrapper for Vulkan/GPU VLM & fast dHash
-│   ├── java/com/stellar/videorag/
+│   ├── java/com/cctv/videorag/
 │   │   ├── MainActivity.kt             # UI Controller, RAG lifecycle & query expander
 │   │   ├── ingestion/
 │   │   │   ├── VideoFrameDecoder.kt   # Video & CameraX stream decoder
@@ -158,10 +158,10 @@ adb push models/mobileclip_s2.onnx /sdcard/
 adb push models/qwen2_vl_2b /sdcard/
 
 # 2. Move files securely into application sandbox
-adb shell "run-as com.stellar.videorag mkdir -p /data/user/0/com.stellar.videorag/files/qwen2_vl_2b"
-adb shell "run-as com.stellar.videorag cp /sdcard/mobileclip_s2.onnx /data/user/0/com.stellar.videorag/files/"
-adb shell "run-as com.stellar.videorag cp /sdcard/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf /data/user/0/com.stellar.videorag/files/qwen2_vl_2b/"
-adb shell "run-as com.stellar.videorag cp /sdcard/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-f16.gguf /data/user/0/com.stellar.videorag/files/qwen2_vl_2b/"
+adb shell "run-as com.cctv.videorag mkdir -p /data/user/0/com.cctv.videorag/files/qwen2_vl_2b"
+adb shell "run-as com.cctv.videorag cp /sdcard/mobileclip_s2.onnx /data/user/0/com.cctv.videorag/files/"
+adb shell "run-as com.cctv.videorag cp /sdcard/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf /data/user/0/com.cctv.videorag/files/qwen2_vl_2b/"
+adb shell "run-as com.cctv.videorag cp /sdcard/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-f16.gguf /data/user/0/com.cctv.videorag/files/qwen2_vl_2b/"
 
 # 3. Clean up staging area
 adb shell rm -rf /sdcard/mobileclip_s2.onnx /sdcard/qwen2_vl_2b

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.stellar.videorag"
+    namespace = "com.cctv.videorag"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.stellar.videorag"
+        applicationId = "com.cctv.videorag"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

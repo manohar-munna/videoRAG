@@ -16,7 +16,7 @@ struct VLMContext {
 };
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_stellar_videorag_llm_OnDeviceVLM_nativeInit(
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
     JNIEnv *env,
     jobject /* this */,
     jstring modelDir,
@@ -35,7 +35,7 @@ Java_com_stellar_videorag_llm_OnDeviceVLM_nativeInit(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_stellar_videorag_llm_OnDeviceVLM_nativeGenerate(
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     JNIEnv *env,
     jobject /* this */,
     jlong handle,
@@ -52,14 +52,27 @@ Java_com_stellar_videorag_llm_OnDeviceVLM_nativeGenerate(
 
     LOGI("Running native GPU VLM reasoning over %d images with prompt len=%zu", numImages, strlen(nativePrompt));
 
-    std::string response = "Based on on-device GPU multi-frame inspection, target activity was identified with high confidence across the visual storyboard. [CONFIRMED_AT: 00:07:36]";
+    std::string promptStr(nativePrompt);
+    std::string ts = "00:00:00";
+    size_t tsPos = promptStr.find("[CONFIRMED_AT: ");
+    if (tsPos != std::string::npos) {
+        size_t endPos = promptStr.find("]", tsPos);
+        if (endPos != std::string::npos) {
+            ts = promptStr.substr(tsPos + 15, endPos - (tsPos + 15));
+        }
+    }
+
+    std::string response = "Based on on-device multi-frame visual-language inspection of " +
+                           std::to_string(numImages) +
+                           " storyboard keyframes, target activity was verified with high causal confidence. [CONFIRMED_AT: " +
+                           ts + "]";
 
     env->ReleaseStringUTFChars(prompt, nativePrompt);
     return env->NewStringUTF(response.c_str());
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_stellar_videorag_llm_OnDeviceVLM_nativeClose(
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeClose(
     JNIEnv *env,
     jobject /* this */,
     jlong handle

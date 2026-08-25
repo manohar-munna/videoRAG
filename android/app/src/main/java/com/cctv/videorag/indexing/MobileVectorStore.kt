@@ -1,4 +1,4 @@
-package com.stellar.videorag.indexing
+package com.cctv.videorag.indexing
 
 import kotlin.math.sqrt
 

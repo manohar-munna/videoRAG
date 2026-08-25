@@ -1,81 +1,411 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#121418"
-    android:padding="16dp">
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="VideoRAG Mobile"
-        android:textColor="#38bdf8"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="4dp" />
-
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="On-Device System: Ready (Memory Ceiling: 2.5 GB)"
-        android:textColor="#94a3b8"
-        android:textSize="14sp"
-        android:layout_marginBottom="16dp" />
+    android:background="@color/bg_dark"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="16dp">
+        android:orientation="vertical"
+        android:padding="16dp">
 
-        <EditText
-            android:id="@+id/etQuery"
-            android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
-            android:background="#1e293b"
-            android:hint="Search footage (e.g. pink costumes)..."
-            android:textColorHint="#64748b"
-            android:textColor="#f8fafc"
-            android:paddingHorizontal="12dp"
-            android:textSize="14sp" />
-
-        <Button
-            android:id="@+id/btnSearch"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:text="Search"
-            android:backgroundTint="#0284c7"
-            android:textColor="#ffffff"
-            android:layout_marginStart="8dp" />
-    </LinearLayout>
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Forensic AI Reasoning:"
-        android:textColor="#cbd5e1"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
-
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="#0f172a"
-        android:padding="12dp">
-
-        <TextView
-            android:id="@+id/tvResults"
+        <!-- Header Bar -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Awaiting query..."
-            android:textColor="#e2e8f0"
-            android:textSize="14sp"
-            android:lineSpacingExtra="4dp" />
-    </ScrollView>
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
 
-</LinearLayout>
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="VideoRAG Mobile"
+                android:textColor="@color/accent"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="#0369a1"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:text="EDGE NPU/GPU"
+                android:textColor="#ffffff"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="System Ready | 0 vectors indexed | Awaiting video"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp"
+            android:layout_marginBottom="14dp" />
+
+        <!-- 1. VIDEO INGESTION & FRAME EXTRACTION CARD -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="📹 Video Ingestion &amp; Keyframe Pipeline"
+                        android:textColor="@color/text_main"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnClearAll"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:backgroundTint="#7f1d1d"
+                        android:text="🗑️ Reset"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:paddingHorizontal="8dp" />
+                </LinearLayout>
+
+                <!-- Ingestion Action Buttons -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="10dp">
+
+                    <Button
+                        android:id="@+id/btnPickVideo"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="#0284c7"
+                        android:text="📁 Upload Video"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btnToggleUrl"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="#334155"
+                        android:text="🌐 Video Link"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="13sp"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
+
+                <!-- Sampling FPS Selector -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Extraction Rate: "
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+
+                    <Button
+                        android:id="@+id/btnFps05"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:backgroundTint="#0284c7"
+                        android:text="0.5 FPS (2s)"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:layout_marginStart="6dp"
+                        android:paddingHorizontal="8dp" />
+
+                    <Button
+                        android:id="@+id/btnFps10"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:backgroundTint="#334155"
+                        android:text="1.0 FPS (1s)"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:layout_marginStart="4dp"
+                        android:paddingHorizontal="8dp" />
+
+                    <Button
+                        android:id="@+id/btnFps20"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:backgroundTint="#334155"
+                        android:text="2.0 FPS"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:layout_marginStart="4dp"
+                        android:paddingHorizontal="8dp" />
+                </LinearLayout>
+
+                <!-- URL Ingestion Input Box (Toggleable) -->
+                <LinearLayout
+                    android:id="@+id/layoutUrlInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    android:layout_marginBottom="10dp">
+
+                    <EditText
+                        android:id="@+id/etVideoUrl"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:hint="Enter direct video URL (.mp4)..."
+                        android:textColorHint="#64748b"
+                        android:textColor="@color/text_main"
+                        android:paddingHorizontal="10dp"
+                        android:textSize="12sp" />
+
+                    <Button
+                        android:id="@+id/btnDownloadUrl"
+                        android:layout_width="wrap_content"
+                        android:layout_height="42dp"
+                        android:backgroundTint="#0284c7"
+                        android:text="Fetch &amp; Index"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="12sp"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
+
+                <!-- Status Info -->
+                <TextView
+                    android:id="@+id/tvIngestionInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="No video loaded. Tap 'Upload Video' to select your 13-minute video file."
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="6dp" />
+
+                <!-- Ingestion Progress Bar -->
+                <ProgressBar
+                    android:id="@+id/pbIngestion"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:progressTint="@color/accent"
+                    android:visibility="gone"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- Stage 1 Edge Gate Live Telemetry Box (dHash & Hamming Distance) -->
+                <LinearLayout
+                    android:id="@+id/layoutHashTelemetry"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#0f172a"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="⚡ Stage 1: Edge Hash Gate &amp; 64-bit dHash Filter (&lt;0.15ms)"
+                        android:textColor="@color/accent"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="4dp" />
+
+                    <TextView
+                        android:id="@+id/tvHashValue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:text="Last dHash: None | Hamming Δ: --"
+                        android:textColor="@color/text_main"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/tvGateMetrics"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Accepted Motion Keyframes: 0 | Dropped Static: 0 (0.0% filtered)"
+                        android:textColor="@color/success"
+                        android:textSize="11sp"
+                        android:layout_marginTop="2dp" />
+
+                    <TextView
+                        android:id="@+id/tvPyramidMetrics"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Spatial Pyramid: 6 crops / frame | Vectors in RAM: 0"
+                        android:textColor="@color/text_muted"
+                        android:textSize="10sp"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 2. SEARCH & RETRIEVAL CARD -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🔍 Natural Language Forensic Search"
+                    android:textColor="@color/text_main"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+
+                    <EditText
+                        android:id="@+id/etQuery"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:background="#0f172a"
+                        android:hint="e.g. white car, pink costume, person with bag..."
+                        android:textColorHint="#64748b"
+                        android:textColor="@color/text_main"
+                        android:paddingHorizontal="12dp"
+                        android:textSize="13sp" />
+
+                    <Button
+                        android:id="@+id/btnSearch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:text="Search"
+                        android:textAllCaps="false"
+                        android:backgroundTint="#0284c7"
+                        android:textColor="#ffffff"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+
+                <!-- Expanded Queries Tags -->
+                <TextView
+                    android:id="@+id/tvExpandedQuery"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Query Expansion: Ready (attribute &amp; color dynamic synthesis)"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 3. FORENSIC STORYBOARD & VLM REASONING CARD -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🎬 Forensic Storyboard &amp; On-Device VLM Reasoning"
+                    android:textColor="@color/text_main"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Matched Frames Scroll Area -->
+                <HorizontalScrollView
+                    android:id="@+id/scrollStoryboard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone"
+                    android:layout_marginBottom="10dp">
+
+                    <LinearLayout
+                        android:id="@+id/layoutStoryboardThumbnails"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
+
+                <!-- Reasoning Text Box -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#0f172a"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:id="@+id/tvResults"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Awaiting query. Upload a video file to extract keyframes, then search for any visual moment."
+                        android:textColor="#e2e8f0"
+                        android:textSize="13sp"
+                        android:lineSpacingExtra="4dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

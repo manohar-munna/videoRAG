@@ -1,4 +1,4 @@
-package com.stellar.videorag.ingestion
+package com.cctv.videorag.ingestion
 
 import android.graphics.Bitmap
 import java.lang.Long.bitCount
@@ -38,6 +38,13 @@ object MobileFrameFilter {
             }
         }
         return hash
+    }
+
+    /**
+     * Format 64-bit hash as 16-character hexadecimal string.
+     */
+    fun formatHashHex(hash: Long): String {
+        return String.format("%016X", hash)
     }
 
     /**

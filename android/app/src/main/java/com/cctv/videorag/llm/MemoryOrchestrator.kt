@@ -1,7 +1,7 @@
-package com.stellar.videorag.llm
+package com.cctv.videorag.llm
 
 import android.content.Context
-import com.stellar.videorag.indexing.OnDeviceEmbedder
+import com.cctv.videorag.indexing.OnDeviceEmbedder
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 

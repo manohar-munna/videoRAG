@@ -1,4 +1,4 @@
-package com.stellar.videorag.ingestion
+package com.cctv.videorag.ingestion
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -21,19 +21,21 @@ import java.util.Locale
 class VideoFrameDecoder(private val context: Context) {
 
     /**
-     * Decode local video file into downsampled keyframes at specified target frame rate.
+     * Decode video from Uri (local file / content picker) into downsampled keyframes at specified target frame rate.
      */
-    suspend fun decodeVideoFile(
-        videoFile: File,
+    suspend fun decodeVideoUri(
+        videoUri: Uri,
         cameraName: String,
         sampleFps: Double = 0.5,
+        onProgress: (currentSec: Long, totalSec: Long, frameIndex: Int) -> Unit,
         onKeyframeDecoded: suspend (Bitmap, String, Long, String) -> Unit
     ) = withContext(Dispatchers.IO) {
         val retriever = MediaMetadataRetriever()
         try {
-            retriever.setDataSource(context, Uri.fromFile(videoFile))
+            retriever.setDataSource(context, videoUri)
             val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-            val intervalMs = (1000.0 / sampleFps).toLong().coerceAtLeast(500L)
+            val totalSec = durationMs / 1000L
+            val intervalMs = (1000.0 / sampleFps).toLong().coerceAtLeast(300L)
 
             val frameOutputDir = File(context.filesDir, "extracted_frames/$cameraName").apply { mkdirs() }
 
@@ -49,18 +51,21 @@ class VideoFrameDecoder(private val context: Context) {
                     val ss = secondsTotal % 60
                     val ts = String.format(Locale.US, "%02d:%02d:%02d", hh, mm, ss)
 
-                    val filename = String.format(Locale.US, "%s_%02d_%02d_%02d_%05d.jpg", cameraName, hh, mm, ss, frameIdx++)
+                    val filename = String.format(Locale.US, "%s_%02d_%02d_%02d_%05d.jpg", cameraName, hh, mm, ss, frameIdx)
                     val outFile = File(frameOutputDir, filename)
                     FileOutputStream(outFile).use { fos ->
                         frameBitmap.compress(Bitmap.CompressFormat.JPEG, 85, fos)
                     }
 
+                    onProgress(secondsTotal, totalSec, frameIdx)
                     onKeyframeDecoded(frameBitmap, ts, System.currentTimeMillis() - (durationMs - curTimeMs), outFile.absolutePath)
+                    frameIdx++
                 }
                 curTimeMs += intervalMs
             }
         } catch (e: Exception) {
             Log.e("VideoFrameDecoder", "Error decoding video: ${e.message}", e)
+            throw e
         } finally {
             try {
                 retriever.release()
@@ -72,7 +77,6 @@ class VideoFrameDecoder(private val context: Context) {
      * Create CameraX ImageAnalysis analyzer for real-time live CCTV feed decoding.
      */
     fun createLiveStreamAnalyzer(
-        cameraName: String,
         onLiveFrame: (Bitmap, String, Long) -> Unit
     ): ImageAnalysis.Analyzer {
         return ImageAnalysis.Analyzer { imageProxy ->

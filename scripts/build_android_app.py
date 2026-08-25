@@ -4,7 +4,7 @@ from pathlib import Path
 
 base_dir = Path('android')
 src_dir = base_dir / 'app' / 'src' / 'main'
-java_dir = src_dir / 'java' / 'com' / 'stellar' / 'videorag'
+java_dir = src_dir / 'java' / 'com' / 'cctv' / 'videorag'
 cpp_dir = src_dir / 'cpp'
 res_dir = src_dir / 'res'
 
@@ -51,11 +51,11 @@ include(":app")
 }
 
 android {
-    namespace = "com.stellar.videorag"
+    namespace = "com.cctv.videorag"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.stellar.videorag"
+        applicationId = "com.cctv.videorag"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
@@ -160,7 +160,7 @@ dependencies {
 """, encoding="utf-8")
 
 # 5. MobileFrameFilter.kt
-(java_dir / "ingestion" / "MobileFrameFilter.kt").write_text("""package com.stellar.videorag.ingestion
+(java_dir / "ingestion" / "MobileFrameFilter.kt").write_text("""package com.cctv.videorag.ingestion
 
 import android.graphics.Bitmap
 import java.lang.Long.bitCount
@@ -213,7 +213,7 @@ object MobileFrameFilter {
 """, encoding="utf-8")
 
 # 6. VideoFrameDecoder.kt
-(java_dir / "ingestion" / "VideoFrameDecoder.kt").write_text("""package com.stellar.videorag.ingestion
+(java_dir / "ingestion" / "VideoFrameDecoder.kt").write_text("""package com.cctv.videorag.ingestion
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -329,7 +329,7 @@ class VideoFrameDecoder(private val context: Context) {
 """, encoding="utf-8")
 
 # 7. SpatialCropper.kt
-(java_dir / "indexing" / "SpatialCropper.kt").write_text("""package com.stellar.videorag.indexing
+(java_dir / "indexing" / "SpatialCropper.kt").write_text("""package com.cctv.videorag.indexing
 
 import android.graphics.Bitmap
 
@@ -362,7 +362,7 @@ object SpatialCropper {
 """, encoding="utf-8")
 
 # 8. OnDeviceEmbedder.kt
-(java_dir / "indexing" / "OnDeviceEmbedder.kt").write_text("""package com.stellar.videorag.indexing
+(java_dir / "indexing" / "OnDeviceEmbedder.kt").write_text("""package com.cctv.videorag.indexing
 
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
@@ -452,7 +452,7 @@ class OnDeviceEmbedder(modelPath: String) {
 """, encoding="utf-8")
 
 # 9. MobileVectorStore.kt
-(java_dir / "indexing" / "MobileVectorStore.kt").write_text("""package com.stellar.videorag.indexing
+(java_dir / "indexing" / "MobileVectorStore.kt").write_text("""package com.cctv.videorag.indexing
 
 import kotlin.math.sqrt
 
@@ -523,7 +523,7 @@ class MobileVectorStore {
 """, encoding="utf-8")
 
 # 10. OnDeviceVLM.kt
-(java_dir / "llm" / "OnDeviceVLM.kt").write_text("""package com.stellar.videorag.llm
+(java_dir / "llm" / "OnDeviceVLM.kt").write_text("""package com.cctv.videorag.llm
 
 import android.content.Context
 import android.util.Log
@@ -603,10 +603,10 @@ class OnDeviceVLM(private val context: Context, private val modelDirectory: Stri
 """, encoding="utf-8")
 
 # 11. MemoryOrchestrator.kt
-(java_dir / "llm" / "MemoryOrchestrator.kt").write_text("""package com.stellar.videorag.llm
+(java_dir / "llm" / "MemoryOrchestrator.kt").write_text("""package com.cctv.videorag.llm
 
 import android.content.Context
-import com.stellar.videorag.indexing.OnDeviceEmbedder
+import com.cctv.videorag.indexing.OnDeviceEmbedder
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -660,7 +660,7 @@ class MemoryOrchestrator(
 """, encoding="utf-8")
 
 # 12. MainActivity.kt
-(java_dir / "MainActivity.kt").write_text("""package com.stellar.videorag
+(java_dir / "MainActivity.kt").write_text("""package com.cctv.videorag
 
 import android.graphics.Bitmap
 import android.os.Bundle
@@ -670,9 +670,9 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.stellar.videorag.ingestion.MobileFrameFilter
-import com.stellar.videorag.indexing.*
-import com.stellar.videorag.llm.*
+import com.cctv.videorag.ingestion.MobileFrameFilter
+import com.cctv.videorag.indexing.*
+import com.cctv.videorag.llm.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -915,7 +915,7 @@ struct VLMContext {
 };
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_stellar_videorag_llm_OnDeviceVLM_nativeInit(
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
     JNIEnv *env,
     jobject /* this */,
     jstring modelDir,
@@ -934,7 +934,7 @@ Java_com_stellar_videorag_llm_OnDeviceVLM_nativeInit(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_stellar_videorag_llm_OnDeviceVLM_nativeGenerate(
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     JNIEnv *env,
     jobject /* this */,
     jlong handle,
@@ -958,7 +958,7 @@ Java_com_stellar_videorag_llm_OnDeviceVLM_nativeGenerate(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_stellar_videorag_llm_OnDeviceVLM_nativeClose(
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeClose(
     JNIEnv *env,
     jobject /* this */,
     jlong handle
