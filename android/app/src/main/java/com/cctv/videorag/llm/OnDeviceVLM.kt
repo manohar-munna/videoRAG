@@ -43,16 +43,18 @@ class OnDeviceVLM(private val context: Context, private val modelDirectory: Stri
     fun reasonOverTimeline(
         query: String,
         storyboardMoments: List<IndexedMoment>,
-        topScore: Float = 0.85f
+        topScore: Float = 0.0f
     ): String {
         if (storyboardMoments.isEmpty()) {
             return "No video storyboard keyframes available for analysis."
         }
 
-        val anchorMoment = storyboardMoments[0]
+        // Chronologically sorted sequence
+        val sortedMoments = storyboardMoments.sortedBy { it.timestamp }
+        val anchorMoment = storyboardMoments.maxByOrNull { it.timestamp } ?: sortedMoments[0]
         val anchorTimestamp = anchorMoment.timestamp
         val cropRegion = anchorMoment.cropRegion
-        val storyboardPaths = storyboardMoments.map { it.imagePath }
+        val storyboardPaths = sortedMoments.map { it.imagePath }
 
         val prompt = """
             You are an on-device forensic surveillance security analyst.
@@ -68,13 +70,13 @@ class OnDeviceVLM(private val context: Context, private val modelDirectory: Stri
                 if (nativeRes.isNotEmpty() && !nativeRes.startsWith("Error")) {
                     nativeRes
                 } else {
-                    generateSituationalNarrative(query, storyboardMoments, topScore)
+                    generateSituationalNarrative(query, sortedMoments, topScore)
                 }
             } else {
-                generateSituationalNarrative(query, storyboardMoments, topScore)
+                generateSituationalNarrative(query, sortedMoments, topScore)
             }
         } catch (e: Throwable) {
-            generateSituationalNarrative(query, storyboardMoments, topScore)
+            generateSituationalNarrative(query, sortedMoments, topScore)
         }
     }
 
@@ -83,59 +85,36 @@ class OnDeviceVLM(private val context: Context, private val modelDirectory: Stri
      */
     private fun generateSituationalNarrative(
         query: String,
-        moments: List<IndexedMoment>,
+        sortedMoments: List<IndexedMoment>,
         topScore: Float
     ): String {
-        val anchor = moments[0]
-        val peakTimestamp = anchor.timestamp
-        val firstTimestamp = moments.minByOrNull { it.timestamp }?.timestamp ?: peakTimestamp
-        val lastTimestamp = moments.maxByOrNull { it.timestamp }?.timestamp ?: peakTimestamp
-        val confPct = (topScore * 100).toInt().coerceIn(75, 98)
-
-        val qLow = query.lowercase().trim()
-        val isVehicle = qLow.contains("car") || qLow.contains("truck") || qLow.contains("vehicle") || qLow.contains("bus")
-        val isPerson = qLow.contains("pink") || qLow.contains("cloth") || qLow.contains("costume") || qLow.contains("person") || qLow.contains("people") || qLow.contains("man") || qLow.contains("woman") || qLow.contains("dress")
-        val isBag = qLow.contains("bag") || qLow.contains("backpack") || qLow.contains("luggage")
-
-        val activityType = when {
-            isVehicle -> "Vehicle Transit & Maneuver"
-            isPerson -> "Pedestrian / Individual Movement & Presence"
-            isBag -> "Object Placement / Conveyance"
-            else -> "Visual Activity Detection"
-        }
-
-        val regionText = when (anchor.cropRegion) {
-            "top_left" -> "upper-left sector (entry zone / distance)"
-            "top_right" -> "upper-right sector (perimeter pathway)"
-            "bottom_left" -> "foreground left quadrant"
-            "bottom_right" -> "foreground right quadrant"
-            "center" -> "central focal corridor"
-            else -> "full surveillance frame view"
-        }
+        val firstMoment = sortedMoments.first()
+        val lastMoment = sortedMoments.last()
+        val firstTimestamp = firstMoment.timestamp
+        val lastTimestamp = lastMoment.timestamp
+        val matchPercent = (topScore * 100).toInt().coerceIn(1, 100)
 
         val chronologicalNarrative = StringBuilder()
         chronologicalNarrative.append("🔍 Forensic Situation Analysis: What is Happening\n")
         chronologicalNarrative.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
         chronologicalNarrative.append("• Target Observation: \"$query\"\n")
-        chronologicalNarrative.append("• Activity Classification: $activityType\n")
-        chronologicalNarrative.append("• Monitored Time Window: $firstTimestamp → $lastTimestamp (${moments.size} sequential keyframes)\n")
-        chronologicalNarrative.append("• Spatial Correlation: Concentrated in $regionText with $confPct% visual alignment.\n\n")
+        chronologicalNarrative.append("• Monitored Time Window: $firstTimestamp → $lastTimestamp (${sortedMoments.size} sequential keyframes)\n")
+        chronologicalNarrative.append("• Peak Visual Correlation: $matchPercent% match in [${firstMoment.cropRegion}] sector.\n\n")
 
-        chronologicalNarrative.append("🎬 Chronological Event Sequence:\n")
-        val sortedMoments = moments.sortedBy { it.timestamp }
+        chronologicalNarrative.append("🎬 Chronological Event Timeline:\n")
         for ((i, m) in sortedMoments.withIndex()) {
             val stepLabel = when (i) {
-                0 -> "Scene Entry / Initial Detection"
-                sortedMoments.size - 1 -> "Scene Departure / Trajectory Follow-through"
-                else -> "Active Presence & Interaction"
+                0 -> "Initial Scene Detection"
+                sortedMoments.size - 1 -> "Event Follow-through / Scene Continuation"
+                else -> "Active Transition / Movement"
             }
-            chronologicalNarrative.append("  [${m.timestamp}] » ${stepLabel} in [${m.cropRegion}]\n")
+            chronologicalNarrative.append("  [${m.timestamp}] » ${stepLabel} (Region: [${m.cropRegion}])\n")
         }
 
         chronologicalNarrative.append("\n📋 Forensic Summary:\n")
-        chronologicalNarrative.append("Visual evidence matching \"$query\" occurs clearly at $peakTimestamp. Subject exhibits directional motion across the monitored zone during the $firstTimestamp - $lastTimestamp interval.\n\n")
+        chronologicalNarrative.append("Visual patterns matching \"$query\" were detected across the sequence spanning from $firstTimestamp to $lastTimestamp. Keyframe trajectory confirms presence and motion across monitored sectors.\n\n")
         chronologicalNarrative.append("💡 Tap any keyframe thumbnail above to play video footage from that exact moment.\n\n")
-        chronologicalNarrative.append("[CONFIRMED_AT: $peakTimestamp]")
+        chronologicalNarrative.append("[CONFIRMED_AT: $firstTimestamp]")
 
         return chronologicalNarrative.toString()
     }

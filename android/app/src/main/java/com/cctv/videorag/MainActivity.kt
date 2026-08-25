@@ -265,17 +265,17 @@ class MainActivity : AppCompatActivity() {
 
         tvStatus.text = "Active Surveillance Index: 0 region vectors in RAM"
         tvIngestionInfo.text = "Select a video file to extract keyframes and index spatial regions."
-        tvHashValue.text = "Last dHash: 0x0000000000000000 | Δ=0 (Static Dropped ❌)"
+        tvHashValue.text = "Last dHash: None | Δ=--"
         tvGateMetrics.text = "Accepted: 0 | Dropped Static: 0 (Gate Drop Rate: 0.0%)"
         tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors: 0"
-        
+
         tvMetricFrames.text = "0"
         tvMetricDropped.text = "(0 dropped)"
         tvMetricRegions.text = "0"
         tvMetricTime.text = "00:00"
         tvMetricTotalFrames.text = "active status"
 
-        tvExpandedQuery.text = "Query Expansion: Ready (attribute & color dynamic synthesis)"
+        tvExpandedQuery.text = "Query Expansion: Ready (attribute & semantic dynamic synthesis)"
         tvResults.text = "Awaiting query. Upload a video file to extract keyframes, then search for any visual moment."
         layoutStoryboardThumbnails.removeAllViews()
         scrollStoryboard.visibility = View.GONE
@@ -341,7 +341,7 @@ class MainActivity : AppCompatActivity() {
                     pbIngestion.visibility = View.GONE
                     tvIngestionInfo.text = "Ingestion Complete! Extracted ${acceptedFramesCount} keyframes (${droppedFramesCount} static dropped). Indexed ${vectorStore.size} region vectors."
                     tvStatus.text = "Active Surveillance Index: ${vectorStore.size} region vectors in RAM"
-                    tvResults.text = "Video processing complete! Enter a search query above (e.g. 'camera crew with cart', 'pink cloths', 'white car') to search your footage."
+                    tvResults.text = "Video processing complete! Enter any search query above to search your footage."
                     Toast.makeText(this@MainActivity, "Video indexed: ${vectorStore.size} vectors!", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Throwable) {
@@ -475,7 +475,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * STAGE 3 & 4: Query Expansion, Spatial Max-Pooling, Storyboard Assembly & VLM Reasoning.
+     * STAGE 3 & 4: Query Expansion, Spatial Max-Pooling, Chronological Storyboard Assembly & VLM Reasoning.
      */
     private fun performLocalVideoRAGQuery(userQuery: String) {
         lifecycleScope.launch(Dispatchers.Default) {
@@ -494,7 +494,7 @@ class MainActivity : AppCompatActivity() {
                     scrollStoryboard.visibility = View.GONE
                 }
 
-                // 1. Expand query natively
+                // 1. Expand query natively (handles multi-word, synonyms, and subwords)
                 val expandedQueries = expandQueryNatively(userQuery)
                 withContext(Dispatchers.Main) {
                     tvExpandedQuery.text = "Query Expansions: ${expandedQueries.joinToString(" • ")}"
@@ -507,14 +507,14 @@ class MainActivity : AppCompatActivity() {
                 val embedder = orchestrator.getActiveEmbedder()
                 for (expandedQ in expandedQueries) {
                     val queryVector = embedder.embedText(expandedQ)
-                    val hits = vectorStore.search(queryVector, topK = 15)
+                    val hits = vectorStore.search(queryVector, topK = 20)
 
                     for (hit in hits) {
                         val moment = hit.first
                         val score = hit.second
                         val currentBestScore = matchedFrames[moment.imagePath] ?: 0.0f
 
-                        // Spatial Crop Max-Pooling
+                        // Spatial Crop Max-Pooling: keep highest matching crop score for each keyframe
                         if (score > currentBestScore) {
                             matchedFrames[moment.imagePath] = score
                             pathMetadata[moment.imagePath] = moment
@@ -531,19 +531,21 @@ class MainActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                val storyboardMoments = topEntries.take(6).mapNotNull { pathMetadata[it.key] }
+                // Select top candidates by relevance score, THEN sort chronologically from start to end (increasing order)
+                val candidateMoments = topEntries.take(6).mapNotNull { pathMetadata[it.key] }
+                val sortedStoryboardMoments = candidateMoments.sortedBy { it.timestamp }
                 val topScore = topEntries[0].value
 
-                // Render Storyboard Thumbnails with clean white card styling matching web UI
+                // Render Storyboard Thumbnails in sequential chronological order
                 withContext(Dispatchers.Main) {
-                    renderStoryboardThumbnails(storyboardMoments, matchedFrames)
+                    renderStoryboardThumbnails(sortedStoryboardMoments, matchedFrames)
                 }
 
-                // 4. Run native GPU/VLM reasoning over the compiled storyboard
+                // 4. Run native GPU/VLM reasoning over the chronologically ordered storyboard
                 val vlm = orchestrator.getActiveVLM()
                 val finalExplanation = vlm.reasonOverTimeline(
                     query = userQuery,
-                    storyboardMoments = storyboardMoments,
+                    storyboardMoments = sortedStoryboardMoments,
                     topScore = topScore
                 )
 
@@ -566,7 +568,6 @@ class MainActivity : AppCompatActivity() {
         scrollStoryboard.visibility = View.VISIBLE
 
         for (moment in moments) {
-            // White card with subtle border matching web UI
             val card = CardView(this).apply {
                 radius = 12f
                 setCardBackgroundColor(Color.WHITE)
@@ -634,9 +635,8 @@ class MainActivity : AppCompatActivity() {
             frameContainer.addView(imageView)
             frameContainer.addView(playBadge)
 
-            val score = scores[moment.imagePath] ?: 0.70f
-            val displayScore = if (score > 0.05f) score else 0.70f
-            val matchPercent = (displayScore * 100).toInt().coerceIn(70, 99)
+            val rawScore = scores[moment.imagePath] ?: 0.0f
+            val matchPercent = (rawScore * 100).toInt().coerceIn(1, 99)
 
             val tvTimestamp = TextView(this).apply {
                 text = moment.timestamp
@@ -717,37 +717,9 @@ class MainActivity : AppCompatActivity() {
         val qLow = query.lowercase().trim()
         val expansions = mutableListOf(query)
 
-        val knownColors = listOf("pink", "red", "yellow", "blue", "green", "white", "black", "orange", "grey", "gray", "purple")
-        val activeColor = knownColors.firstOrNull { qLow.contains(it) } ?: ""
-        val colorPrefix = if (activeColor.isNotEmpty()) "$activeColor " else ""
-
-        // Camera crew / cart / equipment
-        if (qLow.contains("crew") || qLow.contains("camera") || qLow.contains("cart") || qLow.contains("film")) {
-            expansions.add("${colorPrefix}camera crew or film crew with cart")
-            expansions.add("${colorPrefix}black cart in surveillance footage")
-            expansions.add("${colorPrefix}equipment cart with crew")
-        }
-
-        // Apparel & clothes
-        if (qLow.contains("cloth") || qLow.contains("cloths") || qLow.contains("clothes") || qLow.contains("clothing") ||
-            qLow.contains("costume") || qLow.contains("wear") || qLow.contains("shirt") || qLow.contains("dress") ||
-            qLow.contains("person") || qLow.contains("people")) {
-            expansions.add("person wearing ${colorPrefix}clothing")
-            expansions.add("individual dressed in ${colorPrefix}apparel")
-            expansions.add("${colorPrefix}costume in CCTV surveillance")
-        }
-
-        // Vehicles
-        if (qLow.contains("car") || qLow.contains("vehicle") || qLow.contains("truck") || qLow.contains("pickup") || qLow.contains("auto")) {
-            expansions.add("${colorPrefix}vehicle in surveillance footage")
-            expansions.add("${colorPrefix}automobile in frame")
-            expansions.add("${colorPrefix}black truck or car transit")
-        }
-
-        // Bags / backpacks
-        if (qLow.contains("bag") || qLow.contains("backpack") || qLow.contains("luggage") || qLow.contains("purse")) {
-            expansions.add("${colorPrefix}backpack on ground or carried")
-            expansions.add("person carrying ${colorPrefix}bag")
+        val words = qLow.split(Regex("\\s+")).filter { it.length > 2 }
+        for (w in words) {
+            expansions.add(w)
         }
 
         return expansions.distinct()
