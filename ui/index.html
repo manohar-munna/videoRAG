@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" href="data:,">
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/ui/style.css?v=20260823_2105">
 </head>
 <body>
@@ -831,6 +832,95 @@
                             </span>
                             <span class="m-val text-green" id="m-util">100%</span>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Forensic Debug Panel Trigger & Container -->
+                <div class="mt-4 mb-4 border border-slate-800 bg-slate-950/80 rounded-xl overflow-hidden backdrop-blur-md shadow-lg">
+                    <!-- Panel Header (Clickable to Toggle) -->
+                    <button onclick="toggleDebugPanel()" class="w-full flex items-center justify-between p-4 bg-slate-900/60 border-b border-slate-800 hover:bg-slate-900 transition-colors cursor-pointer text-left">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            <h3 class="text-sm font-bold text-slate-200 tracking-wider uppercase font-sans">Forensic Retrieval Diagnostics</h3>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="debug-status-badge" class="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-slate-800 text-slate-400">IDLE</span>
+                            <svg id="debug-arrow" class="w-4 h-4 text-slate-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                    </button>
+
+                    <!-- Collapsible Debug Content -->
+                    <div id="debug-panel-content" class="hidden p-5 space-y-6 font-mono text-xs">
+                        
+                        <!-- SECTION 1: QUERY EXPANSION AUDIT -->
+                        <div class="space-y-2">
+                            <h4 class="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 bg-sky-400 rounded-full"></span> 1. Query Expansion & Color Integrity
+                            </h4>
+                            <p class="text-[11px] text-slate-400">Verifies if modifiers (colors, counts) were preserved or diluted by synonyms:</p>
+                            <div id="debug-expansions" class="p-3 bg-slate-900/60 rounded border border-slate-800/80 space-y-1 text-slate-300">
+                                <span class="text-slate-500 italic">Awaiting query execution...</span>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 2: CROSS-ENCODER STATUS -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="p-3.5 bg-slate-900/40 rounded-lg border border-slate-800/60 space-y-1">
+                                <span class="text-[10px] text-slate-500 uppercase font-bold block">Text Reranker Status</span>
+                                <div id="debug-reranker-status" class="text-xs font-bold text-slate-200">
+                                    <span class="text-slate-500">Standby</span>
+                                </div>
+                            </div>
+                            <div class="p-3.5 bg-slate-900/40 rounded-lg border border-slate-800/60 space-y-1">
+                                <span class="text-[10px] text-slate-500 uppercase font-bold block">Retrieval Funnel Depth</span>
+                                <div id="debug-funnel-depth" class="text-xs font-bold text-slate-200">
+                                    <span class="text-slate-500">0 Candidate Episodes</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 3: PIPELINE ISOLATION ANALYSIS -->
+                        <div class="p-4 rounded-lg border border-slate-800 bg-slate-900/30 space-y-3">
+                            <h4 class="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 bg-rose-400 rounded-full"></span> 2. Automated Pipeline Isolation Verdict
+                            </h4>
+                            <div id="debug-isolation-card" class="p-3 rounded border border-slate-800/60 bg-slate-900/40 text-slate-400 flex items-start gap-3">
+                                <div class="text-lg">ℹ️</div>
+                                <div>
+                                    <span class="font-bold text-slate-300 uppercase block text-[10px]">Diagnostics Idle</span>
+                                    Execute a search query to evaluate whether retrieval or VLM reasoning layer is responsible for result outcome.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 4: RAW VECTOR SPACE SELECTION LIST -->
+                        <div class="space-y-2">
+                            <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span> 3. Raw Vector Database Top Hits (Recall@15)
+                            </h4>
+                            <p class="text-[11px] text-slate-400">Inspects the top-ranked visual crops from FAISS. Click a row to load that keyframe into the main player for manual verification:</p>
+                            <div class="overflow-x-auto border border-slate-800/80 rounded-lg bg-slate-950/60">
+                                <table class="w-full text-left border-collapse text-[11px] text-slate-300">
+                                    <thead>
+                                        <tr class="bg-slate-900/80 border-b border-slate-800 text-[10px] text-slate-400 uppercase font-bold">
+                                            <th class="p-2.5 pl-3">Rank</th>
+                                            <th class="p-2.5">Timestamp</th>
+                                            <th class="p-2.5">Region Crop</th>
+                                            <th class="p-2.5">FAISS Score</th>
+                                            <th class="p-2.5 pr-3">VLM Storyboard?</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="debug-vector-hits">
+                                        <tr>
+                                            <td colspan="5" class="p-4 text-center text-slate-500 italic">No search executed yet.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 

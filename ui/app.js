@@ -1865,6 +1865,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderResults(data);
             renderVectorDebugger(data.debug_trace);
             updateOptimizationFlowChart(query, data, data.debug_trace);
+            populateForensicDebug(data, query);
             recordQueryEvaluation(query, data, t1 - t0);
         } catch (err) {
             console.error('Search error:', err);
@@ -2427,4 +2428,184 @@ document.addEventListener('DOMContentLoaded', () => {
         div.textContent = text;
         return div.innerHTML;
     }
+
+    // =========================================================================
+    // Real-Time Forensic Diagnostics & Debug Panel Controller
+    // =========================================================================
+    function toggleDebugPanel() {
+        const content = document.getElementById('debug-panel-content');
+        const arrow = document.getElementById('debug-arrow');
+        if (!content) return;
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            if (arrow) arrow.classList.add('rotate-180');
+        } else {
+            content.classList.add('hidden');
+            if (arrow) arrow.classList.remove('rotate-180');
+        }
+    }
+
+    function seekVideoToTimestamp(timestamp) {
+        if (!timestamp) return;
+        const parts = timestamp.split(':').map(Number);
+        let seconds = 0;
+        if (parts.length === 3) {
+            seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+        } else if (parts.length === 2) {
+            seconds = parts[0] * 60 + parts[1];
+        }
+        if (typeof seekToTime === 'function') {
+            seekToTime(seconds, timestamp);
+        }
+    }
+
+    function populateForensicDebug(apiResponse, userQuery) {
+        const debugStatus = document.getElementById('debug-status-badge');
+        if (debugStatus) {
+            debugStatus.innerText = "ACTIVE DIAGNOSTICS";
+            debugStatus.className = "px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-emerald-950 text-emerald-400 border border-emerald-800/30";
+        }
+
+        const debugInfo = (apiResponse && apiResponse.debug_info) || {};
+        const storyboard = (apiResponse && apiResponse.storyboard) || [];
+        const expanded = debugInfo.expanded_queries || [userQuery];
+        const rawHits = debugInfo.raw_vector_hits || [];
+        const bypassed = debugInfo.cross_encoder_bypassed !== false;
+
+        // 1. Render Query Expansions & check for Color Dilution
+        const queryLower = (userQuery || '').toLowerCase();
+        const colors = ["pink", "red", "yellow", "blue", "green", "white", "black", "orange", "gray", "grey", "purple"];
+        const activeColor = colors.find(c => queryLower.includes(c));
+
+        const expansionContainer = document.getElementById('debug-expansions');
+        if (expansionContainer) {
+            expansionContainer.innerHTML = '';
+            
+            let colorDiluted = false;
+            expanded.forEach(exp => {
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between py-0.5 border-b border-slate-900 last:border-0";
+                
+                let labelHTML = `<span>&gt; ${escapeHtml(exp)}</span>`;
+                if (activeColor) {
+                    if (exp.toLowerCase().includes(activeColor)) {
+                        labelHTML = `<span>&gt; ${exp.replace(new RegExp(activeColor, 'gi'), `<span class="text-emerald-400 font-bold">${activeColor}</span>`)}</span>`;
+                    } else {
+                        colorDiluted = true;
+                        labelHTML = `<span>&gt; ${escapeHtml(exp)} <span class="text-rose-400 text-[9px] font-bold">[WARN: COLOR DILUTED]</span></span>`;
+                    }
+                }
+                item.innerHTML = labelHTML;
+                expansionContainer.appendChild(item);
+            });
+        }
+
+        // 2. Render Reranker and Funnel Status
+        const rerankerStatus = document.getElementById('debug-reranker-status');
+        if (rerankerStatus) {
+            if (bypassed) {
+                rerankerStatus.innerHTML = `<span class="text-amber-400 font-bold">BYPASSED (Visual Mode Active)</span>`;
+            } else {
+                rerankerStatus.innerHTML = `<span class="text-sky-400 font-bold">ACTIVE (Cross-Encoder miniLM Scoring)</span>`;
+            }
+        }
+
+        const funnelDepth = document.getElementById('debug-funnel-depth');
+        if (funnelDepth) {
+            funnelDepth.innerText = `${debugInfo.retrieval_depth_k || (apiResponse && apiResponse.episodes ? apiResponse.episodes.length : 15)} Candidate Episodes`;
+        }
+
+        // 3. Run Automated Pipeline Isolation Verification
+        const isolationCard = document.getElementById('debug-isolation-card');
+        if (isolationCard) {
+            const storyboardTimestamps = storyboard.map(f => f.timestamp);
+            const topRawHit = rawHits[0];
+            const topRawHitInStoryboard = topRawHit ? storyboardTimestamps.includes(topRawHit.timestamp) : false;
+
+            let colorDiluted = false;
+            if (activeColor) {
+                colorDiluted = expanded.some(exp => !exp.toLowerCase().includes(activeColor));
+            }
+
+            if (colorDiluted) {
+                isolationCard.className = "p-3 rounded border border-rose-800/40 bg-rose-950/20 text-rose-300 flex items-start gap-3";
+                isolationCard.innerHTML = `
+                    <div class="text-lg">⚠️</div>
+                    <div>
+                        <span class="font-bold text-rose-400 uppercase block text-[10px]">Retriever Failure: Color Dilution Detected</span>
+                        Your search query specified a color modifier, but query expansions included phrases without this modifier. 
+                        The raw vector index was flooded with generic matches, pushing true positive frames below the retrieval threshold.
+                    </div>
+                `;
+            } else if (!topRawHitInStoryboard && rawHits.length > 0) {
+                isolationCard.className = "p-3 rounded border border-rose-800/40 bg-rose-950/20 text-rose-300 flex items-start gap-3";
+                isolationCard.innerHTML = `
+                    <div class="text-lg">❌</div>
+                    <div>
+                        <span class="font-bold text-rose-400 uppercase block text-[10px]">Retriever Failure: Storyboard Gap</span>
+                        The highest-scoring visual anchor in the raw vector database (${topRawHit.timestamp}, Score: ${Number(topRawHit.score || 0).toFixed(4)}) was NOT included in the compiled storyboard passed to the VLM. The VLM was blind to the best-matching frames.
+                    </div>
+                `;
+            } else {
+                isolationCard.className = "p-3 rounded border border-emerald-800/40 bg-emerald-950/15 text-emerald-300 flex items-start gap-3";
+                isolationCard.innerHTML = `
+                    <div class="text-lg">🔍</div>
+                    <div>
+                        <span class="font-bold text-emerald-400 block text-[10px] uppercase">Retriever OK: Auditing VLM Cognitive Limits</span>
+                        The top raw visual matches are successfully represented inside the storyboard. 
+                        If the final answer is incorrect, the error lies in the VLM reasoning layer (quantization loss, spatial hallucination, or counting cognitive limits). Try reducing quantization severity or increasing VLM parameter bounds.
+                    </div>
+                `;
+            }
+        }
+
+        // 4. Render Raw Vector Space Hits Table
+        const tableBody = document.getElementById('debug-vector-hits');
+        if (tableBody) {
+            tableBody.innerHTML = '';
+
+            const storyboardTimestamps = storyboard.map(f => f.timestamp);
+            const seenHits = new Set();
+            let displayRank = 1;
+
+            if (rawHits.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="5" class="p-3 text-center text-slate-500 italic">No raw vector matches found.</td></tr>`;
+            } else {
+                rawHits.forEach(hit => {
+                    const hitKey = `${hit.timestamp}_${hit.crop_region}`;
+                    if (seenHits.has(hitKey)) return;
+                    seenHits.add(hitKey);
+
+                    if (displayRank > 15) return;
+
+                    const row = document.createElement('tr');
+                    row.className = "border-b border-slate-900 hover:bg-slate-900/40 transition-colors cursor-pointer";
+                    
+                    const isSentToVLM = storyboardTimestamps.includes(hit.timestamp);
+                    const sentBadge = isSentToVLM 
+                        ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-900/30">SENT</span>`
+                        : `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-900 text-slate-500">MISSED</span>`;
+
+                    row.innerHTML = `
+                        <td class="p-2.5 pl-3 font-bold text-slate-500">${displayRank}</td>
+                        <td class="p-2.5 font-bold text-slate-200">${hit.timestamp}</td>
+                        <td class="p-2.5"><span class="px-1 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-300">${hit.crop_region}</span></td>
+                        <td class="p-2.5 font-bold text-sky-400">${Number(hit.score || 0).toFixed(4)}</td>
+                        <td class="p-2.5 pr-3">${sentBadge}</td>
+                    `;
+
+                    row.addEventListener('click', () => {
+                        seekVideoToTimestamp(hit.timestamp);
+                    });
+
+                    tableBody.appendChild(row);
+                    displayRank++;
+                });
+            }
+        }
+    }
+
+    window.toggleDebugPanel = toggleDebugPanel;
+    window.populateForensicDebug = populateForensicDebug;
+    window.seekVideoToTimestamp = seekVideoToTimestamp;
 });

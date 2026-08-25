@@ -33,7 +33,7 @@ from pydantic import BaseModel
 from videorag.ingestion.loader import CCTVDataLoader
 from videorag.indexing.embedder import TextEmbedder
 from videorag.indexing.vector_store import FAISSVectorStore
-from videorag.retrieval.retriever import CCTVRetriever
+from videorag.retrieval.retriever import CCTVRetriever, _expand_query
 from videorag.retrieval.reranker import CrossEncoderReranker, ScoreReranker
 from videorag.llm.prompter import RAGPrompter, LLMClient
 from videorag.evaluation.evaluator import RAGEvaluator
@@ -1057,6 +1057,46 @@ def search_cctv(req: SearchRequest):
         }
     }
 
+    # 6. Construct Forensic Diagnostics & Retrieval Debug Metadata
+    store = PIPELINE.get("vector_store")
+    expanded_queries = _expand_query(req.query)
+    raw_vector_hits = []
+    if store and PIPELINE.get("embedder"):
+        seen_hit_keys = set()
+        for q_text in expanded_queries:
+            try:
+                q_emb = PIPELINE["embedder"].embed_query(q_text)
+                for hit in store.search(q_emb, top_k=15):
+                    meta = hit.get("metadata", {})
+                    ts = meta.get("timestamp", "00:00:00")
+                    region = meta.get("crop_region") or meta.get("best_crop_region", "global")
+                    key = f"{ts}_{region}"
+                    if key not in seen_hit_keys:
+                        seen_hit_keys.add(key)
+                        img_path = meta.get("img_path") or meta.get("image_path", "")
+                        if img_path:
+                            clean_img = img_path.replace("\\", "/")
+                            if "data/" in clean_img:
+                                img_path = "/data/" + clean_img.split("data/", 1)[-1].lstrip("/")
+                        raw_vector_hits.append({
+                            "score": float(hit.get("score", 0.0)),
+                            "timestamp": ts,
+                            "camera": meta.get("camera", "CAM_01"),
+                            "crop_region": region,
+                            "img_path": img_path,
+                        })
+            except Exception as e:
+                logger.warning("[Search] Error calculating debug vector hit for '%s': %s", q_text, e)
+        raw_vector_hits.sort(key=lambda x: x["score"], reverse=True)
+        raw_vector_hits = raw_vector_hits[:15]
+
+    debug_info = {
+        "expanded_queries": expanded_queries,
+        "cross_encoder_bypassed": is_visual_index,
+        "retrieval_depth_k": len(candidate_episodes),
+        "raw_vector_hits": raw_vector_hits,
+    }
+
     return {
         "query": req.query,
         "answer": answer,
@@ -1067,6 +1107,7 @@ def search_cctv(req: SearchRequest):
         "total_retrieved": len(episodes),
         "server_time": round(time.time(), 3),
         "debug_trace": debug_trace,
+        "debug_info": debug_info,
     }
 
 

@@ -95,19 +95,26 @@ def _expand_query(query: str) -> List[str]:
 
     # 4. Pedestrians / People / Crowd
     if any(k in q_low for k in ["pedestrian", "pedestrians", "person", "people", "crowd", "walking", "gathering", "individual"]):
-        expansions.extend([
-            f"people or pedestrians in the visual scene",
-            f"individuals present in camera feed",
-            f"person walking or standing"
-        ])
+        if color_prefix:
+            expansions.extend([
+                f"pedestrians wearing {color_prefix}clothing",
+                f"individuals dressed in {color_prefix}present in camera feed",
+                f"person wearing {color_prefix}walking or standing"
+            ])
+        else:
+            expansions.extend([
+                f"people or pedestrians in the visual scene",
+                f"individuals present in camera feed",
+                f"person walking or standing"
+            ])
 
     # 5. Bags / Carrying items
     if any(k in q_low for k in ["bag", "backpack", "package", "luggage", "suitcase"]):
         bag_items = [b for b in ["backpack", "bag", "package", "luggage", "suitcase"] if b in q_low]
         primary_bag = bag_items[0] if bag_items else "bag"
         expansions.extend([
-            f"{primary_bag} on the ground or carried",
-            f"person carrying a {primary_bag}"
+            f"{color_prefix}{primary_bag} on the ground or carried",
+            f"person carrying a {color_prefix}{primary_bag}"
         ])
 
     # Deduplicate while preserving order
