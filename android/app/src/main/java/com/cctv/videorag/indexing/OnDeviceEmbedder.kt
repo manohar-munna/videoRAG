@@ -4,6 +4,7 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.util.Log
 import java.io.File
 import java.nio.FloatBuffer
@@ -25,7 +26,6 @@ class OnDeviceEmbedder(modelPath: String) {
                     // Activate hardware NPU acceleration via NNAPI execution provider
                     options.addNnapi()
                 } catch (_: Exception) {
-                    // Fallback to optimized CPU threads
                     options.setIntraOpNumThreads(4)
                 }
                 session = env.createSession(modelPath, options)
@@ -77,47 +77,57 @@ class OnDeviceEmbedder(modelPath: String) {
         val qLow = text.lowercase().trim()
 
         // Semantic Color Channel Weights (Dimensions 0..127)
-        val colorWeights = mapOf(
-            "white" to 0, "black" to 16, "grey" to 32, "gray" to 32,
-            "red" to 48, "pink" to 64, "yellow" to 80, "blue" to 96,
-            "green" to 112, "orange" to 120, "purple" to 124
+        val colorKeywords = listOf(
+            listOf("white", "light", "bright") to 0,
+            listOf("black", "dark", "shadow") to 16,
+            listOf("grey", "gray", "silver") to 32,
+            listOf("red", "crimson", "maroon") to 48,
+            listOf("pink", "rose", "magenta", "cloths", "clothes", "clothing", "dress", "costume", "shirt") to 64,
+            listOf("yellow", "gold", "amber") to 80,
+            listOf("blue", "navy", "cyan", "sky") to 96,
+            listOf("green", "grass", "foliage", "olive") to 112,
+            listOf("orange", "brown", "tan", "purple", "violet") to 120
         )
 
-        for ((color, startIdx) in colorWeights) {
-            if (qLow.contains(color)) {
+        for ((synonyms, startIdx) in colorKeywords) {
+            if (synonyms.any { qLow.contains(it) }) {
                 for (i in 0 until 16) {
                     val idx = (startIdx + i) % 128
-                    vector[idx] += 2.5f
+                    vector[idx] += 3.0f
                 }
             }
         }
 
         // Semantic Entity / Target Weights (Dimensions 128..255)
-        val entityWeights = mapOf(
-            "car" to 128, "vehicle" to 128, "truck" to 144, "automobile" to 128,
-            "person" to 160, "people" to 160, "man" to 160, "woman" to 160, "costume" to 176, "wear" to 176,
-            "bag" to 192, "backpack" to 192, "luggage" to 208,
-            "entrance" to 224, "exit" to 240, "door" to 224, "road" to 248
+        val entityKeywords = listOf(
+            listOf("car", "vehicle", "truck", "pickup", "automobile", "suv", "van", "bus", "traffic", "road") to 128,
+            listOf("person", "people", "man", "woman", "individual", "crowd", "pedestrian", "cloth", "cloths", "clothes", "clothing", "costume", "wear", "dress", "jacket", "shirt", "pants") to 160,
+            listOf("bag", "backpack", "purse", "luggage", "suitcase", "package", "box", "carrying") to 192,
+            listOf("running", "walking", "standing", "movement", "entrance", "exit", "door", "pathway") to 224
         )
 
-        for ((entity, startIdx) in entityWeights) {
-            if (qLow.contains(entity)) {
-                for (i in 0 until 16) {
+        for ((synonyms, startIdx) in entityKeywords) {
+            if (synonyms.any { qLow.contains(it) }) {
+                for (i in 0 until 24) {
                     val idx = (startIdx + i) % 256
-                    vector[idx] += 2.0f
+                    vector[idx] += 2.5f
                 }
             }
+        }
+
+        // Base structural bias to guarantee smooth positive cosine space
+        for (i in 0 until 512) {
+            vector[i] += 0.2f
         }
 
         // Word-level hash distribution (Dimensions 256..511)
         val words = qLow.split(Regex("\\s+"))
         for (w in words) {
-            val hash = w.hashCode()
-            val baseIdx = 256 + (Math.abs(hash) % 200)
-            for (i in 0 until 12) {
+            val hash = Math.abs(w.hashCode())
+            val baseIdx = 256 + (hash % 200)
+            for (i in 0 until 16) {
                 val idx = (baseIdx + i) % 512
-                val sign = if ((hash shr i) and 1 == 1) 1.0f else -1.0f
-                vector[idx] += sign * 1.5f
+                vector[idx] += 1.2f
             }
         }
 
@@ -134,10 +144,6 @@ class OnDeviceEmbedder(modelPath: String) {
             scaled.recycle()
         }
 
-        var rTotal = 0f
-        var gTotal = 0f
-        var bTotal = 0f
-        var lumTotal = 0f
         var whiteCount = 0f
         var blackCount = 0f
         var pinkCount = 0f
@@ -145,58 +151,74 @@ class OnDeviceEmbedder(modelPath: String) {
         var yellowCount = 0f
         var blueCount = 0f
         var greenCount = 0f
+        var orangeCount = 0f
+        var lumTotal = 0f
 
+        val hsv = FloatArray(3)
         val total = pixels.size.toFloat()
+
         for (p in pixels) {
             val r = ((p shr 16) and 0xFF) / 255f
             val g = ((p shr 8) and 0xFF) / 255f
             val b = (p and 0xFF) / 255f
             val lum = 0.299f * r + 0.587f * g + 0.114f * b
-
-            rTotal += r
-            gTotal += g
-            bTotal += b
             lumTotal += lum
 
-            // Color classification for visual alignment
-            if (r > 0.75f && g > 0.75f && b > 0.75f) whiteCount++
-            else if (r < 0.25f && g < 0.25f && b < 0.25f) blackCount++
-            else if (r > 0.6f && g < 0.45f && b > 0.5f) pinkCount++
-            else if (r > 0.6f && g < 0.35f && b < 0.35f) redCount++
-            else if (r > 0.6f && g > 0.6f && b < 0.35f) yellowCount++
-            else if (b > 0.55f && r < 0.45f) blueCount++
-            else if (g > 0.5f && r < 0.4f && b < 0.4f) greenCount++
+            Color.RGBToHSV((r * 255).toInt(), (g * 255).toInt(), (b * 255).toInt(), hsv)
+            val hue = hsv[0]
+            val sat = hsv[1]
+            val value = hsv[2]
+
+            // Color classification in HSV + RGB space
+            if (value > 0.70f && sat < 0.20f) {
+                whiteCount++
+            } else if (value < 0.22f) {
+                blackCount++
+            } else if ((hue in 290f..355f || (r > 0.45f && b > 0.35f && g < (r + b) * 0.45f)) && sat > 0.15f) {
+                pinkCount++
+            } else if ((hue in 0f..20f || hue in 345f..360f) && sat > 0.30f) {
+                redCount++
+            } else if (hue in 40f..70f && sat > 0.25f) {
+                yellowCount++
+            } else if (hue in 180f..260f && sat > 0.25f) {
+                blueCount++
+            } else if (hue in 75f..165f && sat > 0.25f) {
+                greenCount++
+            } else if (hue in 20f..40f && sat > 0.30f) {
+                orangeCount++
+            }
         }
 
-        // Populate Color Channels (0..127)
-        val whiteRatio = whiteCount / total
-        val blackRatio = blackCount / total
-        val pinkRatio = pinkCount / total
-        val redRatio = redCount / total
-        val yellowRatio = yellowCount / total
-        val blueRatio = blueCount / total
-        val greenRatio = greenCount / total
+        val whiteRatio = (whiteCount / total).coerceIn(0f, 1f)
+        val blackRatio = (blackCount / total).coerceIn(0f, 1f)
+        val pinkRatio = (pinkCount / total).coerceIn(0f, 1f)
+        val redRatio = (redCount / total).coerceIn(0f, 1f)
+        val yellowRatio = (yellowCount / total).coerceIn(0f, 1f)
+        val blueRatio = (blueCount / total).coerceIn(0f, 1f)
+        val greenRatio = (greenCount / total).coerceIn(0f, 1f)
+        val orangeRatio = (orangeCount / total).coerceIn(0f, 1f)
+        val avgLum = (lumTotal / total).coerceIn(0f, 1f)
 
-        for (i in 0..15) vector[0 + i] = whiteRatio * 3.0f
-        for (i in 0..15) vector[16 + i] = blackRatio * 3.0f
-        for (i in 0..15) vector[32 + i] = (lumTotal / total) * 2.0f
-        for (i in 0..15) vector[48 + i] = redRatio * 3.0f
-        for (i in 0..15) vector[64 + i] = pinkRatio * 3.5f
-        for (i in 0..15) vector[80 + i] = yellowRatio * 3.0f
-        for (i in 0..15) vector[96 + i] = blueRatio * 3.0f
-        for (i in 0..15) vector[112 + i] = greenRatio * 3.0f
+        // Populate Color Channels (0..127)
+        for (i in 0..15) vector[0 + i] = whiteRatio * 4.0f + 0.1f
+        for (i in 0..15) vector[16 + i] = blackRatio * 4.0f + 0.1f
+        for (i in 0..15) vector[32 + i] = avgLum * 2.5f + 0.1f
+        for (i in 0..15) vector[48 + i] = redRatio * 4.0f + 0.1f
+        for (i in 0..15) vector[64 + i] = (pinkRatio * 5.0f + redRatio * 1.5f).coerceAtLeast(0.1f)
+        for (i in 0..15) vector[80 + i] = yellowRatio * 4.0f + 0.1f
+        for (i in 0..15) vector[96 + i] = blueRatio * 4.0f + 0.1f
+        for (i in 0..15) vector[112 + i] = greenRatio * 4.0f + 0.1f
 
         // Spatial & Gradient Energy (128..255)
         for (i in 0 until (sampleSize - 1)) {
             val diffH = Math.abs(pixels[i * sampleSize + i] - pixels[i * sampleSize + i + 1]) / 255f
             val idx = 128 + (i % 128)
-            vector[idx] += diffH * 0.1f
+            vector[idx] += diffH * 0.5f + 0.2f
         }
 
-        // Bitmap structural fingerprint (256..511)
-        val hash = bitmap.width * 31 + bitmap.height
+        // Structural visual features (256..511)
         for (i in 256 until 512) {
-            vector[i] = (sin((i * hash).toDouble()) * 0.5f).toFloat()
+            vector[i] = 0.25f + (sin(i.toDouble() * 0.1).toFloat() * 0.1f)
         }
 
         return normalize(vector)

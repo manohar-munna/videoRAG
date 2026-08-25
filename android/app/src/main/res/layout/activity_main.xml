@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/mainScrollView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_dark"
@@ -402,6 +403,109 @@
                         android:textColor="#e2e8f0"
                         android:textSize="13sp"
                         android:lineSpacingExtra="4dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 4. INTERACTIVE VIDEO PLAYBACK CARD -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardVideoPlayback"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:id="@+id/tvPlayerTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="▶️ Forensic Video Playback"
+                        android:textColor="@color/accent"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnClosePlayer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:backgroundTint="#334155"
+                        android:text="✕ Close"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:paddingHorizontal="8dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvPlayerTimestamp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Playing from timestamp: 00:07:10"
+                    android:textColor="@color/text_main"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Video Frame Container -->
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="220dp"
+                    android:background="#000000">
+
+                    <VideoView
+                        android:id="@+id/videoViewPlayback"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:layout_gravity="center" />
+                </FrameLayout>
+
+                <!-- Player Controls -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <Button
+                        android:id="@+id/btnPlayPause"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="#0284c7"
+                        android:text="⏸ Pause"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:paddingHorizontal="12dp" />
+
+                    <Button
+                        android:id="@+id/btnReplayTimestamp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="#334155"
+                        android:text="🔄 Replay Mark"
+                        android:textAllCaps="false"
+                        android:textColor="#ffffff"
+                        android:textSize="11sp"
+                        android:layout_marginStart="8dp"
+                        android:paddingHorizontal="12dp" />
                 </LinearLayout>
 
             </LinearLayout>
