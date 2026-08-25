@@ -2486,13 +2486,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const item = document.createElement('div');
                 item.className = "flex items-center justify-between py-0.5 border-b border-slate-900 last:border-0";
                 
-                let labelHTML = `<span>&gt; ${escapeHtml(exp)}</span>`;
+                const escapedExp = escapeHtml(exp);
+                let labelHTML = `<span>&gt; ${escapedExp}</span>`;
                 if (activeColor) {
                     if (exp.toLowerCase().includes(activeColor)) {
-                        labelHTML = `<span>&gt; ${exp.replace(new RegExp(activeColor, 'gi'), `<span class="text-emerald-400 font-bold">${activeColor}</span>`)}</span>`;
+                        const highlightedExp = escapedExp.replace(new RegExp(activeColor, 'gi'), `<span class="text-emerald-400 font-bold">${escapeHtml(activeColor)}</span>`);
+                        labelHTML = `<span>&gt; ${highlightedExp}</span>`;
                     } else {
                         colorDiluted = true;
-                        labelHTML = `<span>&gt; ${escapeHtml(exp)} <span class="text-rose-400 text-[9px] font-bold">[WARN: COLOR DILUTED]</span></span>`;
+                        labelHTML = `<span>&gt; ${escapedExp} <span class="text-rose-400 text-[9px] font-bold">[WARN: COLOR DILUTED]</span></span>`;
                     }
                 }
                 item.innerHTML = labelHTML;

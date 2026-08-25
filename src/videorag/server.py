@@ -822,8 +822,10 @@ def search_cctv(req: SearchRequest):
     # 2. DETECT VISUAL-ONLY INDEX MODE (Lazy VLM Index)
     # If descriptions contain generic placeholders, bypass the text Cross-Encoder rerank
     is_visual_index = any(
-        "Surveillance keyframe captured" in (ep.get("frames", [{}])[0].get("description") or "")
-        or "CCTV feed frame at" in (ep.get("frames", [{}])[0].get("description") or "")
+        ep.get("frames") and (
+            "Surveillance keyframe captured" in (ep["frames"][0].get("description") or "")
+            or "CCTV feed frame at" in (ep["frames"][0].get("description") or "")
+        )
         for ep in candidate_episodes[:3]
     ) if candidate_episodes else False
 

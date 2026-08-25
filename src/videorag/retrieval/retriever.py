@@ -5,6 +5,7 @@ Multimodal retrieval interface over FAISSVectorStore + MultimodalEmbedder,
 with chronological temporal context window expansion (Episode grouping).
 """
 
+import re
 import logging
 from typing import List, Optional, Dict, Any
 
@@ -53,6 +54,20 @@ def _normalize_query(query: str) -> str:
     return cleaned if len(cleaned) > 2 else query.strip()
 
 
+def _find_entity_color(query_text: str, entity_keywords: List[str], known_colors: List[str], fallback_color: str = "") -> str:
+    """Find the color descriptor closest or syntactically tied to the target entity keywords."""
+    words = query_text.lower().replace("-", " ").split()
+    for i, w in enumerate(words):
+        if any(k in w for k in entity_keywords):
+            for prev_idx in range(max(0, i - 2), i):
+                if words[prev_idx] in known_colors:
+                    return f"{words[prev_idx]} "
+            for next_idx in range(i + 1, min(len(words), i + 3)):
+                if words[next_idx] in known_colors:
+                    return f"{words[next_idx]} "
+    return f"{fallback_color} " if fallback_color else ""
+
+
 def _expand_query(query: str) -> List[str]:
     """Generate focused, context-aware query expansions for surveillance retrieval.
     
@@ -69,37 +84,43 @@ def _expand_query(query: str) -> List[str]:
     # 1. Dynamically extract color modifiers present in the query
     known_colors = ["pink", "red", "yellow", "blue", "green", "white", "black", "orange", "grey", "gray", "purple", "brown", "silver"]
     active_colors = [color for color in known_colors if color in q_low]
-    color_prefix = f"{active_colors[0]} " if active_colors else ""
+    global_color_prefix = f"{active_colors[0]} " if active_colors else ""
 
-    # 2. General Vehicles expansion (Dynamic & Non-hallucinatory)
-    if any(k in q_low for k in ["vehicle", "vehicles", "car", "cars", "truck", "trucks", "pickup", "van", "vans", "suv", "automobile", "traffic"]):
-        vehicle_types = [v for v in ["pickup", "truck", "van", "suv", "sedan", "car"] if v in q_low]
+    # 2. General Vehicles expansion (Dynamic, Entity-Localized Color & Non-hallucinatory)
+    if re.search(r"\b(vehicle|vehicles|car|cars|truck|trucks|pickup|van|vans|suv|sedan|automobile|traffic)\b", q_low):
+        vehicle_types = [v for v in ["pickup", "truck", "van", "suv", "sedan", "car"] if re.search(rf"\b{v}\b", q_low)]
         primary_vehicle = vehicle_types[0] if vehicle_types else "vehicle"
+        veh_keywords = ["pickup", "truck", "van", "suv", "sedan", "car", "vehicle", "automobile", "traffic"]
+        veh_prefix = _find_entity_color(q_low, veh_keywords, known_colors, active_colors[0] if active_colors else "")
         
         expansions.extend([
-            f"{color_prefix}{primary_vehicle} in surveillance footage",
-            f"{color_prefix}automobile or motor vehicle in frame",
-            f"traffic containing {color_prefix}{primary_vehicle}"
+            f"{veh_prefix}{primary_vehicle} in surveillance footage",
+            f"{veh_prefix}automobile or motor vehicle in frame",
+            f"traffic containing {veh_prefix}{primary_vehicle}"
         ])
 
-    # 3. Clothing / Costumes / Apparel expansion
-    if any(k in q_low for k in ["tshirt", "tshirts", "t-shirt", "t-shirts", "shirt", "shirts", "jacket", "hoodie", "clothing", "attire", "costume", "dress", "outfit", "wear"]):
-        clothing_items = [c for c in ["t-shirt", "shirt", "jacket", "hoodie", "dress", "costume", "clothing", "outfit"] if c in q_low]
+    # 3. Clothing / Costumes / Apparel expansion (Entity-Localized Color)
+    if re.search(r"\b(tshirt|tshirts|t-shirt|t-shirts|shirt|shirts|jacket|hoodie|clothing|attire|costume|dress|outfit|wear|wearing|dressed)\b", q_low):
+        clothing_items = [c for c in ["t-shirt", "shirt", "jacket", "hoodie", "dress", "costume", "clothing", "outfit"] if re.search(rf"\b{c}\b", q_low)]
         primary_clothing = clothing_items[0] if clothing_items else "clothing"
+        cloth_keywords = ["t-shirt", "shirt", "jacket", "hoodie", "dress", "costume", "clothing", "outfit", "attire", "garment", "wear"]
+        cloth_prefix = _find_entity_color(q_low, cloth_keywords, known_colors, active_colors[0] if active_colors else "")
         
         expansions.extend([
-            f"person wearing {color_prefix}{primary_clothing}",
-            f"individual dressed in {color_prefix}garments",
-            f"pedestrian in {color_prefix}apparel"
+            f"person wearing {cloth_prefix}{primary_clothing}",
+            f"individual dressed in {cloth_prefix}garments",
+            f"pedestrian in {cloth_prefix}apparel"
         ])
 
-    # 4. Pedestrians / People / Crowd
-    if any(k in q_low for k in ["pedestrian", "pedestrians", "person", "people", "crowd", "walking", "gathering", "individual"]):
-        if color_prefix:
+    # 4. Pedestrians / People / Crowd (Grammatically natural syntax)
+    if re.search(r"\b(pedestrian|pedestrians|person|people|crowd|walking|gathering|individual|individuals)\b", q_low):
+        ped_keywords = ["pedestrian", "pedestrians", "person", "people", "crowd", "individual"]
+        ped_prefix = _find_entity_color(q_low, ped_keywords, known_colors, active_colors[0] if active_colors else "")
+        if ped_prefix:
             expansions.extend([
-                f"pedestrians wearing {color_prefix}clothing",
-                f"individuals dressed in {color_prefix}present in camera feed",
-                f"person wearing {color_prefix}walking or standing"
+                f"pedestrians wearing {ped_prefix}clothing",
+                f"individuals dressed in {ped_prefix}attire present in camera feed",
+                f"person wearing {ped_prefix}clothing walking or standing"
             ])
         else:
             expansions.extend([
@@ -108,13 +129,16 @@ def _expand_query(query: str) -> List[str]:
                 f"person walking or standing"
             ])
 
-    # 5. Bags / Carrying items
-    if any(k in q_low for k in ["bag", "backpack", "package", "luggage", "suitcase"]):
-        bag_items = [b for b in ["backpack", "bag", "package", "luggage", "suitcase"] if b in q_low]
+    # 5. Bags / Carrying items (Entity-Localized Color)
+    if re.search(r"\b(bag|bags|backpack|backpacks|package|packages|luggage|suitcase|suitcases)\b", q_low):
+        bag_items = [b for b in ["backpack", "bag", "package", "luggage", "suitcase"] if re.search(rf"\b{b}\b", q_low)]
         primary_bag = bag_items[0] if bag_items else "bag"
+        bag_keywords = ["backpack", "bag", "package", "luggage", "suitcase"]
+        bag_prefix = _find_entity_color(q_low, bag_keywords, known_colors, active_colors[0] if active_colors else "")
+        
         expansions.extend([
-            f"{color_prefix}{primary_bag} on the ground or carried",
-            f"person carrying a {color_prefix}{primary_bag}"
+            f"{bag_prefix}{primary_bag} on the ground or carried",
+            f"person carrying a {bag_prefix}{primary_bag}"
         ])
 
     # Deduplicate while preserving order
