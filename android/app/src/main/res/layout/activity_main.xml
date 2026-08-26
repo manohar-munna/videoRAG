@@ -100,6 +100,18 @@
                         android:textStyle="bold" />
 
                     <Button
+                        android:id="@+id/btnSelectModelFolder"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:background="@drawable/btn_outline_white"
+                        android:text="📂 Model Folder"
+                        android:textAllCaps="false"
+                        android:textColor="@color/primary"
+                        android:textSize="12sp"
+                        android:paddingHorizontal="8dp"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
                         android:id="@+id/btnClearAll"
                         android:layout_width="wrap_content"
                         android:layout_height="32dp"

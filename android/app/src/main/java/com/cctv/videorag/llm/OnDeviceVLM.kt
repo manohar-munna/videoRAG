@@ -18,6 +18,15 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     private var activeModelDirectory: String? = null
     private var activeModelFileName: String? = null
 
+    var customModelDirectory: String? = null
+        set(value) {
+            field = value
+            if (nativeHandle != 0L) {
+                unloadVLM()
+            }
+            loadVLM()
+        }
+
     companion object {
         init {
             try {
@@ -32,18 +41,26 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
      * Discovers if Qwen2.5-VL 3B or Qwen2-VL 2B GGUF model files exist in known mobile storage directories.
      */
     fun findActiveModelDir(): String? {
-        val candidatePaths = listOf(
-            "/storage/emulated/0/Download/qwen2_vl_2b",
-            "/storage/emulated/0/Downloads/qwen2_vl_2b",
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "qwen2_vl_2b").absolutePath,
-            "/sdcard/Download/qwen2_vl_2b",
-            "/sdcard/Downloads/qwen2_vl_2b",
-            File(Environment.getExternalStorageDirectory(), "Download/qwen2_vl_2b").absolutePath,
-            File(context.filesDir, "qwen2_vl_2b").absolutePath,
-            File(context.getExternalFilesDir(null), "qwen2_vl_2b").absolutePath,
-            defaultModelDirectory
+        val candidatePaths = mutableListOf<String>()
+        customModelDirectory?.let { candidatePaths.add(it) }
+
+        candidatePaths.addAll(
+            listOf(
+                "/storage/emulated/0/Download/qwen2_vl_2b",
+                "/storage/emulated/0/Downloads/qwen2_vl_2b",
+                "/storage/emulated/0/qwen2_vl_2b",
+                File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "qwen2_vl_2b").absolutePath,
+                "/sdcard/Download/qwen2_vl_2b",
+                "/sdcard/Downloads/qwen2_vl_2b",
+                "/sdcard/qwen2_vl_2b",
+                File(Environment.getExternalStorageDirectory(), "Download/qwen2_vl_2b").absolutePath,
+                File(context.filesDir, "qwen2_vl_2b").absolutePath,
+                File(context.getExternalFilesDir(null), "qwen2_vl_2b").absolutePath,
+                defaultModelDirectory
+            )
         )
 
+        // 1. Direct candidate paths
         for (path in candidatePaths) {
             val dir = File(path)
             if (dir.exists() && dir.isDirectory) {
@@ -55,11 +72,40 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                 }
                 if (modelFile != null) {
                     activeModelFileName = modelFile.name
-                    Log.i("VideoRAG_VLM", "Discovered VLM GGUF weights: ${modelFile.absolutePath} (${modelFile.length() / (1024 * 1024)} MB)")
+                    Log.i("VideoRAG_VLM", "Discovered VLM GGUF weights at: ${modelFile.absolutePath} (${modelFile.length() / (1024 * 1024)} MB)")
                     return dir.absolutePath
                 }
             }
         }
+
+        // 2. Scan parent Download/ directory for any subfolder with GGUF
+        val downloadParents = listOf(
+            "/storage/emulated/0/Download",
+            "/storage/emulated/0/Downloads",
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
+        )
+        for (p in downloadParents) {
+            val parentDir = File(p)
+            if (parentDir.exists() && parentDir.isDirectory) {
+                val subDirs = parentDir.listFiles() ?: emptyArray()
+                for (sub in subDirs) {
+                    if (sub.isDirectory) {
+                        val subFiles = sub.listFiles() ?: emptyArray()
+                        val model = subFiles.firstOrNull {
+                            it.extension.lowercase() == "gguf" &&
+                            !it.name.contains("mmproj", ignoreCase = true) &&
+                            it.length() > 50_000_000L
+                        }
+                        if (model != null) {
+                            activeModelFileName = model.name
+                            Log.i("VideoRAG_VLM", "Discovered VLM in subfolder: ${model.absolutePath}")
+                            return sub.absolutePath
+                        }
+                    }
+                }
+            }
+        }
+
         return null
     }
 
@@ -122,7 +168,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
 
         // EXPLICIT VERIFICATION: No silent mock fallback!
         if (nativeHandle <= 0L) {
-            val primaryPath = "/storage/emulated/0/Download/qwen2_vl_2b"
+            val primaryPath = customModelDirectory ?: "/storage/emulated/0/Download/qwen2_vl_2b"
             val dir = File(primaryPath)
             
             val statusMessage: String
@@ -131,7 +177,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             } else {
                 val files = dir.listFiles()
                 if (files == null) {
-                    statusMessage = "Folder exists, but Android Scoped Storage blocked read access.\n👉 Solution: Grant 'All Files Access' in Android Settings -> Apps -> Special App Access -> All Files Access -> VideoRAG Mobile."
+                    statusMessage = "Android Scoped Storage is restricting access to this folder.\n👉 Tap '📂 Model Folder' button above to select your qwen2_vl_2b folder directly."
                 } else if (files.isEmpty()) {
                     statusMessage = "Folder exists but is currently empty.\n👉 Ensure Qwen2.5-VL / Qwen2-VL .gguf and mmproj .gguf are placed inside Download/qwen2_vl_2b/."
                 } else {
@@ -145,12 +191,12 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                 
                 The real Vision-Language Model (Qwen2.5-VL 3B / Qwen2-VL 2B) could not be loaded into memory.
                 
-                • Path: $primaryPath
-                • Storage Status: $statusMessage
+                • Path Checked: $primaryPath
+                • Status: $statusMessage
                 
                 📌 Action Required:
-                1. Ensure 'All Files Access' permission is granted to VideoRAG Mobile.
-                2. Verify Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf and mmproj-*-F16.gguf are in:
+                1. Tap the "📂 Model Folder" button at the top to select your qwen2_vl_2b folder directly.
+                2. Or place Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf and mmproj-*-F16.gguf in:
                    Internal storage/Download/qwen2_vl_2b/
                 3. Re-open the app to initialize GPU/CPU tensors.
                 

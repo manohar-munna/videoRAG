@@ -91,12 +91,50 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnClosePlayer: Button
     private lateinit var btnPlayPause: Button
     private lateinit var btnReplayTimestamp: Button
+    private lateinit var btnSelectModelFolder: Button
 
     // Activity Result Launcher for selecting local video
     private val pickVideoLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             currentVideoUri = it
             processSelectedVideoUri(it)
+        }
+    }
+
+    // Activity Result Launcher for selecting GGUF model folder directly
+    private val selectFolderLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        uri?.let { treeUri ->
+            try {
+                contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+
+            val docId = android.provider.DocumentsContract.getTreeDocumentId(treeUri)
+            val split = docId.split(":")
+            val realPath = if (split.size > 1) {
+                if ("primary".equals(split[0], ignoreCase = true)) {
+                    "/storage/emulated/0/${split[1]}"
+                } else {
+                    "/storage/${split[0]}/${split[1]}"
+                }
+            } else {
+                docId
+            }
+
+            Log.i("MainActivity", "User selected model folder: $realPath ($treeUri)")
+
+            lifecycleScope.launch(Dispatchers.Main) {
+                val vlm = orchestrator.getActiveVLM()
+                vlm.customModelDirectory = realPath
+                updateModelBadge()
+                if (vlm.isNativeGGUFAvailable()) {
+                    Toast.makeText(this@MainActivity, "🟢 Qwen2.5-VL / Qwen2-VL Loaded from: $realPath", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@MainActivity, "Folder selected: $realPath. Verifying .gguf files...", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 
@@ -149,6 +187,7 @@ class MainActivity : AppCompatActivity() {
         scrollView = findViewById(R.id.mainScrollView)
         tvStatus = findViewById(R.id.tvStatus)
         btnClearAll = findViewById(R.id.btnClearAll)
+        btnSelectModelFolder = findViewById(R.id.btnSelectModelFolder)
         btnPickVideo = findViewById(R.id.btnPickVideo)
         btnToggleUrl = findViewById(R.id.btnToggleUrl)
         btnFps05 = findViewById(R.id.btnFps05)
@@ -197,6 +236,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        // Select Model Folder Directly via System File Picker
+        btnSelectModelFolder.setOnClickListener {
+            selectFolderLauncher.launch(null)
+        }
+
         // Reset / Clear All
         btnClearAll.setOnClickListener {
             resetAllData()
