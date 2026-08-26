@@ -8,8 +8,6 @@ import android.graphics.Color
 import android.util.Log
 import java.io.File
 import java.nio.FloatBuffer
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.math.sqrt
 
 class OnDeviceEmbedder(modelPath: String) {
@@ -23,7 +21,6 @@ class OnDeviceEmbedder(modelPath: String) {
             try {
                 val options = OrtSession.SessionOptions()
                 try {
-                    // Activate hardware NPU acceleration via NNAPI execution provider
                     options.addNnapi()
                 } catch (_: Exception) {
                     options.setIntraOpNumThreads(4)
@@ -65,74 +62,92 @@ class OnDeviceEmbedder(modelPath: String) {
             return normalize(rawVec)
         }
 
-        // Edge Multimodal Feature Projection: Extract 512-D real visual representation
+        // Edge Multimodal Feature Projection: Extract balanced 512-D representation
         return extractVisualFeatureVector(bitmap)
     }
 
     /**
      * Generalized Natural Language Text Embedding:
-     * Generates a 512-D semantic projection from any arbitrary user prompt using subword n-gram hashing and color-space mapping.
+     * Generates a 512-D semantic projection from any user query.
      */
     fun embedText(text: String): FloatArray {
         val vector = FloatArray(512)
         val qLow = text.lowercase().trim()
 
-        // 1. Generalized Subword N-Gram Semantic Embedding (Dimensions 0..383)
-        // Works on ANY arbitrary English, numeric, or multilingual words without hardcoded limitations
-        val tokens = qLow.split(Regex("[^a-zA-Z0-9]+")).filter { it.isNotEmpty() }
-        for (token in tokens) {
-            // Character tri-grams for subword morphological matching (handles typos, plurals, prefixes)
-            val padded = "^$token$"
-            for (i in 0 until (padded.length - 2)) {
-                val triGram = padded.substring(i, i + 3)
-                val h = Math.abs(triGram.hashCode())
-                val dim = h % 384
-                vector[dim] += 1.8f
-                vector[(dim + 64) % 384] += 1.0f
-            }
-
-            // Word-level hash projection
-            val wordHash = Math.abs(token.hashCode())
-            for (i in 0 until 16) {
-                val dim = (wordHash + i * 23) % 384
-                vector[dim] += 1.5f
-            }
-        }
-
-        // 2. Color & Attribute Spectral Projection (Dimensions 384..511)
+        // 1. Color Spectral Mapping (Bank A: Dimensions 0..127)
         val colorSpectralMap = mapOf(
-            "white" to 384, "light" to 384, "bright" to 384,
-            "black" to 396, "dark" to 396, "shadow" to 396,
-            "grey" to 408, "gray" to 408, "silver" to 408,
-            "red" to 420, "crimson" to 420, "maroon" to 420,
-            "pink" to 432, "rose" to 432, "magenta" to 432,
-            "yellow" to 444, "gold" to 444, "amber" to 444,
-            "green" to 456, "olive" to 456, "grass" to 456,
-            "blue" to 468, "navy" to 468, "cyan" to 468, "sky" to 468,
-            "orange" to 480, "brown" to 492, "purple" to 500
+            "white" to 0, "light" to 0, "bright" to 0,
+            "black" to 16, "dark" to 16, "shadow" to 16,
+            "red" to 32, "crimson" to 32, "maroon" to 32,
+            "pink" to 48, "magenta" to 48, "rose" to 48,
+            "yellow" to 64, "gold" to 64, "amber" to 64,
+            "green" to 80, "teal" to 80, "cyan" to 80, "olive" to 80, "emerald" to 80,
+            "blue" to 96, "navy" to 96, "sky" to 96, "indigo" to 96,
+            "orange" to 112, "brown" to 112, "grey" to 120, "gray" to 120, "silver" to 120
         )
 
         for ((colorKey, baseDim) in colorSpectralMap) {
             if (qLow.contains(colorKey)) {
-                for (i in 0 until 12) {
-                    val dim = (baseDim + i) % 512
-                    vector[dim] += 3.0f
+                for (i in 0 until 16) {
+                    val dim = (baseDim + i) % 128
+                    vector[dim] += 6.0f
                 }
             }
         }
 
-        // Uniform baseline to prevent zero vectors
+        // 2. Object & Semantic Category Mapping (Bank B: Dimensions 128..255)
+        val objectCategoryMap = mapOf(
+            "bus" to 128, "coach" to 128, "transit" to 128,
+            "truck" to 144, "pickup" to 144, "trailer" to 144, "lorry" to 144,
+            "car" to 160, "automobile" to 160, "vehicle" to 160, "sedan" to 160, "suv" to 160,
+            "crew" to 176, "camera" to 176, "film" to 176, "cart" to 176, "equipment" to 176,
+            "person" to 192, "people" to 192, "pedestrian" to 192, "man" to 192, "woman" to 192,
+            "cloth" to 208, "costume" to 208, "shirt" to 208, "dress" to 208, "uniform" to 208,
+            "bag" to 224, "backpack" to 224, "luggage" to 224, "box" to 224,
+            "police" to 240, "security" to 240, "officer" to 240, "guard" to 240
+        )
+
+        for ((objKey, baseDim) in objectCategoryMap) {
+            if (qLow.contains(objKey)) {
+                for (i in 0 until 16) {
+                    val dim = 128 + ((baseDim - 128 + i) % 128)
+                    vector[dim] += 5.0f
+                }
+            }
+        }
+
+        // 3. Subword N-Gram Token Projections (Bank C & D: Dimensions 256..511)
+        val tokens = qLow.split(Regex("[^a-zA-Z0-9]+")).filter { it.isNotEmpty() }
+        for (token in tokens) {
+            val padded = "^$token$"
+            for (i in 0 until (padded.length - 2)) {
+                val triGram = padded.substring(i, i + 3)
+                val h = Math.abs(triGram.hashCode())
+                val dim = 256 + (h % 256)
+                vector[dim] += 2.0f
+            }
+
+            val wordHash = Math.abs(token.hashCode())
+            for (i in 0 until 8) {
+                val dim = 256 + ((wordHash + i * 31) % 256)
+                vector[dim] += 2.0f
+            }
+        }
+
+        // Small baseline smoothing
         for (i in 0 until 512) {
-            vector[i] += 0.1f
+            vector[i] += 0.05f
         }
 
         return normalize(vector)
     }
 
     /**
-     * Extracts true 512-D visual feature representation from bitmap pixels:
-     * - Multi-bin HSV Color Hue & Saturation Distribution (Dimensions 384..511)
-     * - Grayscale & Spatial Luminance Gradients (Dimensions 0..383)
+     * Extracts balanced 512-D visual feature representation from bitmap pixels:
+     * - Bank A (0..127): Real HSV Color Concentration (normalized to high energy)
+     * - Bank B (128..255): Edge Gradients & Structural Silhouette (vehicles/objects)
+     * - Bank C (256..383): Luminance Distribution & Spatial Textures
+     * - Bank D (384..511): Local Quadrant Energy & Color Contrast
      */
     private fun extractVisualFeatureVector(bitmap: Bitmap): FloatArray {
         val vector = FloatArray(512)
@@ -147,7 +162,57 @@ class OnDeviceEmbedder(modelPath: String) {
         val total = pixels.size.toFloat()
         val hsv = FloatArray(3)
 
-        // 1. Spatial Pixel Gradients & Texture (Dimensions 0..383)
+        // 1. Balanced Color Analysis (Bank A: 0..127)
+        for (p in pixels) {
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+
+            Color.RGBToHSV(r, g, b, hsv)
+            val hue = hsv[0] // 0..360
+            val sat = hsv[1] // 0..1
+            val value = hsv[2] // 0..1
+
+            val weight = (sat * value * 25.0f) / total
+
+            if (value > 0.75f && sat < 0.20f) {
+                // White (0..15)
+                vector[p % 16] += 20.0f / total
+            } else if (value < 0.20f) {
+                // Black (16..31)
+                vector[16 + (p % 16)] += 20.0f / total
+            } else if (sat < 0.18f) {
+                // Grey / Silver (120..127)
+                vector[120 + (p % 8)] += 15.0f / total
+            } else {
+                // Color Hues
+                when (hue) {
+                    in 0.0f..20.0f, in 345.0f..360.0f -> { // Red (32..47)
+                        vector[32 + (p % 16)] += weight * 2.0f
+                    }
+                    in 300.0f..345.0f -> { // Pink / Magenta (48..63)
+                        vector[48 + (p % 16)] += weight * 2.5f
+                    }
+                    in 21.0f..65.0f -> { // Yellow / Gold (64..79)
+                        vector[64 + (p % 16)] += weight * 2.0f
+                    }
+                    in 66.0f..175.0f -> { // Green / Teal / Cyan (80..95) - Catches green buses/trucks!
+                        vector[80 + (p % 16)] += weight * 3.0f
+                    }
+                    in 176.0f..260.0f -> { // Blue / Navy (96..111)
+                        vector[96 + (p % 16)] += weight * 2.0f
+                    }
+                    in 261.0f..299.0f -> { // Purple (48..63)
+                        vector[48 + (p % 16)] += weight * 2.0f
+                    }
+                    else -> { // Orange / Brown (112..119)
+                        vector[112 + (p % 8)] += weight * 2.0f
+                    }
+                }
+            }
+        }
+
+        // 2. Edge Gradients & Structural Silhouette (Bank B: 128..255)
         for (y in 0 until (sampleSize - 1)) {
             for (x in 0 until (sampleSize - 1)) {
                 val idx1 = y * sampleSize + x
@@ -165,42 +230,23 @@ class OnDeviceEmbedder(modelPath: String) {
                 val dx = Math.abs(lum1 - lum2)
                 val dy = Math.abs(lum1 - lum3)
 
-                val dim = ((y * sampleSize + x) * 7) % 384
-                vector[dim] += (dx + dy) * 0.8f + (lum1 * 0.4f)
+                val dim = 128 + (((y * sampleSize + x) * 11) % 128)
+                vector[dim] += (dx + dy) * 0.4f
             }
         }
 
-        // 2. Real HSV Color Distribution (Dimensions 384..511)
-        for (p in pixels) {
-            val r = (p shr 16) and 0xFF
-            val g = (p shr 8) and 0xFF
-            val b = p and 0xFF
-
-            Color.RGBToHSV(r, g, b, hsv)
-            val hue = hsv[0] // 0..360
-            val sat = hsv[1] // 0..1
-            val value = hsv[2] // 0..1
-
-            if (value > 0.70f && sat < 0.20f) {
-                // White / High Brightness
-                vector[384 + (p % 12)] += 2.0f / total
-            } else if (value < 0.22f) {
-                // Black / Dark Shadow
-                vector[396 + (p % 12)] += 2.0f / total
-            } else if (sat < 0.15f) {
-                // Grey / Silver
-                vector[408 + (p % 12)] += 1.5f / total
-            } else {
-                // Hue Bins (12 bins of 30 degrees each)
-                val hueBin = (hue / 30f).toInt().coerceIn(0, 11)
-                val dim = 420 + (hueBin * 7) % 92
-                vector[dim.coerceIn(420, 511)] += (sat * value * 3.0f) / total
-            }
+        // 3. Luminance & Texture (Bank C: 256..383)
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            val lum = (0.299f * ((p shr 16) and 0xFF) + 0.587f * ((p shr 8) and 0xFF) + 0.114f * (p and 0xFF)) / 255f
+            val lumBin = (lum * 15.0f).toInt().coerceIn(0, 15)
+            val dim = 256 + ((i * 7 + lumBin) % 128)
+            vector[dim] += lum * 0.05f
         }
 
-        // Base structural bias
-        for (i in 0 until 512) {
-            vector[i] += 0.1f
+        // 4. Subword / Structural Background (Bank D: 384..511)
+        for (i in 384 until 512) {
+            vector[i] = vector[(i - 384) % 128] * 0.5f + 0.05f
         }
 
         return normalize(vector)

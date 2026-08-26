@@ -410,12 +410,14 @@ class MainActivity : AppCompatActivity() {
         val currentHash = MobileFrameFilter.calculateDHash(bitmap)
         val hashHex = MobileFrameFilter.formatHashHex(currentHash)
 
-        // Stage 1: Apply 64-bit dHash Filter (discard near-identical static frames)
+        // Stage 1: Adaptive Motion Filter
+        // In wide surveillance footage (e.g. highway traffic), small moving cars produce Δ = 2 to 6.
+        // Genuinely static duplicate frames have Δ <= 1.
         var hammingDist = 64
         var isDropped = false
         lastFrameHash?.let { lastHash ->
             hammingDist = MobileFrameFilter.hammingDistance(lastHash, currentHash)
-            if (hammingDist < 10) {
+            if (hammingDist <= 1) {
                 droppedFramesCount++
                 isDropped = true
             }
