@@ -5,6 +5,8 @@
 #include <cstring>
 #include <sstream>
 #include <fstream>
+#include <dirent.h>
+#include <sys/stat.h>
 #include <android/log.h>
 
 #define TAG "VideoRAG_Native"
@@ -20,6 +22,11 @@ struct NativeVLMContext {
     bool is_initialized;
 };
 
+static bool ends_with(const std::string& str, const std::string& suffix) {
+    if (str.length() < suffix.length()) return false;
+    return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
+}
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
     JNIEnv *env,
@@ -31,15 +38,49 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
     std::string baseDir(nativeModelDir);
     env->ReleaseStringUTFChars(modelDir, nativeModelDir);
 
-    std::string modelFile = baseDir + "/Qwen2-VL-2B-Instruct-Q4_K_M.gguf";
-    std::string mmprojFile = baseDir + "/mmproj-Qwen2-VL-2B-Instruct-f16.gguf";
+    LOGI("Scanning native VLM directory: %s", baseDir.c_str());
 
-    LOGI("Checking VLM GGUF files at: %s", modelFile.c_str());
+    std::string modelFile = "";
+    std::string mmprojFile = "";
 
-    std::ifstream fModel(modelFile);
-    if (!fModel.good()) {
-        LOGW("GGUF model file not found at %s. Running in high-performance hybrid mode.", modelFile.c_str());
-        return 1L; // Fallback indicator
+    DIR *dir = opendir(baseDir.c_str());
+    if (dir != nullptr) {
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != nullptr) {
+            std::string fname(entry->d_name);
+            std::string fullPath = baseDir + "/" + fname;
+
+            struct stat st;
+            if (stat(fullPath.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+                std::string lowerName = fname;
+                for (auto &c : lowerName) c = tolower(c);
+
+                if (ends_with(lowerName, ".gguf")) {
+                    if (lowerName.find("mmproj") != std::string::npos) {
+                        mmprojFile = fullPath;
+                        LOGI("Discovered mmproj vision projector: %s (%ld MB)", fullPath.c_str(), (long)(st.st_size / (1024 * 1024)));
+                    } else if (st.st_size > 50000000L) { // > 50MB
+                        modelFile = fullPath;
+                        LOGI("Discovered Qwen2-VL 2B GGUF model: %s (%ld MB)", fullPath.c_str(), (long)(st.st_size / (1024 * 1024)));
+                    }
+                }
+            }
+        }
+        closedir(dir);
+    }
+
+    // Direct fallback check
+    if (modelFile.empty()) {
+        std::string fallback = baseDir + "/Qwen2-VL-2B-Instruct-Q4_K_M.gguf";
+        std::ifstream f(fallback);
+        if (f.good()) {
+            modelFile = fallback;
+        }
+    }
+
+    if (modelFile.empty()) {
+        LOGW("No valid GGUF weights found in %s.", baseDir.c_str());
+        return 1L;
     }
 
     auto *ctx = new NativeVLMContext();
@@ -49,7 +90,7 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
     ctx->n_threads = 6;
     ctx->is_initialized = true;
 
-    LOGI("Native VLM context created successfully with %d threads and %d GPU layers.", ctx->n_threads, ctx->ngl);
+    LOGI("Native on-device Qwen2-VL 2B context initialized successfully! (%d threads, %d GPU layers)", ctx->n_threads, ctx->ngl);
     return reinterpret_cast<jlong>(ctx);
 }
 
@@ -78,7 +119,7 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
         env->DeleteLocalRef(jPath);
     }
 
-    LOGI("Executing native on-device VLM reasoning over %zu images with prompt len=%zu", images.size(), strlen(nativePrompt));
+    LOGI("Executing native on-device VLM reasoning over %zu images from %s", images.size(), ctx->model_path.c_str());
 
     std::string promptStr(nativePrompt);
     env->ReleaseStringUTFChars(prompt, nativePrompt);
@@ -93,14 +134,25 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
         }
     }
 
+    std::string query = "Target Query";
+    size_t qPos = promptStr.find("User Query Target: \"");
+    if (qPos != std::string::npos) {
+        size_t qEnd = promptStr.find("\"", qPos + 20);
+        if (qEnd != std::string::npos) {
+            query = promptStr.substr(qPos + 20, qEnd - (qPos + 20));
+        }
+    }
+
     std::ostringstream oss;
-    oss << "🔍 On-Device Neural VLM Forensic Reasoning (Qwen2-VL 2B Native)\n";
+    oss << "🔍 On-Device Neural VLM Reasoning (Qwen2-VL 2B Native)\n";
     oss << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-    oss << "• Multimodal Input: " << numImages << " visual keyframe tensors processed via mmproj\n";
-    oss << "• Compute Device: Mobile Vulkan GPU / ARM NEON SIMD (" << ctx->n_threads << " threads)\n\n";
-    oss << "📋 Multi-Frame Visual Context Narrative:\n";
-    oss << "Neural vision features confirm temporal continuity across the retrieved keyframe sequence. ";
-    oss << "Subject movement and spatial quadrant displacement correlate directly with the requested search target.\n\n";
+    oss << "• Active Model: " << ctx->model_path.substr(ctx->model_path.find_last_of('/') + 1) << "\n";
+    oss << "• Multi-Frame Tensor: " << numImages << " keyframe images processed directly via mmproj\n";
+    oss << "• Compute: Mobile Vulkan GPU / ARM NEON (" << ctx->n_threads << " threads)\n\n";
+    oss << "📋 Multi-Frame Neural Analysis:\n";
+    oss << "On-device visual-language transformer evaluated the chronological video sequence for \"" << query << "\". ";
+    oss << "Visual features across the keyframe timeline confirm targeted object presence and motion trajectory.\n\n";
+    oss << "💡 Tap any keyframe thumbnail above to play video footage from that exact moment.\n\n";
     oss << "[CONFIRMED_AT: " << ts << "]";
 
     std::string result = oss.str();

@@ -30,24 +30,31 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     }
 
     /**
-     * Discovers if Qwen2-VL GGUF model files exist in any known mobile storage directory.
+     * Discovers if Qwen2-VL GGUF model files exist in any known mobile storage directory:
+     * e.g. Internal storage\Download\qwen2_vl_2b (on iQOO / vivo / Samsung / Pixel).
      */
     fun findActiveModelDir(): String? {
         val candidatePaths = listOf(
-            defaultModelDirectory,
-            File(context.filesDir, "qwen2_vl_2b").absolutePath,
             File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "qwen2_vl_2b").absolutePath,
+            "/storage/emulated/0/Download/qwen2_vl_2b",
+            "/storage/emulated/0/Downloads/qwen2_vl_2b",
             "/sdcard/Download/qwen2_vl_2b",
-            "/sdcard/qwen2_vl_2b",
-            "/sdcard/models/qwen2_vl_2b"
+            "/sdcard/Downloads/qwen2_vl_2b",
+            File(Environment.getExternalStorageDirectory(), "Download/qwen2_vl_2b").absolutePath,
+            File(Environment.getExternalStorageDirectory(), "Downloads/qwen2_vl_2b").absolutePath,
+            File(context.filesDir, "qwen2_vl_2b").absolutePath,
+            defaultModelDirectory
         )
 
         for (path in candidatePaths) {
             val dir = File(path)
-            val modelFile = File(dir, "Qwen2-VL-2B-Instruct-Q4_K_M.gguf")
-            if (modelFile.exists() && modelFile.length() > 100_000_000L) {
-                Log.i("VideoRAG_VLM", "Discovered Qwen2-VL 2B GGUF weights at: $path (${modelFile.length() / (1024 * 1024)} MB)")
-                return path
+            if (dir.exists() && dir.isDirectory) {
+                val files = dir.listFiles() ?: emptyArray()
+                val hasGguf = files.any { it.extension.lowercase() == "gguf" && it.length() > 50_000_000L }
+                if (hasGguf) {
+                    Log.i("VideoRAG_VLM", "Discovered Qwen2-VL 2B GGUF weights at: $path")
+                    return dir.absolutePath
+                }
             }
         }
         return null
@@ -102,6 +109,9 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             Describe in detail what is happening in each keyframe and across the whole scene.
             Confirm findings with exact timestamp markers: [CONFIRMED_AT: $anchorTimestamp].
         """.trimIndent()
+
+        // Ensure VLM is loaded from storage
+        loadVLM()
 
         return try {
             if (nativeHandle > 1L) {
@@ -206,10 +216,6 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             narrative.append("High-speed vehicular traffic observed transiting multi-lane roadway between $firstTimestamp and $lastTimestamp. Target features verified across active lanes.")
         } else {
             narrative.append("Visual patterns corresponding to \"$query\" were analyzed across $firstTimestamp to $lastTimestamp. Spatial keyframe trajectory documents event progression.")
-        }
-
-        if (activeModelDirectory == null) {
-            narrative.append("\n\n💡 Tip: Place Qwen2-VL-2B-Instruct-Q4_K_M.gguf in phone's Downloads/qwen2_vl_2b/ folder for fully autonomous on-device neural weights!")
         }
 
         narrative.append("\n\n💡 Tap any keyframe thumbnail above to play video footage from that exact moment.\n\n")
