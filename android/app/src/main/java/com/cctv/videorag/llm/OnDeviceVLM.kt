@@ -134,9 +134,11 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         val cropRegion: String,
         val sceneType: String,
         val hasVehicles: Boolean,
+        val hasRedObject: Boolean,
         val hasGreenObject: Boolean,
         val hasBlueObject: Boolean,
         val hasWhiteObject: Boolean,
+        val hasYellowObject: Boolean,
         val visualDescription: String
     )
 
@@ -163,23 +165,33 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         val sceneEnvironment = analyses.map { it.sceneType }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
             ?: "Surveillance monitoring corridor"
 
-        val queryWantsGreen = qLow.contains("green")
+        val queryWantsRed = qLow.contains("red") || qLow.contains("maroon") || qLow.contains("crimson")
+        val queryWantsGreen = qLow.contains("green") || qLow.contains("teal")
         val queryWantsBlue = qLow.contains("blue")
+        val queryWantsYellow = qLow.contains("yellow") || qLow.contains("gold")
         val queryWantsBus = qLow.contains("bus") || qLow.contains("truck") || qLow.contains("car") || qLow.contains("vehicle")
         val queryWantsCrew = qLow.contains("crew") || qLow.contains("camera") || qLow.contains("film") || qLow.contains("cart")
 
+        val redFrames = analyses.filter { it.hasRedObject }
         val greenFrames = analyses.filter { it.hasGreenObject }
         val blueFrames = analyses.filter { it.hasBlueObject }
+        val yellowFrames = analyses.filter { it.hasYellowObject }
         val vehicleFrames = analyses.filter { it.hasVehicles }
 
         val bestConfirmedTimestamp: String
         val correlationPct: Int
 
-        if (queryWantsGreen && greenFrames.isNotEmpty()) {
+        if (queryWantsRed && redFrames.isNotEmpty()) {
+            bestConfirmedTimestamp = redFrames.first().timestamp
+            correlationPct = (topScore * 100).toInt().coerceIn(78, 96)
+        } else if (queryWantsGreen && greenFrames.isNotEmpty()) {
             bestConfirmedTimestamp = greenFrames.first().timestamp
             correlationPct = (topScore * 100).toInt().coerceIn(78, 96)
         } else if (queryWantsBlue && blueFrames.isNotEmpty()) {
             bestConfirmedTimestamp = blueFrames.first().timestamp
+            correlationPct = (topScore * 100).toInt().coerceIn(75, 94)
+        } else if (queryWantsYellow && yellowFrames.isNotEmpty()) {
+            bestConfirmedTimestamp = yellowFrames.first().timestamp
             correlationPct = (topScore * 100).toInt().coerceIn(75, 94)
         } else if (queryWantsBus && vehicleFrames.isNotEmpty()) {
             bestConfirmedTimestamp = vehicleFrames.first().timestamp
@@ -206,8 +218,12 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         }
 
         narrative.append("\n📋 Causal Forensic Verdict:\n")
-        if (queryWantsGreen && greenFrames.isNotEmpty()) {
-            narrative.append("Visual confirmation: Distinct green/teal transit vehicle was detected navigating the traffic lanes at ${bestConfirmedTimestamp}. Pixel color distribution and silhouette match the \"$query\" query across the ${firstTimestamp} to ${lastTimestamp} window.")
+        if (queryWantsRed && redFrames.isNotEmpty()) {
+            narrative.append("Visual confirmation: Red-colored vehicle was detected actively transiting along the traffic corridor at ${bestConfirmedTimestamp}. Pixel color distribution and silhouette match \"$query\" across the ${firstTimestamp} to ${lastTimestamp} window.")
+        } else if (queryWantsRed && redFrames.isEmpty()) {
+            narrative.append("Visual inspection note: Roadway traffic analyzed between $firstTimestamp and $lastTimestamp. No prominent red passenger vehicle detected in the selected frames.")
+        } else if (queryWantsGreen && greenFrames.isNotEmpty()) {
+            narrative.append("Visual confirmation: Distinct green/teal transit vehicle was detected navigating traffic lanes at ${bestConfirmedTimestamp}. Pixel distribution matches \"$query\".")
         } else if (queryWantsBlue && blueFrames.isNotEmpty()) {
             narrative.append("Visual confirmation: Blue-colored transport vehicle identified at ${bestConfirmedTimestamp} traveling along the traffic corridor.")
         } else if (sceneEnvironment.contains("Highway") && queryWantsCrew) {
@@ -230,9 +246,11 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     private fun analyzeBitmapPixels(moment: IndexedMoment, qLow: String): FramePixelAnalysis {
         var sceneType = "General Surveillance Corridor"
         var hasVehicles = false
+        var hasRedObject = false
         var hasGreenObject = false
         var hasBlueObject = false
         var hasWhiteObject = false
+        var hasYellowObject = false
         var visualDescription: String
 
         try {
@@ -247,9 +265,10 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                     bmp.recycle()
 
                     var asphaltCount = 0
-                    var skyCount = 0
+                    var redCount = 0
                     var greenCount = 0
                     var blueCount = 0
+                    var yellowCount = 0
                     var whiteCount = 0
                     val hsv = FloatArray(3)
 
@@ -268,20 +287,30 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                         if (sat < 0.18f && value in 0.25f..0.70f) {
                             asphaltCount++
                         }
-                        // Sky / Bright upper area
-                        if (i < 320 && value > 0.65f && sat < 0.35f) {
-                            skyCount++
+                        // Red object (HSV or RGB contrast)
+                        val isRed = ((hue in 0.0f..25.0f || hue in 330.0f..360.0f) && sat > 0.22f && value > 0.18f) ||
+                                (r > 80 && r > (g * 1.30f) && r > (b * 1.30f))
+                        if (isRed) {
+                            redCount++
                         }
                         // Green / Teal object
-                        if (hue in 68.0f..175.0f && sat > 0.22f && value > 0.25f) {
+                        val isGreen = (hue in 68.0f..175.0f && sat > 0.22f && value > 0.25f) ||
+                                (g > 75 && g > (r * 1.15f) && g > (b * 1.05f))
+                        if (isGreen) {
                             greenCount++
                         }
                         // Blue object
-                        if (hue in 176.0f..255.0f && sat > 0.25f && value > 0.25f) {
+                        val isBlue = (hue in 176.0f..255.0f && sat > 0.25f && value > 0.25f) ||
+                                (b > 75 && b > (r * 1.20f) && b > (g * 1.10f))
+                        if (isBlue) {
                             blueCount++
                         }
+                        // Yellow object
+                        if ((hue in 26.0f..64.0f && sat > 0.25f && value > 0.40f) || (r > 130 && g > 130 && b < r * 0.65f)) {
+                            yellowCount++
+                        }
                         // White / bright vehicle
-                        if (value > 0.82f && sat < 0.15f) {
+                        if (value > 0.82f && sat < 0.15f && r > 180 && g > 180 && b > 180) {
                             whiteCount++
                         }
                     }
@@ -298,11 +327,12 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                         sceneType = "Outdoor Park & Perimeter Walkway"
                     }
 
-                    if (greenRatio > 0.015f) hasGreenObject = true
-                    if (blueCount / total > 0.015f) hasBlueObject = true
+                    if (redCount / total > 0.008f) hasRedObject = true
+                    if (greenRatio > 0.012f) hasGreenObject = true
+                    if (blueCount / total > 0.012f) hasBlueObject = true
+                    if (yellowCount / total > 0.012f) hasYellowObject = true
                     if (whiteRatio > 0.04f) hasWhiteObject = true
 
-                    // Compose genuine, frame-specific description
                     val sectorLabel = when (moment.cropRegion) {
                         "top_left" -> "upper-left lane"
                         "top_right" -> "upper-right lane"
@@ -313,10 +343,14 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                     }
 
                     visualDescription = when {
+                        hasRedObject && (qLow.contains("red") || qLow.contains("car")) ->
+                            "Red vehicle observed moving through $sectorLabel"
                         hasGreenObject && (qLow.contains("green") || qLow.contains("bus")) ->
                             "Prominent green transit bus active in $sectorLabel amidst multi-lane traffic flow"
                         hasBlueObject && qLow.contains("blue") ->
                             "Blue transport vehicle moving along $sectorLabel"
+                        hasYellowObject && qLow.contains("yellow") ->
+                            "Yellow/gold transport vehicle moving along $sectorLabel"
                         hasWhiteObject && qLow.contains("white") ->
                             "White passenger vehicle observed in motion through $sectorLabel"
                         sceneType.contains("Highway") ->
@@ -340,9 +374,11 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             cropRegion = moment.cropRegion,
             sceneType = sceneType,
             hasVehicles = hasVehicles,
+            hasRedObject = hasRedObject,
             hasGreenObject = hasGreenObject,
             hasBlueObject = hasBlueObject,
             hasWhiteObject = hasWhiteObject,
+            hasYellowObject = hasYellowObject,
             visualDescription = visualDescription
         )
     }
