@@ -42,7 +42,8 @@ class MainActivity : AppCompatActivity() {
     private var lastFrameHash: Long? = null
     private var acceptedFramesCount = 0
     private var droppedFramesCount = 0
-    private var selectedFps = 0.5
+    private var selectedFps = 1.0 // Default: 1 frame per second
+    private var enableHashGate = false // Default: NO HASHING (100% dense frame extraction)
     private var currentVideoUri: Uri? = null
     private var lastSelectedTimestampMs: Int = 0
     private var ingestionStartTimeMs: Long = 0L
@@ -56,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnFps05: Button
     private lateinit var btnFps10: Button
     private lateinit var btnFps20: Button
+    private lateinit var btnToggleHashGate: Button
     private lateinit var layoutUrlInput: LinearLayout
     private lateinit var etVideoUrl: EditText
     private lateinit var btnDownloadUrl: Button
@@ -115,6 +117,7 @@ class MainActivity : AppCompatActivity() {
         btnFps05 = findViewById(R.id.btnFps05)
         btnFps10 = findViewById(R.id.btnFps10)
         btnFps20 = findViewById(R.id.btnFps20)
+        btnToggleHashGate = findViewById(R.id.btnToggleHashGate)
         layoutUrlInput = findViewById(R.id.layoutUrlInput)
         etVideoUrl = findViewById(R.id.etVideoUrl)
         btnDownloadUrl = findViewById(R.id.btnDownloadUrl)
@@ -186,6 +189,20 @@ class MainActivity : AppCompatActivity() {
         btnFps05.setOnClickListener { selectFps(0.5, btnFps05) }
         btnFps10.setOnClickListener { selectFps(1.0, btnFps10) }
         btnFps20.setOnClickListener { selectFps(2.0, btnFps20) }
+
+        // dHash Gate Toggle (No Hashing vs Filtering)
+        btnToggleHashGate.setOnClickListener {
+            enableHashGate = !enableHashGate
+            if (enableHashGate) {
+                btnToggleHashGate.text = "Gate: ON"
+                btnToggleHashGate.setTextColor(ContextCompat.getColor(this, R.color.primary))
+                Toast.makeText(this, "dHash Filter ON (Drops Duplicate Frames)", Toast.LENGTH_SHORT).show()
+            } else {
+                btnToggleHashGate.text = "Gate: OFF"
+                btnToggleHashGate.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+                Toast.makeText(this, "dHash Filter OFF (100% Dense Keyframes)", Toast.LENGTH_SHORT).show()
+            }
+        }
 
         // Download & Ingest Remote Video URL
         btnDownloadUrl.setOnClickListener {
@@ -274,9 +291,9 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
 
         tvStatus.text = "Active Surveillance Index: 0 region vectors in RAM"
-        tvIngestionInfo.text = "Select a video file to extract keyframes and index spatial regions."
-        tvHashValue.text = "Last dHash: None | Δ=--"
-        tvGateMetrics.text = "Accepted: 0 | Dropped Static: 0 (Gate Drop Rate: 0.0%)"
+        tvIngestionInfo.text = "Select a video file (1.0 FPS Dense Mode: 100% frames indexed)."
+        tvHashValue.text = if (!enableHashGate) "Gate: BYPASS (100% Dense Keyframes)" else "Last dHash: None | Δ=--"
+        tvGateMetrics.text = "Accepted: 0 | Dropped: 0"
         tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors: 0"
 
         tvMetricFrames.text = "0"
@@ -310,10 +327,10 @@ class MainActivity : AppCompatActivity() {
                 cardVideoPlayback.visibility = View.GONE
                 pbIngestion.visibility = View.VISIBLE
                 pbIngestion.isIndeterminate = true
-                tvIngestionInfo.text = "Processing: ${uri.lastPathSegment ?: "video.mp4"}"
+                tvIngestionInfo.text = "Processing: ${uri.lastPathSegment ?: "video.mp4"} (1.0 FPS Dense Mode)"
                 layoutStoryboardThumbnails.removeAllViews()
                 scrollStoryboard.visibility = View.GONE
-                tvResults.text = "Extracting video keyframes and indexing 6-region spatial pyramids..."
+                tvResults.text = "Extracting video keyframes at ${selectedFps} FPS and indexing 6-region spatial pyramids..."
             }
 
             try {
@@ -349,10 +366,11 @@ class MainActivity : AppCompatActivity() {
 
                 withContext(Dispatchers.Main) {
                     pbIngestion.visibility = View.GONE
-                    tvIngestionInfo.text = "Ingestion Complete! Extracted ${acceptedFramesCount} keyframes (${droppedFramesCount} static dropped). Indexed ${vectorStore.size} region vectors."
+                    val modeLabel = if (!enableHashGate) "100% Dense Mode" else "Filtered Mode"
+                    tvIngestionInfo.text = "Ingestion Complete! Extracted ${acceptedFramesCount} keyframes (${droppedFramesCount} dropped). Indexed ${vectorStore.size} region vectors ($modeLabel)."
                     tvStatus.text = "Active Surveillance Index: ${vectorStore.size} region vectors in RAM"
                     tvResults.text = "Video processing complete! Enter any search query above to search your footage."
-                    Toast.makeText(this@MainActivity, "Video indexed: ${vectorStore.size} vectors!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Video indexed: ${vectorStore.size} vectors (${acceptedFramesCount} frames)!", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Throwable) {
                 Log.e("VideoRAG_Ingest", "Video decode failed", e)
@@ -414,28 +432,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * STAGE 1 & 2: 64-bit dHash Edge Gate Filter + 6-Region Spatial Pyramid Embedding.
+     * STAGE 1 & 2: Dense Frame Ingestion (No Hashing by default) + 6-Region Spatial Pyramid Embedding.
      */
     private suspend fun ingestAndIndexFrame(bitmap: Bitmap, camera: String, timestamp: String, epochTime: Long, imagePath: String) {
         val currentHash = MobileFrameFilter.calculateDHash(bitmap)
         val hashHex = MobileFrameFilter.formatHashHex(currentHash)
 
-        // Stage 1: Adaptive Motion Filter
-        // In wide surveillance footage (e.g. highway traffic), small moving cars produce Δ = 2 to 6.
-        // Genuinely static duplicate frames have Δ <= 1.
         var hammingDist = 64
         var isDropped = false
-        lastFrameHash?.let { lastHash ->
-            hammingDist = MobileFrameFilter.hammingDistance(lastHash, currentHash)
-            if (hammingDist <= 1) {
-                droppedFramesCount++
-                isDropped = true
-            }
-        }
 
-        if (isDropped) {
-            updateTelemetryUI(hashHex, hammingDist, dropped = true)
-            return
+        if (enableHashGate) {
+            // Optional dHash Filter
+            lastFrameHash?.let { lastHash ->
+                hammingDist = MobileFrameFilter.hammingDistance(lastHash, currentHash)
+                if (hammingDist <= 1) {
+                    droppedFramesCount++
+                    isDropped = true
+                }
+            }
+
+            if (isDropped) {
+                updateTelemetryUI(hashHex, hammingDist, dropped = true)
+                return
+            }
         }
 
         lastFrameHash = currentHash
@@ -467,21 +486,26 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun updateTelemetryUI(hashHex: String, hammingDist: Int, dropped: Boolean) {
         withContext(Dispatchers.Main) {
-            val deltaStatus = if (dropped) "Δ=$hammingDist (Static Dropped ❌)" else "Δ=$hammingDist (Motion Keyframe Accepted ✅)"
-            tvHashValue.text = "Last dHash: 0x$hashHex | $deltaStatus"
+            if (!enableHashGate) {
+                tvHashValue.text = "Gate: BYPASS (100% Dense Keyframes) | dHash: 0x$hashHex"
+                tvGateMetrics.text = "Accepted: $acceptedFramesCount / $acceptedFramesCount (100% Ingested - 0 Dropped)"
+            } else {
+                val deltaStatus = if (dropped) "Δ=$hammingDist (Static Dropped ❌)" else "Δ=$hammingDist (Motion Keyframe Accepted ✅)"
+                tvHashValue.text = "Last dHash: 0x$hashHex | $deltaStatus"
 
-            val total = acceptedFramesCount + droppedFramesCount
-            val dropRate = if (total > 0) (droppedFramesCount * 100.0f / total) else 0.0f
-            tvGateMetrics.text = String.format(
-                Locale.US,
-                "Accepted: %d | Dropped Static: %d (Gate Drop Rate: %.1f%%)",
-                acceptedFramesCount, droppedFramesCount, dropRate
-            )
+                val total = acceptedFramesCount + droppedFramesCount
+                val dropRate = if (total > 0) (droppedFramesCount * 100.0f / total) else 0.0f
+                tvGateMetrics.text = String.format(
+                    Locale.US,
+                    "Accepted: %d | Dropped Static: %d (Gate Drop Rate: %.1f%%)",
+                    acceptedFramesCount, droppedFramesCount, dropRate
+                )
+            }
             tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors: ${vectorStore.size}"
 
             // Update 3-Column Metrics Grid
             tvMetricFrames.text = "$acceptedFramesCount"
-            tvMetricDropped.text = "($droppedFramesCount static dropped)"
+            tvMetricDropped.text = "($droppedFramesCount dropped)"
             tvMetricRegions.text = "${vectorStore.size}"
         }
     }
@@ -506,7 +530,7 @@ class MainActivity : AppCompatActivity() {
                     scrollStoryboard.visibility = View.GONE
                 }
 
-                // 1. Expand query natively (handles multi-word, synonyms, and subwords)
+                // 1. Expand query natively
                 val expandedQueries = expandQueryNatively(userQuery)
                 withContext(Dispatchers.Main) {
                     tvExpandedQuery.text = "Query Expansions: ${expandedQueries.joinToString(" • ")}"
@@ -519,7 +543,7 @@ class MainActivity : AppCompatActivity() {
                 val embedder = orchestrator.getActiveEmbedder()
                 for (expandedQ in expandedQueries) {
                     val queryVector = embedder.embedText(expandedQ)
-                    val hits = vectorStore.search(queryVector, topK = 20)
+                    val hits = vectorStore.search(queryVector, topK = 30)
 
                     for (hit in hits) {
                         val moment = hit.first

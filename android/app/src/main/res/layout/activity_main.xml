@@ -163,25 +163,25 @@
                         android:id="@+id/btnFps05"
                         android:layout_width="wrap_content"
                         android:layout_height="32dp"
-                        android:background="@drawable/btn_pill_active"
-                        android:text="0.5 FPS (2s)"
+                        android:background="@drawable/btn_pill_inactive"
+                        android:text="0.5 FPS"
                         android:textAllCaps="false"
-                        android:textColor="#ffffff"
+                        android:textColor="@color/text_main"
                         android:textSize="11sp"
-                        android:layout_marginStart="6dp"
-                        android:paddingHorizontal="10dp" />
+                        android:layout_marginStart="4dp"
+                        android:paddingHorizontal="8dp" />
 
                     <Button
                         android:id="@+id/btnFps10"
                         android:layout_width="wrap_content"
                         android:layout_height="32dp"
-                        android:background="@drawable/btn_pill_inactive"
+                        android:background="@drawable/btn_pill_active"
                         android:text="1.0 FPS (1s)"
                         android:textAllCaps="false"
-                        android:textColor="@color/text_main"
+                        android:textColor="#ffffff"
                         android:textSize="11sp"
-                        android:layout_marginStart="6dp"
-                        android:paddingHorizontal="10dp" />
+                        android:layout_marginStart="4dp"
+                        android:paddingHorizontal="8dp" />
 
                     <Button
                         android:id="@+id/btnFps20"
@@ -192,8 +192,20 @@
                         android:textAllCaps="false"
                         android:textColor="@color/text_main"
                         android:textSize="11sp"
-                        android:layout_marginStart="6dp"
-                        android:paddingHorizontal="10dp" />
+                        android:layout_marginStart="4dp"
+                        android:paddingHorizontal="8dp" />
+
+                    <Button
+                        android:id="@+id/btnToggleHashGate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:background="@drawable/btn_outline_white"
+                        android:text="Gate: OFF"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp"
+                        android:layout_marginStart="4dp"
+                        android:paddingHorizontal="8dp" />
                 </LinearLayout>
 
                 <!-- URL Ingestion Input Box (Toggleable) -->
