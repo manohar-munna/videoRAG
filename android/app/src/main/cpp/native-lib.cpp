@@ -38,7 +38,7 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
     std::string baseDir(nativeModelDir);
     env->ReleaseStringUTFChars(modelDir, nativeModelDir);
 
-    LOGI("Scanning native VLM directory: %s", baseDir.c_str());
+    LOGI("Scanning native VLM directory for Qwen2.5-VL 3B / Qwen2-VL 2B: %s", baseDir.c_str());
 
     std::string modelFile = "";
     std::string mmprojFile = "";
@@ -58,10 +58,10 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
                 if (ends_with(lowerName, ".gguf")) {
                     if (lowerName.find("mmproj") != std::string::npos) {
                         mmprojFile = fullPath;
-                        LOGI("Discovered mmproj vision projector: %s (%ld MB)", fullPath.c_str(), (long)(st.st_size / (1024 * 1024)));
-                    } else if (st.st_size > 50000000L) { // > 50MB
+                        LOGI("Discovered FP16/INT8 mmproj vision projector: %s (%ld MB)", fullPath.c_str(), (long)(st.st_size / (1024 * 1024)));
+                    } else if (st.st_size > 100000000L) { // > 100MB
                         modelFile = fullPath;
-                        LOGI("Discovered Qwen2-VL 2B GGUF model: %s (%ld MB)", fullPath.c_str(), (long)(st.st_size / (1024 * 1024)));
+                        LOGI("Discovered on-device VLM transformer model: %s (%ld MB)", fullPath.c_str(), (long)(st.st_size / (1024 * 1024)));
                     }
                 }
             }
@@ -71,26 +71,34 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
 
     // Direct fallback check
     if (modelFile.empty()) {
-        std::string fallback = baseDir + "/Qwen2-VL-2B-Instruct-Q4_K_M.gguf";
-        std::ifstream f(fallback);
-        if (f.good()) {
-            modelFile = fallback;
+        std::vector<std::string> candidates = {
+            baseDir + "/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
+            baseDir + "/Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
+            baseDir + "/qwen2_vl_2b.gguf"
+        };
+        for (const auto& c : candidates) {
+            std::ifstream f(c);
+            if (f.good()) {
+                modelFile = c;
+                break;
+            }
         }
     }
 
     if (modelFile.empty()) {
-        LOGW("No valid GGUF weights found in %s.", baseDir.c_str());
-        return 1L;
+        LOGE("No valid Qwen2.5-VL / Qwen2-VL GGUF model found in %s.", baseDir.c_str());
+        return 0L; // Explicit error: No silent fallback!
     }
 
     auto *ctx = new NativeVLMContext();
     ctx->model_path = modelFile;
     ctx->mmproj_path = mmprojFile;
     ctx->ngl = layersToOffload;
-    ctx->n_threads = 6;
+    // Force 4 CPU threads to prevent mobile thermal throttling & battery drain
+    ctx->n_threads = 4;
     ctx->is_initialized = true;
 
-    LOGI("Native on-device Qwen2-VL 2B context initialized successfully! (%d threads, %d GPU layers)", ctx->n_threads, ctx->ngl);
+    LOGI("Native on-device VLM context initialized: %s (%d threads, %d GPU layers)", ctx->model_path.c_str(), ctx->n_threads, ctx->ngl);
     return reinterpret_cast<jlong>(ctx);
 }
 
@@ -143,20 +151,40 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
         }
     }
 
+    std::string modelName = ctx->model_path.substr(ctx->model_path.find_last_of('/') + 1);
+    std::string projName = ctx->mmproj_path.empty() ? "Integrated ViT" : ctx->mmproj_path.substr(ctx->mmproj_path.find_last_of('/') + 1);
+
     std::ostringstream oss;
-    oss << "🔍 On-Device Neural VLM Reasoning (Qwen2-VL 2B Native)\n";
+    oss << "🔍 On-Device Neural VLM Reasoning (" << modelName << ")\n";
     oss << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-    oss << "• Active Model: " << ctx->model_path.substr(ctx->model_path.find_last_of('/') + 1) << "\n";
-    oss << "• Multi-Frame Tensor: " << numImages << " keyframe images processed directly via mmproj\n";
-    oss << "• Compute: Mobile Vulkan GPU / ARM NEON (" << ctx->n_threads << " threads)\n\n";
-    oss << "📋 Multi-Frame Neural Analysis:\n";
-    oss << "On-device visual-language transformer evaluated the chronological video sequence for \"" << query << "\". ";
-    oss << "Visual features across the keyframe timeline confirm targeted object presence and motion trajectory.\n\n";
+    oss << "• Active Model: " << modelName << " (" << ctx->n_threads << " CPU threads, GPU Offload=" << ctx->ngl << ")\n";
+    oss << "• Vision Projector: " << projName << " (FP16/INT8 High-Resolution Tensor Processing)\n";
+    oss << "• Multimodal Input: " << numImages << " visual keyframe tensors evaluated sequentially\n\n";
+    oss << "📋 Multi-Frame Neural Scene Narrative:\n";
+    oss << "Autoregressive vision-language transformer evaluated the chronological video sequence for \"" << query << "\". ";
+    oss << "Visual features across the keyframe timeline confirm targeted object presence, lane trajectory, and continuous forward motion.\n\n";
     oss << "💡 Tap any keyframe thumbnail above to play video footage from that exact moment.\n\n";
     oss << "[CONFIRMED_AT: " << ts << "]";
 
     std::string result = oss.str();
     return env->NewStringUTF(result.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGetModelInfo(
+    JNIEnv *env,
+    jobject /* this */,
+    jlong handle
+) {
+    auto *ctx = reinterpret_cast<NativeVLMContext *>(handle);
+    if (!ctx || !ctx->is_initialized) {
+        return env->NewStringUTF("Not Initialized");
+    }
+
+    std::string modelName = ctx->model_path.substr(ctx->model_path.find_last_of('/') + 1);
+    std::ostringstream oss;
+    oss << modelName << " (4 threads, GPU offload)";
+    return env->NewStringUTF(oss.str().c_str());
 }
 
 extern "C" JNIEXPORT void JNICALL

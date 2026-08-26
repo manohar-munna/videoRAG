@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var orchestrator: MemoryOrchestrator
     private val vectorStore = MobileVectorStore()
+    private val sqliteFts by lazy { SQLiteFtsHelper(this) }
     private val frameDecoder by lazy { VideoFrameDecoder(this) }
 
     private var lastFrameHash: Long? = null
@@ -161,7 +162,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.Main) {
             val vlm = orchestrator.getActiveVLM()
             if (vlm.isNativeGGUFAvailable()) {
-                tvModelBadge.text = "🟢 Qwen2-VL 2B (On-Device GPU)"
+                tvModelBadge.text = "🟢 Qwen2.5-VL / Qwen2-VL (Active)"
             } else {
                 tvModelBadge.text = "EDGE NPU/GPU"
             }
@@ -172,7 +173,7 @@ class MainActivity : AppCompatActivity() {
         // Reset / Clear All
         btnClearAll.setOnClickListener {
             resetAllData()
-            Toast.makeText(this, "All vectors and frames cleared.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "All vector and SQLite FTS5 indices cleared.", Toast.LENGTH_SHORT).show()
         }
 
         // Pick Local Video File
@@ -214,7 +215,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Execute Forensic RAG Query
+        // Execute Hybrid Forensic RAG Query (Dense Vector + SQLite FTS5 RRF)
         btnSearch.setOnClickListener {
             val query = etQuery.text.toString().trim()
             if (query.isNotEmpty()) {
@@ -274,6 +275,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun resetAllData() {
         vectorStore.clear()
+        sqliteFts.clearAll()
         acceptedFramesCount = 0
         droppedFramesCount = 0
         lastFrameHash = null
@@ -290,7 +292,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (_: Exception) {}
 
-        tvStatus.text = "Active Surveillance Index: 0 region vectors in RAM"
+        tvStatus.text = "Active Surveillance Index: 0 region vectors & 0 FTS5 rows"
         tvIngestionInfo.text = "Select a video file (1.0 FPS Dense Mode: 100% frames indexed)."
         tvHashValue.text = if (!enableHashGate) "Gate: BYPASS (100% Dense Keyframes)" else "Last dHash: None | Δ=--"
         tvGateMetrics.text = "Accepted: 0 | Dropped: 0"
@@ -318,6 +320,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.Default) {
             vectorStore.clear()
+            sqliteFts.clearAll()
             acceptedFramesCount = 0
             droppedFramesCount = 0
             lastFrameHash = null
@@ -330,7 +333,7 @@ class MainActivity : AppCompatActivity() {
                 tvIngestionInfo.text = "Processing: ${uri.lastPathSegment ?: "video.mp4"} (1.0 FPS Dense Mode)"
                 layoutStoryboardThumbnails.removeAllViews()
                 scrollStoryboard.visibility = View.GONE
-                tvResults.text = "Extracting video keyframes at ${selectedFps} FPS and indexing 6-region spatial pyramids..."
+                tvResults.text = "Extracting video keyframes at ${selectedFps} FPS and indexing into MobileCLIP & SQLite FTS5..."
             }
 
             try {
@@ -350,7 +353,7 @@ class MainActivity : AppCompatActivity() {
                             val totS = totalSec % 60
                             val timeStr = String.format(Locale.US, "%02d:%02d / %02d:%02d", curMin, curS, totMin, totS)
 
-                            tvIngestionInfo.text = "Decoded Frame #$frameIndex ($timeStr - $progress%) | Total Vectors: ${vectorStore.size}"
+                            tvIngestionInfo.text = "Decoded Frame #$frameIndex ($timeStr - $progress%) | Total Vectors: ${vectorStore.size} | FTS5 Rows: ${sqliteFts.size()}"
 
                             val elapsedSec = (System.currentTimeMillis() - ingestionStartTimeMs) / 1000
                             val elapsedMin = elapsedSec / 60
@@ -367,10 +370,10 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     pbIngestion.visibility = View.GONE
                     val modeLabel = if (!enableHashGate) "100% Dense Mode" else "Filtered Mode"
-                    tvIngestionInfo.text = "Ingestion Complete! Extracted ${acceptedFramesCount} keyframes (${droppedFramesCount} dropped). Indexed ${vectorStore.size} region vectors ($modeLabel)."
-                    tvStatus.text = "Active Surveillance Index: ${vectorStore.size} region vectors in RAM"
-                    tvResults.text = "Video processing complete! Enter any search query above to search your footage."
-                    Toast.makeText(this@MainActivity, "Video indexed: ${vectorStore.size} vectors (${acceptedFramesCount} frames)!", Toast.LENGTH_LONG).show()
+                    tvIngestionInfo.text = "Ingestion Complete! Indexed ${acceptedFramesCount} keyframes (${droppedFramesCount} dropped) into ${vectorStore.size} Dense Vectors & ${sqliteFts.size()} SQLite FTS5 Rows ($modeLabel)."
+                    tvStatus.text = "Active Surveillance Index: ${vectorStore.size} vectors & ${sqliteFts.size()} FTS5 tokens in RAM"
+                    tvResults.text = "Video indexing complete! Enter any search query above to search footage."
+                    Toast.makeText(this@MainActivity, "Indexed ${acceptedFramesCount} frames (${vectorStore.size} vectors + SQLite FTS5)!", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Throwable) {
                 Log.e("VideoRAG_Ingest", "Video decode failed", e)
@@ -432,7 +435,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * STAGE 1 & 2: Dense Frame Ingestion (No Hashing by default) + 6-Region Spatial Pyramid Embedding.
+     * STAGE 1 & 2: Dense Frame Ingestion + 6-Region Spatial Pyramid Embedding + SQLite FTS5 Lexical Indexing.
      */
     private suspend fun ingestAndIndexFrame(bitmap: Bitmap, camera: String, timestamp: String, epochTime: Long, imagePath: String) {
         val currentHash = MobileFrameFilter.calculateDHash(bitmap)
@@ -442,7 +445,6 @@ class MainActivity : AppCompatActivity() {
         var isDropped = false
 
         if (enableHashGate) {
-            // Optional dHash Filter
             lastFrameHash?.let { lastHash ->
                 hammingDist = MobileFrameFilter.hammingDistance(lastHash, currentHash)
                 if (hammingDist <= 1) {
@@ -461,7 +463,7 @@ class MainActivity : AppCompatActivity() {
         acceptedFramesCount++
         updateTelemetryUI(hashHex, hammingDist, dropped = false)
 
-        // Stage 2: 6-Region Spatial Pyramid Embedding
+        // Stage 2: 6-Region Spatial Pyramid Embedding & SQLite FTS5 Indexing
         val embedder = orchestrator.getActiveEmbedder()
         val regions = SpatialCropper.generatePyramidCrops(bitmap)
         for (region in regions) {
@@ -477,10 +479,22 @@ class MainActivity : AppCompatActivity() {
                 description = "Surveillance moment at $timestamp [${region.label}]"
             )
             vectorStore.addMoment(moment)
+
+            // Extract Visual Concept Tokens & Insert into SQLite FTS5 Table
+            val visualTokens = embedder.extractVisualTokens(region.bitmap, region.label)
+            sqliteFts.insertMoment(
+                momentId = moment.id,
+                camera = camera,
+                timestamp = timestamp,
+                epochTime = epochTime,
+                cropRegion = region.label,
+                imagePath = imagePath,
+                visualTokens = visualTokens
+            )
         }
 
         withContext(Dispatchers.Main) {
-            tvStatus.text = "Active Surveillance Index: ${vectorStore.size} region vectors in RAM"
+            tvStatus.text = "Active Surveillance Index: ${vectorStore.size} vectors & ${sqliteFts.size()} FTS5 tokens in RAM"
         }
     }
 
@@ -501,7 +515,7 @@ class MainActivity : AppCompatActivity() {
                     acceptedFramesCount, droppedFramesCount, dropRate
                 )
             }
-            tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors: ${vectorStore.size}"
+            tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors: ${vectorStore.size} | FTS5 Rows: ${sqliteFts.size()}"
 
             // Update 3-Column Metrics Grid
             tvMetricFrames.text = "$acceptedFramesCount"
@@ -511,21 +525,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * STAGE 3 & 4: Query Expansion, Spatial Max-Pooling, Chronological Storyboard Assembly & VLM Reasoning.
+     * STAGE 3 & 4: Hybrid Dense-Sparse Retrieval (MobileCLIP + SQLite FTS5 RRF) + On-Device VLM Reasoning.
      */
     private fun performLocalVideoRAGQuery(userQuery: String) {
         lifecycleScope.launch(Dispatchers.Default) {
             try {
-                if (vectorStore.size == 0) {
+                if (vectorStore.size == 0 && sqliteFts.size() == 0) {
                     withContext(Dispatchers.Main) {
-                        tvResults.text = "Vector store is empty! Please upload a video first using 'Upload Video' to extract and index keyframes."
+                        tvResults.text = "Index is empty! Please upload a video first using 'Upload Video' to extract and index keyframes."
                         Toast.makeText(this@MainActivity, "No video indexed yet. Upload a video first.", Toast.LENGTH_SHORT).show()
                     }
                     return@launch
                 }
 
                 withContext(Dispatchers.Main) {
-                    tvResults.text = "Searching ${vectorStore.size} indexed region vectors & running on-device VLM temporal reasoning..."
+                    tvResults.text = "Executing Hybrid RRF Retrieval (MobileCLIP Vectors + SQLite FTS5 BM25) & Native VLM Reasoning..."
                     layoutStoryboardThumbnails.removeAllViews()
                     scrollStoryboard.visibility = View.GONE
                 }
@@ -536,52 +550,47 @@ class MainActivity : AppCompatActivity() {
                     tvExpandedQuery.text = "Query Expansions: ${expandedQueries.joinToString(" • ")}"
                 }
 
-                // 2. Embed queries & scan vector index
-                val matchedFrames = HashMap<String, Float>()
                 val pathMetadata = HashMap<String, IndexedMoment>()
+                val denseHits = mutableListOf<Pair<IndexedMoment, Float>>()
 
+                // 2. Dense Vector Retrieval (MobileCLIP)
                 val embedder = orchestrator.getActiveEmbedder()
                 for (expandedQ in expandedQueries) {
                     val queryVector = embedder.embedText(expandedQ)
-                    val hits = vectorStore.search(queryVector, topK = 30)
-
+                    val hits = vectorStore.search(queryVector, topK = 40)
                     for (hit in hits) {
-                        val moment = hit.first
-                        val score = hit.second
-                        val currentBestScore = matchedFrames[moment.imagePath] ?: 0.0f
-
-                        // Spatial Crop Max-Pooling: keep highest matching crop score for each keyframe
-                        if (score > currentBestScore) {
-                            matchedFrames[moment.imagePath] = score
-                            pathMetadata[moment.imagePath] = moment
-                        }
+                        pathMetadata[hit.first.imagePath] = hit.first
+                        denseHits.add(hit)
                     }
                 }
 
-                // 3. Compile contextual storyboard around top visual matches
-                val topEntries = matchedFrames.entries.sortedByDescending { it.value }
-                if (topEntries.isEmpty()) {
+                // 3. Sparse Lexical Retrieval (SQLite FTS5 BM25)
+                val sparseHits = sqliteFts.searchSparse(userQuery, topK = 40)
+
+                // 4. Reciprocal Rank Fusion (RRF) Hybrid Merger
+                val fusedResults = HybridRetriever.fuseRRF(denseHits, sparseHits, pathMetadata, topK = 6)
+
+                if (fusedResults.isEmpty()) {
                     withContext(Dispatchers.Main) {
                         tvResults.text = "No matching moments found in the current video for: '$userQuery'."
                     }
                     return@launch
                 }
 
-                // Select top candidates by relevance score, THEN sort chronologically from start to end (increasing order)
-                val candidateMoments = topEntries.take(6).mapNotNull { pathMetadata[it.key] }
-                val sortedStoryboardMoments = candidateMoments.sortedBy { it.timestamp }
-                val topScore = topEntries[0].value
+                // Sort top candidates chronologically from start to end (increasing order)
+                val sortedCandidates = fusedResults.map { it.moment }.sortedBy { it.timestamp }
+                val topScore = fusedResults.first().rrfScore
 
-                // Render Storyboard Thumbnails in sequential chronological order
+                // Render Storyboard Thumbnails in sequential chronological order with Hybrid RRF Scores
                 withContext(Dispatchers.Main) {
-                    renderStoryboardThumbnails(sortedStoryboardMoments, matchedFrames)
+                    renderHybridStoryboardThumbnails(sortedCandidates, fusedResults)
                 }
 
-                // 4. Run native GPU/VLM reasoning over the chronologically ordered storyboard
+                // 5. Execute On-Device VLM Autoregressive Reasoning (Qwen2.5-VL 3B / Qwen2-VL 2B Native)
                 val vlm = orchestrator.getActiveVLM()
                 val finalExplanation = vlm.reasonOverTimeline(
                     query = userQuery,
-                    storyboardMoments = sortedStoryboardMoments,
+                    storyboardMoments = sortedCandidates,
                     topScore = topScore
                 )
 
@@ -599,11 +608,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun renderStoryboardThumbnails(moments: List<IndexedMoment>, scores: Map<String, Float>) {
+    private fun renderHybridStoryboardThumbnails(
+        moments: List<IndexedMoment>,
+        fusedResults: List<HybridSearchResult>
+    ) {
         layoutStoryboardThumbnails.removeAllViews()
         scrollStoryboard.visibility = View.VISIBLE
 
+        val scoreMap = fusedResults.associateBy { it.moment.imagePath }
+
         for (moment in moments) {
+            val result = scoreMap[moment.imagePath]
+
             val card = CardView(this).apply {
                 radius = 12f
                 setCardBackgroundColor(Color.WHITE)
@@ -671,8 +687,9 @@ class MainActivity : AppCompatActivity() {
             frameContainer.addView(imageView)
             frameContainer.addView(playBadge)
 
-            val rawScore = scores[moment.imagePath] ?: 0.0f
-            val matchPercent = (rawScore * 100).toInt().coerceIn(1, 99)
+            val rawScore = result?.rrfScore ?: 0.016f
+            val matchPercent = (rawScore * 3000).toInt().coerceIn(15, 99)
+            val matchType = result?.matchType ?: "Hybrid"
 
             val tvTimestamp = TextView(this).apply {
                 text = moment.timestamp
@@ -682,15 +699,15 @@ class MainActivity : AppCompatActivity() {
             }
 
             val tvMatch = TextView(this).apply {
-                text = "Match: $matchPercent%"
+                text = "Match: $matchPercent% ($matchType)"
                 setTextColor(Color.parseColor("#2563EB"))
-                textSize = 10.5f
+                textSize = 10f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
                 setPadding(2, 1, 0, 0)
             }
 
             val tvRegion = TextView(this).apply {
-                text = "Region: ${moment.cropRegion}"
+                text = "Sector: ${moment.cropRegion}"
                 setTextColor(Color.parseColor("#64748B"))
                 textSize = 9.5f
                 setPadding(2, 1, 0, 2)

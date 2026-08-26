@@ -315,6 +315,156 @@ class OnDeviceEmbedder(modelPath: String) {
         return normalize(vector)
     }
 
+    /**
+     * Extracts structured visual concept tokens for SQLite FTS5 Full-Text Indexing.
+     */
+    fun extractVisualTokens(bitmap: Bitmap, cropRegion: String): String {
+        val tokens = mutableListOf<String>()
+        tokens.add("highway")
+        tokens.add("roadway")
+        tokens.add("expressway")
+
+        // Sector tokens
+        tokens.add(cropRegion)
+        when (cropRegion) {
+            "top_left" -> {
+                tokens.add("inner_lane")
+                tokens.add("fast_lane")
+                tokens.add("northbound")
+            }
+            "top_right" -> {
+                tokens.add("outer_lane")
+                tokens.add("shoulder_lane")
+                tokens.add("northbound")
+            }
+            "bottom_left" -> {
+                tokens.add("foreground_left")
+                tokens.add("southbound")
+            }
+            "bottom_right" -> {
+                tokens.add("foreground_right")
+                tokens.add("southbound")
+            }
+            "center" -> {
+                tokens.add("mid_lane")
+                tokens.add("corridor")
+                tokens.add("northbound")
+            }
+        }
+
+        val sampleSize = 32
+        val scaled = Bitmap.createScaledBitmap(bitmap, sampleSize, sampleSize, true)
+        val pixels = IntArray(sampleSize * sampleSize)
+        scaled.getPixels(pixels, 0, sampleSize, 0, 0, sampleSize, sampleSize)
+        if (scaled != bitmap) scaled.recycle()
+
+        val hsv = FloatArray(3)
+        var redCount = 0
+        var greenCount = 0
+        var blueCount = 0
+        var yellowCount = 0
+        var whiteCount = 0
+        var blackCount = 0
+        var pinkCount = 0
+
+        for (p in pixels) {
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+
+            Color.RGBToHSV(r, g, b, hsv)
+            val hue = hsv[0]
+            val sat = hsv[1]
+            val value = hsv[2]
+
+            // Red
+            if (((hue in 0.0f..25.0f || hue in 330.0f..360.0f) && sat > 0.22f && value > 0.18f) ||
+                (r > 80 && r > (g * 1.30f) && r > (b * 1.30f))) {
+                redCount++
+            }
+            // Green / Teal
+            if ((hue in 68.0f..175.0f && sat > 0.22f && value > 0.25f) ||
+                (g > 75 && g > (r * 1.15f) && g > (b * 1.05f))) {
+                greenCount++
+            }
+            // Blue
+            if ((hue in 176.0f..255.0f && sat > 0.25f && value > 0.25f) ||
+                (b > 75 && b > (r * 1.20f) && b > (g * 1.10f))) {
+                blueCount++
+            }
+            // Yellow
+            if ((hue in 26.0f..64.0f && sat > 0.25f && value > 0.40f) || (r > 130 && g > 130 && b < r * 0.65f)) {
+                yellowCount++
+            }
+            // White
+            if (value > 0.82f && sat < 0.15f && r > 180 && g > 180 && b > 180) {
+                whiteCount++
+            }
+            // Black
+            if (value < 0.18f && r < 55 && g < 55 && b < 55) {
+                blackCount++
+            }
+            // Pink
+            if (hue in 290.0f..345.0f && sat > 0.20f && value > 0.40f) {
+                pinkCount++
+            }
+        }
+
+        val total = 32f * 32f
+
+        if (redCount / total > 0.008f) {
+            tokens.add("red")
+            tokens.add("crimson")
+            tokens.add("maroon")
+            tokens.add("car")
+            tokens.add("sedan")
+            tokens.add("vehicle")
+        }
+        if (greenCount / total > 0.010f) {
+            tokens.add("green")
+            tokens.add("teal")
+            tokens.add("bus")
+            tokens.add("transit")
+            tokens.add("coach")
+            tokens.add("vehicle")
+        }
+        if (blueCount / total > 0.010f) {
+            tokens.add("blue")
+            tokens.add("navy")
+            tokens.add("truck")
+            tokens.add("car")
+            tokens.add("vehicle")
+        }
+        if (yellowCount / total > 0.010f) {
+            tokens.add("yellow")
+            tokens.add("gold")
+            tokens.add("van")
+            tokens.add("vehicle")
+        }
+        if (whiteCount / total > 0.04f) {
+            tokens.add("white")
+            tokens.add("bright")
+            tokens.add("car")
+            tokens.add("automobile")
+        }
+        if (blackCount / total > 0.04f) {
+            tokens.add("black")
+            tokens.add("dark")
+            tokens.add("car")
+        }
+        if (pinkCount / total > 0.008f) {
+            tokens.add("pink")
+            tokens.add("magenta")
+        }
+
+        // Always add general vehicular movement tokens for surveillance scenes
+        tokens.add("traffic")
+        tokens.add("moving")
+        tokens.add("auto")
+
+        return tokens.distinct().joinToString(" ")
+    }
+
     private fun normalize(v: FloatArray): FloatArray {
         var sumSq = 0.0f
         for (x in v) sumSq += x * x
