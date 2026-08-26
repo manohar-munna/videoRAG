@@ -33,14 +33,14 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
      */
     fun findActiveModelDir(): String? {
         val candidatePaths = listOf(
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "qwen2_vl_2b").absolutePath,
             "/storage/emulated/0/Download/qwen2_vl_2b",
             "/storage/emulated/0/Downloads/qwen2_vl_2b",
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "qwen2_vl_2b").absolutePath,
             "/sdcard/Download/qwen2_vl_2b",
             "/sdcard/Downloads/qwen2_vl_2b",
             File(Environment.getExternalStorageDirectory(), "Download/qwen2_vl_2b").absolutePath,
-            File(Environment.getExternalStorageDirectory(), "Downloads/qwen2_vl_2b").absolutePath,
             File(context.filesDir, "qwen2_vl_2b").absolutePath,
+            File(context.getExternalFilesDir(null), "qwen2_vl_2b").absolutePath,
             defaultModelDirectory
         )
 
@@ -93,7 +93,6 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
 
     /**
      * Execute step-by-step forensic reasoning over the timeline of compiled storyboard images.
-     * EXPLICIT DIAGNOSTIC: If the real VLM model is missing or failed, it returns an explicit error message.
      */
     fun reasonOverTimeline(
         query: String,
@@ -104,7 +103,6 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             return "No video storyboard keyframes available for analysis."
         }
 
-        // Chronologically sorted sequence
         val sortedMoments = storyboardMoments.sortedBy { it.timestamp }
         val anchorMoment = sortedMoments.first()
         val anchorTimestamp = anchorMoment.timestamp
@@ -124,12 +122,21 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
 
         // EXPLICIT VERIFICATION: No silent mock fallback!
         if (nativeHandle <= 0L) {
-            val scannedDir = findActiveModelDir() ?: "/storage/emulated/0/Download/qwen2_vl_2b"
-            val dir = File(scannedDir)
-            val filesInDir = if (dir.exists()) {
-                dir.listFiles()?.joinToString(", ") { "${it.name} (${it.length() / (1024 * 1024)} MB)" } ?: "Empty folder"
+            val primaryPath = "/storage/emulated/0/Download/qwen2_vl_2b"
+            val dir = File(primaryPath)
+            
+            val statusMessage: String
+            if (!dir.exists()) {
+                statusMessage = "Folder does not exist at: $primaryPath"
             } else {
-                "Folder does not exist"
+                val files = dir.listFiles()
+                if (files == null) {
+                    statusMessage = "Folder exists, but Android Scoped Storage blocked read access.\n👉 Solution: Grant 'All Files Access' in Android Settings -> Apps -> Special App Access -> All Files Access -> VideoRAG Mobile."
+                } else if (files.isEmpty()) {
+                    statusMessage = "Folder exists but is currently empty.\n👉 Ensure Qwen2.5-VL / Qwen2-VL .gguf and mmproj .gguf are placed inside Download/qwen2_vl_2b/."
+                } else {
+                    statusMessage = "Files found in folder: " + files.joinToString(", ") { "${it.name} (${it.length() / (1024 * 1024)} MB)" }
+                }
             }
 
             return """
@@ -138,13 +145,14 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                 
                 The real Vision-Language Model (Qwen2.5-VL 3B / Qwen2-VL 2B) could not be loaded into memory.
                 
-                • Expected Path: $scannedDir
-                • Storage Contents: $filesInDir
+                • Path: $primaryPath
+                • Storage Status: $statusMessage
                 
-                📌 To fix this:
-                1. Place Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf (or Qwen2-VL-2B) and mmproj-*-F16.gguf into:
+                📌 Action Required:
+                1. Ensure 'All Files Access' permission is granted to VideoRAG Mobile.
+                2. Verify Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf and mmproj-*-F16.gguf are in:
                    Internal storage/Download/qwen2_vl_2b/
-                2. Re-open the app to initialize GPU/CPU tensors.
+                3. Re-open the app to initialize GPU/CPU tensors.
                 
                 (Silent heuristic mock fallback is disabled per diagnostic verification).
             """.trimIndent()

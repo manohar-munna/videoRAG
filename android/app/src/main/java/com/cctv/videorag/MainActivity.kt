@@ -107,6 +107,42 @@ class MainActivity : AppCompatActivity() {
         initViews()
         initOrchestrator()
         setupListeners()
+        checkAndRequestStoragePermission()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateModelBadge()
+    }
+
+    private fun checkAndRequestStoragePermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (!android.os.Environment.isExternalStorageManager()) {
+                try {
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                } catch (_: Exception) {
+                    try {
+                        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                        startActivity(intent)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+
+    private fun updateModelBadge() {
+        val tvModelBadge = findViewById<TextView>(R.id.tvModelBadge) ?: return
+        lifecycleScope.launch(Dispatchers.Main) {
+            val vlm = orchestrator.getActiveVLM()
+            if (vlm.isNativeGGUFAvailable()) {
+                tvModelBadge.text = "🟢 Qwen2.5-VL / Qwen2-VL (Active)"
+            } else {
+                tvModelBadge.text = "EDGE NPU/GPU"
+            }
+        }
     }
 
     private fun initViews() {
@@ -157,16 +193,7 @@ class MainActivity : AppCompatActivity() {
         val onnxPath = "${filesDir.absolutePath}/mobileclip_s2.onnx"
         val vlmPath = "${filesDir.absolutePath}/qwen2_vl_2b/"
         orchestrator = MemoryOrchestrator(this, onnxPath, vlmPath)
-
-        val tvModelBadge = findViewById<TextView>(R.id.tvModelBadge)
-        lifecycleScope.launch(Dispatchers.Main) {
-            val vlm = orchestrator.getActiveVLM()
-            if (vlm.isNativeGGUFAvailable()) {
-                tvModelBadge.text = "🟢 Qwen2.5-VL / Qwen2-VL (Active)"
-            } else {
-                tvModelBadge.text = "EDGE NPU/GPU"
-            }
-        }
+        updateModelBadge()
     }
 
     private fun setupListeners() {
