@@ -135,7 +135,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                     if (nativeHandle == 0L) {
                         activeModelDirectory?.let { nativeHandle = nativeInit(it, 99) }
                     }
-                    if (nativeHandle > 0L) {
+                    if (nativeHandle != 0L) {
                         Log.i("VideoRAG_VLM", "Native VLM successfully loaded! handle=$nativeHandle")
                     } else {
                         Log.e("VideoRAG_VLM", "Native VLM returned handle 0L.")
@@ -198,7 +198,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         loadVLM()
 
         // EXPLICIT VERIFICATION: No silent mock fallback!
-        if (nativeHandle <= 0L) {
+        if (nativeHandle == 0L) {
             val primaryPath = customModelDirectory ?: activeModelDirectory ?: "/storage/emulated/0/Download/qwen2_vl_2b"
             val dir = File(primaryPath)
             
@@ -251,7 +251,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
      * Diagnostic report detailing active on-device VLM status.
      */
     fun getDiagnosticInfo(): String {
-        return if (nativeHandle > 0L) {
+        return if (nativeHandle != 0L) {
             "🟢 Active: ${activeModelFileName ?: "Qwen2.5-VL / Qwen2-VL"} (Vulkan GPU, 4 Threads)"
         } else {
             "🔴 Model Missing: Sideload GGUF to Download/qwen2_vl_2b/"

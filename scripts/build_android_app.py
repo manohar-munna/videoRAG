@@ -574,7 +574,7 @@ class OnDeviceVLM(private val context: Context, private val modelDirectory: Stri
         \"\"\".trimIndent()
 
         return try {
-            if (nativeHandle > 1L) {
+            if (nativeHandle != 0L) {
                 nativeGenerate(nativeHandle, prompt, storyboardImagePaths.toTypedArray())
             } else {
                 // High-fidelity fallback contextual synthesis
@@ -590,7 +590,7 @@ class OnDeviceVLM(private val context: Context, private val modelDirectory: Stri
         if (nativeHandle != 0L) {
             Log.d("VideoRAG_VLM", "Unloading VLM to free mobile system RAM...")
             try {
-                if (nativeHandle > 1L) {
+                if (nativeHandle != 0L) {
                     nativeClose(nativeHandle)
                 }
             } catch (_: Throwable) {}
