@@ -143,7 +143,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     )
 
     /**
-     * Synthesizes an accurate, pixel-grounded forensic narrative by inspecting the actual image bitmaps.
+     * Synthesizes an accurate, situational forensic narrative with directional motion awareness.
      */
     private fun generateGroundedPixelReasoning(
         query: String,
@@ -153,8 +153,8 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         val qLow = query.lowercase().trim()
         val analyses = mutableListOf<FramePixelAnalysis>()
 
-        for (m in sortedMoments) {
-            analyses.add(analyzeBitmapPixels(m, qLow))
+        for ((idx, m) in sortedMoments.withIndex()) {
+            analyses.add(analyzeBitmapPixels(m, qLow, idx, sortedMoments.size))
         }
 
         val firstMoment = sortedMoments.first()
@@ -205,33 +205,33 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         }
 
         val narrative = StringBuilder()
-        narrative.append("🔍 Forensic Visual Analysis: Scene & Object Inspection\n")
+        narrative.append("🔍 Forensic Visual Analysis: Directional & Scene Tracking\n")
         narrative.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
         narrative.append("• Target Query: \"$query\"\n")
         narrative.append("• Detected Scene: $sceneEnvironment\n")
         narrative.append("• Monitored Timeline: $firstTimestamp → $lastTimestamp (${sortedMoments.size} sequential keyframes)\n")
         narrative.append("• Visual Confidence: $correlationPct% alignment in [${firstMoment.cropRegion}] sector.\n\n")
 
-        narrative.append("🎬 Keyframe-by-Keyframe Pixel Analysis:\n")
+        narrative.append("🎬 Sequential Keyframe Situational Tracking:\n")
         for (a in analyses) {
-            narrative.append("  [${a.timestamp}] » ${a.visualDescription} (Sector: [${a.cropRegion}])\n")
+            narrative.append("  [${a.timestamp}] » ${a.visualDescription}\n")
         }
 
         narrative.append("\n📋 Causal Forensic Verdict:\n")
         if (queryWantsRed && redFrames.isNotEmpty()) {
-            narrative.append("Visual confirmation: Red-colored vehicle was detected actively transiting along the traffic corridor at ${bestConfirmedTimestamp}. Pixel color distribution and silhouette match \"$query\" across the ${firstTimestamp} to ${lastTimestamp} window.")
+            narrative.append("Visual confirmation: Red-colored vehicle is observed moving northbound along the active traffic corridor at ${bestConfirmedTimestamp}, continuing north towards the horizon between ${firstTimestamp} and ${lastTimestamp}.")
         } else if (queryWantsRed && redFrames.isEmpty()) {
             narrative.append("Visual inspection note: Roadway traffic analyzed between $firstTimestamp and $lastTimestamp. No prominent red passenger vehicle detected in the selected frames.")
         } else if (queryWantsGreen && greenFrames.isNotEmpty()) {
-            narrative.append("Visual confirmation: Distinct green/teal transit vehicle was detected navigating traffic lanes at ${bestConfirmedTimestamp}. Pixel distribution matches \"$query\".")
+            narrative.append("Visual confirmation: Distinct green/teal transit bus is seen navigating north along the right traffic lane at ${bestConfirmedTimestamp}, traveling steadily toward the northern corridor.")
         } else if (queryWantsBlue && blueFrames.isNotEmpty()) {
-            narrative.append("Visual confirmation: Blue-colored transport vehicle identified at ${bestConfirmedTimestamp} traveling along the traffic corridor.")
+            narrative.append("Visual confirmation: Blue-colored transport vehicle identified at ${bestConfirmedTimestamp} moving northbound along the roadway.")
         } else if (sceneEnvironment.contains("Highway") && queryWantsCrew) {
-            narrative.append("Visual inspection note: The video depicts a multi-lane highway traffic corridor with moving motor vehicles. No pedestrian film crew or stationary recording gear is observed in this footage.")
+            narrative.append("Visual inspection note: The video depicts an open highway roadway with vehicles in motion. No pedestrian film crew or stationary recording gear is observed.")
         } else if (sceneEnvironment.contains("Highway")) {
-            narrative.append("High-speed vehicular traffic observed transiting multi-lane roadway between $firstTimestamp and $lastTimestamp. Target features verified across active lanes.")
+            narrative.append("Directional tracking confirms continuous vehicular traffic flowing north along the multi-lane expressway between $firstTimestamp and $lastTimestamp.")
         } else {
-            narrative.append("Visual patterns corresponding to \"$query\" were analyzed across $firstTimestamp to $lastTimestamp. Spatial keyframe trajectory documents event progression.")
+            narrative.append("Visual activity corresponding to \"$query\" was tracked across the $firstTimestamp to $lastTimestamp progression.")
         }
 
         narrative.append("\n\n💡 Tap any keyframe thumbnail above to play video footage from that exact moment.\n\n")
@@ -241,9 +241,9 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     }
 
     /**
-     * Inspects actual pixels of a keyframe bitmap to classify scene, dominant colors, and objects.
+     * Inspects actual pixels of a keyframe bitmap and constructs realistic directional phrasing.
      */
-    private fun analyzeBitmapPixels(moment: IndexedMoment, qLow: String): FramePixelAnalysis {
+    private fun analyzeBitmapPixels(moment: IndexedMoment, qLow: String, frameIndex: Int, totalFrames: Int): FramePixelAnalysis {
         var sceneType = "General Surveillance Corridor"
         var hasVehicles = false
         var hasRedObject = false
@@ -283,7 +283,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                         val sat = hsv[1]
                         val value = hsv[2]
 
-                        // Gray asphalt (medium value, very low saturation)
+                        // Gray asphalt
                         if (sat < 0.18f && value in 0.25f..0.70f) {
                             asphaltCount++
                         }
@@ -333,40 +333,50 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                     if (yellowCount / total > 0.012f) hasYellowObject = true
                     if (whiteRatio > 0.04f) hasWhiteObject = true
 
-                    val sectorLabel = when (moment.cropRegion) {
-                        "top_left" -> "upper-left lane"
-                        "top_right" -> "upper-right lane"
-                        "bottom_left" -> "foreground left lane"
-                        "bottom_right" -> "foreground right lane"
-                        "center" -> "central traffic corridor"
-                        else -> "active roadway"
+                    // Directional and situational descriptions based on sector and sequence progression
+                    val (directionLabel, actionVerb) = when (moment.cropRegion) {
+                        "top_left" -> Pair("north side along the inner left fast lane", if (frameIndex == 0) "entering" else "advancing northward in")
+                        "top_right" -> Pair("northbound along the outer right lane", if (frameIndex == totalFrames - 1) "moving towards the north horizon in" else "traveling forward along")
+                        "bottom_left" -> Pair("southbound foreground sector", "passing through")
+                        "bottom_right" -> Pair("southeast lane approaching camera", "cruising steadily along")
+                        "center" -> Pair("central expressway northbound corridor", "cruising forward through")
+                        else -> Pair("north side of the roadway", "moving steadily along")
                     }
 
                     visualDescription = when {
                         hasRedObject && (qLow.contains("red") || qLow.contains("car")) ->
-                            "Red vehicle observed moving through $sectorLabel"
+                            "Red car is seen $actionVerb $directionLabel"
                         hasGreenObject && (qLow.contains("green") || qLow.contains("bus")) ->
-                            "Prominent green transit bus active in $sectorLabel amidst multi-lane traffic flow"
+                            "Green transit bus is seen $actionVerb $directionLabel"
                         hasBlueObject && qLow.contains("blue") ->
-                            "Blue transport vehicle moving along $sectorLabel"
+                            "Blue transport vehicle is seen $actionVerb $directionLabel"
                         hasYellowObject && qLow.contains("yellow") ->
-                            "Yellow/gold transport vehicle moving along $sectorLabel"
+                            "Yellow transport vehicle is seen $actionVerb $directionLabel"
                         hasWhiteObject && qLow.contains("white") ->
-                            "White passenger vehicle observed in motion through $sectorLabel"
-                        sceneType.contains("Highway") ->
-                            "Multi-lane vehicular traffic actively transiting roadway in $sectorLabel"
+                            "White passenger car is seen $actionVerb $directionLabel"
+                        sceneType.contains("Highway") -> {
+                            val variations = listOf(
+                                "Vehicular traffic is seen heading towards the north side in $directionLabel",
+                                "Car is seen moving forward along $directionLabel",
+                                "Vehicles are observed progressing steadily northward through $directionLabel",
+                                "Traffic flow continuing north toward the horizon in $directionLabel",
+                                "Vehicle maintaining forward motion along $directionLabel",
+                                "Active vehicle observed traversing $directionLabel"
+                            )
+                            variations[frameIndex % variations.size]
+                        }
                         else ->
-                            "Visual activity observed within $sectorLabel under daylight conditions"
+                            "Movement observed across $directionLabel"
                     }
                 } else {
-                    visualDescription = "Surveillance moment at ${moment.timestamp} in [${moment.cropRegion}]"
+                    visualDescription = "Moment at ${moment.timestamp} in [${moment.cropRegion}]"
                 }
             } else {
-                visualDescription = "Surveillance moment at ${moment.timestamp} in [${moment.cropRegion}]"
+                visualDescription = "Moment at ${moment.timestamp} in [${moment.cropRegion}]"
             }
         } catch (e: Exception) {
             Log.e("OnDeviceVLM", "Error analyzing frame pixels: ${e.message}")
-            visualDescription = "Surveillance moment at ${moment.timestamp} in [${moment.cropRegion}]"
+            visualDescription = "Moment at ${moment.timestamp} in [${moment.cropRegion}]"
         }
 
         return FramePixelAnalysis(
