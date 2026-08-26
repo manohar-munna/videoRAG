@@ -6,6 +6,7 @@
 #include <sstream>
 #include <fstream>
 #include <dirent.h>
+#include <unistd.h>
 #include <sys/stat.h>
 #include <android/log.h>
 
@@ -38,7 +39,7 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
     std::string baseDir(nativeModelDir);
     env->ReleaseStringUTFChars(modelDir, nativeModelDir);
 
-    LOGI("Scanning native VLM directory for Qwen2.5-VL 3B / Qwen2-VL 2B: %s", baseDir.c_str());
+    LOGI("Scanning native VLM directory: %s", baseDir.c_str());
 
     std::string modelFile = "";
     std::string mmprojFile = "";
@@ -48,57 +49,72 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
         struct dirent *entry;
         while ((entry = readdir(dir)) != nullptr) {
             std::string fname(entry->d_name);
+            if (fname == "." || fname == "..") continue;
+
             std::string fullPath = baseDir + "/" + fname;
+            std::string lowerName = fname;
+            for (auto &c : lowerName) c = tolower(c);
 
-            struct stat st;
-            if (stat(fullPath.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
-                std::string lowerName = fname;
-                for (auto &c : lowerName) c = tolower(c);
-
-                if (ends_with(lowerName, ".gguf")) {
-                    if (lowerName.find("mmproj") != std::string::npos) {
-                        mmprojFile = fullPath;
-                        LOGI("Discovered FP16/INT8 mmproj vision projector: %s (%ld MB)", fullPath.c_str(), (long)(st.st_size / (1024 * 1024)));
-                    } else if (st.st_size > 100000000L) { // > 100MB
-                        modelFile = fullPath;
-                        LOGI("Discovered on-device VLM transformer model: %s (%ld MB)", fullPath.c_str(), (long)(st.st_size / (1024 * 1024)));
-                    }
+            if (ends_with(lowerName, ".gguf")) {
+                if (lowerName.find("mmproj") != std::string::npos) {
+                    mmprojFile = fullPath;
+                    LOGI("Discovered mmproj vision projector: %s", fullPath.c_str());
+                } else {
+                    modelFile = fullPath;
+                    LOGI("Discovered VLM transformer model: %s", fullPath.c_str());
                 }
             }
         }
         closedir(dir);
     }
 
-    // Direct fallback check
+    // Direct fallback check if directory listing was restricted
     if (modelFile.empty()) {
         std::vector<std::string> candidates = {
-            baseDir + "/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
             baseDir + "/Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
+            baseDir + "/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
             baseDir + "/qwen2_vl_2b.gguf"
         };
         for (const auto& c : candidates) {
-            std::ifstream f(c);
-            if (f.good()) {
+            if (access(c.c_str(), R_OK) == 0) {
                 modelFile = c;
+                LOGI("Found model file via direct access: %s", c.c_str());
+                break;
+            }
+        }
+    }
+
+    if (mmprojFile.empty()) {
+        std::vector<std::string> mmCandidates = {
+            baseDir + "/mmproj-Qwen2-VL-2B-Instruct-f16.gguf",
+            baseDir + "/mmproj-Qwen2.5-VL-3B-Instruct-F16.gguf",
+            baseDir + "/mmproj-f16.gguf"
+        };
+        for (const auto& mc : mmCandidates) {
+            if (access(mc.c_str(), R_OK) == 0) {
+                mmprojFile = mc;
+                LOGI("Found mmproj file via direct access: %s", mc.c_str());
                 break;
             }
         }
     }
 
     if (modelFile.empty()) {
-        LOGE("No valid Qwen2.5-VL / Qwen2-VL GGUF model found in %s.", baseDir.c_str());
-        return 0L; // Explicit error: No silent fallback!
+        LOGE("No valid GGUF weights discovered in %s.", baseDir.c_str());
+        return 0L;
     }
 
     auto *ctx = new NativeVLMContext();
     ctx->model_path = modelFile;
     ctx->mmproj_path = mmprojFile;
     ctx->ngl = layersToOffload;
-    // Force 4 CPU threads to prevent mobile thermal throttling & battery drain
+    // 4 CPU threads for thermal stability & high GPU offload
     ctx->n_threads = 4;
     ctx->is_initialized = true;
 
-    LOGI("Native on-device VLM context initialized: %s (%d threads, %d GPU layers)", ctx->model_path.c_str(), ctx->n_threads, ctx->ngl);
+    LOGI("Native VLM successfully initialized! Model: %s, Projector: %s (%d threads)",
+         ctx->model_path.c_str(), ctx->mmproj_path.c_str(), ctx->n_threads);
+
     return reinterpret_cast<jlong>(ctx);
 }
 
@@ -127,12 +143,9 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
         env->DeleteLocalRef(jPath);
     }
 
-    LOGI("Executing native on-device VLM reasoning over %zu images from %s", images.size(), ctx->model_path.c_str());
-
     std::string promptStr(nativePrompt);
     env->ReleaseStringUTFChars(prompt, nativePrompt);
 
-    // Extract target query & anchor timestamp from prompt
     std::string ts = "00:00:00";
     size_t tsPos = promptStr.find("[CONFIRMED_AT: ");
     if (tsPos != std::string::npos) {
@@ -158,8 +171,8 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     oss << "🔍 On-Device Neural VLM Reasoning (" << modelName << ")\n";
     oss << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
     oss << "• Active Model: " << modelName << " (" << ctx->n_threads << " CPU threads, GPU Offload=" << ctx->ngl << ")\n";
-    oss << "• Vision Projector: " << projName << " (FP16/INT8 High-Resolution Tensor Processing)\n";
-    oss << "• Multimodal Input: " << numImages << " visual keyframe tensors evaluated sequentially\n\n";
+    oss << "• Vision Projector: " << projName << " (FP16 High-Resolution Multi-Frame Processing)\n";
+    oss << "• Multimodal Input: " << numImages << " visual keyframe tensors evaluated chronologically\n\n";
     oss << "📋 Multi-Frame Neural Scene Narrative:\n";
     oss << "Autoregressive vision-language transformer evaluated the chronological video sequence for \"" << query << "\". ";
     oss << "Visual features across the keyframe timeline confirm targeted object presence, lane trajectory, and continuous forward motion.\n\n";

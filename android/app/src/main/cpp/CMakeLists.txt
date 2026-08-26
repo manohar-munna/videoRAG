@@ -9,6 +9,8 @@ add_compile_options(
     -O3
     -ffast-math
     -pthread
+    -D_FILE_OFFSET_BITS=64
+    -D_LARGEFILE64_SOURCE
 )
 
 if(${ANDROID_ABI} STREQUAL "arm64-v8a")
