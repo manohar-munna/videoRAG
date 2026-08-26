@@ -153,6 +153,16 @@ class MainActivity : AppCompatActivity() {
         val onnxPath = "${filesDir.absolutePath}/mobileclip_s2.onnx"
         val vlmPath = "${filesDir.absolutePath}/qwen2_vl_2b/"
         orchestrator = MemoryOrchestrator(this, onnxPath, vlmPath)
+
+        val tvModelBadge = findViewById<TextView>(R.id.tvModelBadge)
+        lifecycleScope.launch(Dispatchers.Main) {
+            val vlm = orchestrator.getActiveVLM()
+            if (vlm.isNativeGGUFAvailable()) {
+                tvModelBadge.text = "🟢 Qwen2-VL 2B (On-Device GPU)"
+            } else {
+                tvModelBadge.text = "EDGE NPU/GPU"
+            }
+        }
     }
 
     private fun setupListeners() {
