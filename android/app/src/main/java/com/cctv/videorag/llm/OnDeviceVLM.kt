@@ -133,7 +133,6 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                 try {
                     nativeHandle = nativeInitWithFiles(modelPath, mmprojPath, 99)
                     if (nativeHandle == 0L) {
-                        // Fallback to directory scan
                         activeModelDirectory?.let { nativeHandle = nativeInit(it, 99) }
                     }
                     if (nativeHandle > 0L) {
@@ -153,7 +152,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     }
 
     /**
-     * Execute step-by-step forensic reasoning over the timeline of compiled storyboard images.
+     * Execute step-by-step structured forensic Chain-of-Thought reasoning over the timeline.
      */
     fun reasonOverTimeline(
         query: String,
@@ -165,17 +164,34 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         }
 
         val sortedMoments = storyboardMoments.sortedBy { it.timestamp }
-        val anchorMoment = sortedMoments.first()
-        val anchorTimestamp = anchorMoment.timestamp
-        val cropRegion = anchorMoment.cropRegion
+        val startMoment = sortedMoments.first()
+        val endMoment = sortedMoments.last()
+        val startTs = startMoment.timestamp
+        val endTs = endMoment.timestamp
+        val cropRegion = startMoment.cropRegion
         val storyboardPaths = sortedMoments.map { it.imagePath }
 
         val prompt = """
-            You are an on-device forensic surveillance security analyst.
-            Analyze the following chronological sequence of CCTV frames.
-            User Query Target: "$query". Primary Timestamp Anchor: $anchorTimestamp. Primary Region: $cropRegion.
-            Describe in detail what is happening in each keyframe and across the whole scene.
-            Confirm findings with exact timestamp markers: [CONFIRMED_AT: $anchorTimestamp].
+            You are an elite, highly precise on-device forensic surveillance AI.
+            Analyze the chronological sequence of CCTV frames provided.
+            
+            User Query Target: "$query"
+            • Timeline Start: $startTs
+            • Timeline End: $endTs
+            • Target Sector: $cropRegion
+            
+            Strictly structure your analysis using this format:
+            🔍 FORENSIC SURVEILLANCE REPORT
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            • Target: [Describe what is being searched for]
+            • Timeline: [$startTs ➔ $endTs]
+            
+            🎬 CHRONOLOGICAL KEYFRAME ANALYSIS:
+            - [$startTs]: [Detailed situational description of what is happening in this frame, identifying colors, entities, and specific regions (e.g. top_left, right lane)]
+            - [$endTs]: [Describe changes or motion relative to the previous frame]
+            
+            📋 FINAL VERDICT:
+            [Provide a definitive, precise verification statement confirming if the query was successfully grounded in the timeline, noting direction of travel and final location.]
         """.trimIndent()
 
         // Ensure VLM is loaded from storage
@@ -236,7 +252,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
      */
     fun getDiagnosticInfo(): String {
         return if (nativeHandle > 0L) {
-            "🟢 Active: ${activeModelFileName ?: "Qwen2.5-VL / Qwen2-VL"} (Native 4 Threads, GPU offload)"
+            "🟢 Active: ${activeModelFileName ?: "Qwen2.5-VL / Qwen2-VL"} (Vulkan GPU, 4 Threads)"
         } else {
             "🔴 Model Missing: Sideload GGUF to Download/qwen2_vl_2b/"
         }

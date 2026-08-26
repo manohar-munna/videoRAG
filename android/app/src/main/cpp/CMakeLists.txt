@@ -5,6 +5,9 @@ project("videorag_native")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(GGML_VULKAN ON)
+add_compile_definitions(GGML_USE_VULKAN)
+
 add_compile_options(
     -O3
     -ffast-math
