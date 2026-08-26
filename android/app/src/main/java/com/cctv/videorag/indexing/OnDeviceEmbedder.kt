@@ -122,12 +122,12 @@ class OnDeviceEmbedder(modelPath: String) {
             val padded = "^$token$"
             for (i in 0 until (padded.length - 2)) {
                 val triGram = padded.substring(i, i + 3)
-                val h = Math.abs(triGram.hashCode())
+                val h = triGram.hashCode() and 0x7FFFFFFF
                 val dim = 256 + (h % 256)
                 vector[dim] += 2.0f
             }
 
-            val wordHash = Math.abs(token.hashCode())
+            val wordHash = token.hashCode() and 0x7FFFFFFF
             for (i in 0 until 8) {
                 val dim = 256 + ((wordHash + i * 31) % 256)
                 vector[dim] += 2.0f
@@ -163,7 +163,8 @@ class OnDeviceEmbedder(modelPath: String) {
         val hsv = FloatArray(3)
 
         // 1. Balanced Color Analysis (Bank A: 0..127)
-        for (p in pixels) {
+        for (i in pixels.indices) {
+            val p = pixels[i]
             val r = (p shr 16) and 0xFF
             val g = (p shr 8) and 0xFF
             val b = p and 0xFF
@@ -174,39 +175,41 @@ class OnDeviceEmbedder(modelPath: String) {
             val value = hsv[2] // 0..1
 
             val weight = (sat * value * 25.0f) / total
+            val offset16 = i % 16
+            val offset8 = i % 8
 
             if (value > 0.75f && sat < 0.20f) {
                 // White (0..15)
-                vector[p % 16] += 20.0f / total
+                vector[offset16] += 20.0f / total
             } else if (value < 0.20f) {
                 // Black (16..31)
-                vector[16 + (p % 16)] += 20.0f / total
+                vector[16 + offset16] += 20.0f / total
             } else if (sat < 0.18f) {
                 // Grey / Silver (120..127)
-                vector[120 + (p % 8)] += 15.0f / total
+                vector[120 + offset8] += 15.0f / total
             } else {
                 // Color Hues
                 when (hue) {
                     in 0.0f..20.0f, in 345.0f..360.0f -> { // Red (32..47)
-                        vector[32 + (p % 16)] += weight * 2.0f
+                        vector[32 + offset16] += weight * 2.0f
                     }
                     in 300.0f..345.0f -> { // Pink / Magenta (48..63)
-                        vector[48 + (p % 16)] += weight * 2.5f
+                        vector[48 + offset16] += weight * 2.5f
                     }
                     in 21.0f..65.0f -> { // Yellow / Gold (64..79)
-                        vector[64 + (p % 16)] += weight * 2.0f
+                        vector[64 + offset16] += weight * 2.0f
                     }
                     in 66.0f..175.0f -> { // Green / Teal / Cyan (80..95) - Catches green buses/trucks!
-                        vector[80 + (p % 16)] += weight * 3.0f
+                        vector[80 + offset16] += weight * 3.0f
                     }
                     in 176.0f..260.0f -> { // Blue / Navy (96..111)
-                        vector[96 + (p % 16)] += weight * 2.0f
+                        vector[96 + offset16] += weight * 2.0f
                     }
                     in 261.0f..299.0f -> { // Purple (48..63)
-                        vector[48 + (p % 16)] += weight * 2.0f
+                        vector[48 + offset16] += weight * 2.0f
                     }
                     else -> { // Orange / Brown (112..119)
-                        vector[112 + (p % 8)] += weight * 2.0f
+                        vector[112 + offset8] += weight * 2.0f
                     }
                 }
             }
