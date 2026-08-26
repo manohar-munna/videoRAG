@@ -29,9 +29,39 @@ static bool ends_with(const std::string& str, const std::string& suffix) {
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(
     JNIEnv *env,
     jobject /* this */,
+    jstring modelPath,
+    jstring mmprojPath,
+    jint layersToOffload
+) {
+    const char *nativeModelPath = env->GetStringUTFChars(modelPath, nullptr);
+    const char *nativeMmprojPath = env->GetStringUTFChars(mmprojPath, nullptr);
+
+    std::string mPath(nativeModelPath);
+    std::string projPath(nativeMmprojPath);
+
+    env->ReleaseStringUTFChars(modelPath, nativeModelPath);
+    env->ReleaseStringUTFChars(mmprojPath, nativeMmprojPath);
+
+    LOGI("Direct Native VLM Init with explicit files:\nModel: %s\nProjector: %s", mPath.c_str(), projPath.c_str());
+
+    auto *ctx = new NativeVLMContext();
+    ctx->model_path = mPath;
+    ctx->mmproj_path = projPath;
+    ctx->ngl = layersToOffload;
+    ctx->n_threads = 4;
+    ctx->is_initialized = true;
+
+    LOGI("Native VLM successfully initialized with explicit file paths! (%d threads)", ctx->n_threads);
+    return reinterpret_cast<jlong>(ctx);
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
+    JNIEnv *env,
+    jobject thisObj,
     jstring modelDir,
     jint layersToOffload
 ) {
@@ -68,7 +98,6 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
         closedir(dir);
     }
 
-    // Direct fallback check if directory listing was restricted
     if (modelFile.empty()) {
         std::vector<std::string> candidates = {
             baseDir + "/Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
@@ -78,7 +107,6 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
         for (const auto& c : candidates) {
             if (access(c.c_str(), R_OK) == 0) {
                 modelFile = c;
-                LOGI("Found model file via direct access: %s", c.c_str());
                 break;
             }
         }
@@ -93,7 +121,6 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
         for (const auto& mc : mmCandidates) {
             if (access(mc.c_str(), R_OK) == 0) {
                 mmprojFile = mc;
-                LOGI("Found mmproj file via direct access: %s", mc.c_str());
                 break;
             }
         }
@@ -108,13 +135,10 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
     ctx->model_path = modelFile;
     ctx->mmproj_path = mmprojFile;
     ctx->ngl = layersToOffload;
-    // 4 CPU threads for thermal stability & high GPU offload
     ctx->n_threads = 4;
     ctx->is_initialized = true;
 
-    LOGI("Native VLM successfully initialized! Model: %s, Projector: %s (%d threads)",
-         ctx->model_path.c_str(), ctx->mmproj_path.c_str(), ctx->n_threads);
-
+    LOGI("Native VLM initialized: %s (%d threads)", ctx->model_path.c_str(), ctx->n_threads);
     return reinterpret_cast<jlong>(ctx);
 }
 

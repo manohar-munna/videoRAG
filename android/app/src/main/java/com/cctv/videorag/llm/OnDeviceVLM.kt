@@ -9,6 +9,7 @@ import java.io.File
 class OnDeviceVLM(private val context: Context, private val defaultModelDirectory: String) {
     
     // External JNI hooks into native-lib.cpp
+    private external fun nativeInitWithFiles(modelPath: String, mmprojPath: String, layersToOffload: Int): Long
     private external fun nativeInit(modelDir: String, layersToOffload: Int): Long
     private external fun nativeGenerate(handle: Long, prompt: String, imagePaths: Array<String>): String
     private external fun nativeGetModelInfo(handle: Long): String
@@ -38,9 +39,9 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     }
 
     /**
-     * Discovers if Qwen2.5-VL 3B or Qwen2-VL 2B GGUF model files exist in known mobile storage directories.
+     * Discovers exact GGUF model file and mmproj projector file in mobile storage.
      */
-    fun findActiveModelDir(): String? {
+    fun findActiveModelFiles(): Pair<File, File?>? {
         val candidatePaths = mutableListOf<String>()
         customModelDirectory?.let { candidatePaths.add(it) }
 
@@ -60,7 +61,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             )
         )
 
-        // 1. Direct candidate paths
+        // 1. Check direct candidate directories
         for (path in candidatePaths) {
             val dir = File(path)
             if (dir.exists() && dir.isDirectory) {
@@ -71,9 +72,14 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                     it.length() > 50_000_000L
                 }
                 if (modelFile != null) {
+                    val mmprojFile = files.firstOrNull {
+                        it.extension.lowercase() == "gguf" &&
+                        it.name.contains("mmproj", ignoreCase = true)
+                    }
+                    activeModelDirectory = dir.absolutePath
                     activeModelFileName = modelFile.name
-                    Log.i("VideoRAG_VLM", "Discovered VLM GGUF weights at: ${modelFile.absolutePath} (${modelFile.length() / (1024 * 1024)} MB)")
-                    return dir.absolutePath
+                    Log.i("VideoRAG_VLM", "Discovered Model: ${modelFile.absolutePath}, Projector: ${mmprojFile?.absolutePath}")
+                    return Pair(modelFile, mmprojFile)
                 }
             }
         }
@@ -97,9 +103,13 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                             it.length() > 50_000_000L
                         }
                         if (model != null) {
+                            val mmproj = subFiles.firstOrNull {
+                                it.extension.lowercase() == "gguf" &&
+                                it.name.contains("mmproj", ignoreCase = true)
+                            }
+                            activeModelDirectory = sub.absolutePath
                             activeModelFileName = model.name
-                            Log.i("VideoRAG_VLM", "Discovered VLM in subfolder: ${model.absolutePath}")
-                            return sub.absolutePath
+                            return Pair(model, mmproj)
                         }
                     }
                 }
@@ -110,21 +120,26 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     }
 
     fun isNativeGGUFAvailable(): Boolean {
-        return findActiveModelDir() != null
+        return findActiveModelFiles() != null
     }
 
     fun loadVLM() {
         if (nativeHandle == 0L) {
-            val modelDir = findActiveModelDir()
-            if (modelDir != null) {
-                activeModelDirectory = modelDir
-                Log.d("VideoRAG_VLM", "Initializing native on-device VLM (4 CPU threads, GPU offload) from $modelDir...")
+            val files = findActiveModelFiles()
+            if (files != null) {
+                val modelPath = files.first.absolutePath
+                val mmprojPath = files.second?.absolutePath ?: ""
+                Log.d("VideoRAG_VLM", "Directly initializing native VLM with files: $modelPath (mmproj: $mmprojPath)...")
                 try {
-                    nativeHandle = nativeInit(modelDir, 99)
+                    nativeHandle = nativeInitWithFiles(modelPath, mmprojPath, 99)
                     if (nativeHandle == 0L) {
-                        Log.e("VideoRAG_VLM", "Native VLM initialization returned 0L (model files missing or invalid).")
+                        // Fallback to directory scan
+                        activeModelDirectory?.let { nativeHandle = nativeInit(it, 99) }
+                    }
+                    if (nativeHandle > 0L) {
+                        Log.i("VideoRAG_VLM", "Native VLM successfully loaded! handle=$nativeHandle")
                     } else {
-                        Log.i("VideoRAG_VLM", "Native VLM loaded successfully with handle=$nativeHandle")
+                        Log.e("VideoRAG_VLM", "Native VLM returned handle 0L.")
                     }
                 } catch (e: Throwable) {
                     Log.e("VideoRAG_VLM", "JNI init failed: ${e.message}", e)
@@ -168,7 +183,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
 
         // EXPLICIT VERIFICATION: No silent mock fallback!
         if (nativeHandle <= 0L) {
-            val primaryPath = customModelDirectory ?: "/storage/emulated/0/Download/qwen2_vl_2b"
+            val primaryPath = customModelDirectory ?: activeModelDirectory ?: "/storage/emulated/0/Download/qwen2_vl_2b"
             val dir = File(primaryPath)
             
             val statusMessage: String
