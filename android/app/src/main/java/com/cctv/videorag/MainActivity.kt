@@ -1,5 +1,9 @@
 package com.cctv.videorag
 
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -30,6 +34,7 @@ import com.cctv.videorag.llm.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import java.io.File
 import java.util.Locale
 
@@ -53,8 +58,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scrollView: NestedScrollView
     private lateinit var tvStatus: TextView
     private lateinit var btnClearAll: Button
+    private lateinit var btnSelectModelFolder: Button
     private lateinit var btnPickVideo: Button
     private lateinit var btnToggleUrl: Button
+    private lateinit var btnViewAllJson: Button
     private lateinit var btnFps05: Button
     private lateinit var btnFps10: Button
     private lateinit var btnFps20: Button
@@ -91,7 +98,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnClosePlayer: Button
     private lateinit var btnPlayPause: Button
     private lateinit var btnReplayTimestamp: Button
-    private lateinit var btnSelectModelFolder: Button
 
     // Activity Result Launcher for selecting local video
     private val pickVideoLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -190,6 +196,7 @@ class MainActivity : AppCompatActivity() {
         btnSelectModelFolder = findViewById(R.id.btnSelectModelFolder)
         btnPickVideo = findViewById(R.id.btnPickVideo)
         btnToggleUrl = findViewById(R.id.btnToggleUrl)
+        btnViewAllJson = findViewById(R.id.btnViewAllJson)
         btnFps05 = findViewById(R.id.btnFps05)
         btnFps10 = findViewById(R.id.btnFps10)
         btnFps20 = findViewById(R.id.btnFps20)
@@ -245,6 +252,11 @@ class MainActivity : AppCompatActivity() {
         btnClearAll.setOnClickListener {
             resetAllData()
             Toast.makeText(this, "All vector and SQLite FTS5 indices cleared.", Toast.LENGTH_SHORT).show()
+        }
+
+        // View All Indexed JSON Data in Modal Inspector
+        btnViewAllJson.setOnClickListener {
+            showAllJsonDialog()
         }
 
         // Pick Local Video File
@@ -844,6 +856,57 @@ class MainActivity : AppCompatActivity() {
             Log.e("VideoPlay", "Failed to play video at $timestamp", e)
             Toast.makeText(this, "Error playing video: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /**
+     * Opens a dedicated modal inspector displaying all indexed keyframe JSON documents.
+     */
+    private fun showAllJsonDialog() {
+        val allMoments = vectorStore.getAllMoments()
+        if (allMoments.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("📋 No Indexed JSON Data")
+                .setMessage("No video keyframes have been indexed yet.\n\nUpload a video first using '📁 Upload' to extract frames, generate visual descriptions, and index them into structured JSON.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
+        val jsonArray = JSONArray()
+        for (m in allMoments) {
+            jsonArray.put(m.toJsonObject())
+        }
+        val formattedJson = jsonArray.toString(2)
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_view_all_json, null)
+        val tvDialogTitle = dialogView.findViewById<TextView>(R.id.tvDialogTitle)
+        val tvJsonCount = dialogView.findViewById<TextView>(R.id.tvJsonCount)
+        val tvJsonContent = dialogView.findViewById<TextView>(R.id.tvJsonContent)
+        val btnCopyJson = dialogView.findViewById<Button>(R.id.btnCopyJson)
+        val btnCloseJsonDialog = dialogView.findViewById<Button>(R.id.btnCloseJsonDialog)
+
+        tvDialogTitle.text = "📋 Indexed Keyframe JSON"
+        tvJsonCount.text = "Total Indexed Moments: ${allMoments.size} keyframes (${formattedJson.length} bytes)"
+        tvJsonContent.text = formattedJson
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+
+        btnCopyJson.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("Indexed Keyframes JSON", formattedJson)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(this, "Copied all JSON (${allMoments.size} frames) to clipboard! 📋", Toast.LENGTH_SHORT).show()
+        }
+
+        btnCloseJsonDialog.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     private fun expandQueryNatively(query: String): List<String> {
