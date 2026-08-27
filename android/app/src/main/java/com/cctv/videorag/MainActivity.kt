@@ -506,7 +506,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * STAGE 1 & 2: Dense Frame Ingestion + 6-Region Spatial Pyramid Embedding + SQLite FTS5 Lexical Indexing.
+     * STAGE 1 & 2: dHash Keyframe Filtering + Qwen VLM Visual Description Generation + FAISS & SQLite Indexing.
      */
     private suspend fun ingestAndIndexFrame(bitmap: Bitmap, camera: String, timestamp: String, epochTime: Long, imagePath: String) {
         val currentHash = MobileFrameFilter.calculateDHash(bitmap)
@@ -515,6 +515,7 @@ class MainActivity : AppCompatActivity() {
         var hammingDist = 64
         var isDropped = false
 
+        // dHash Filtering: Filter out redundant static frames
         if (enableHashGate) {
             lastFrameHash?.let { lastHash ->
                 hammingDist = MobileFrameFilter.hammingDistance(lastHash, currentHash)
@@ -534,45 +535,54 @@ class MainActivity : AppCompatActivity() {
         acceptedFramesCount++
         updateTelemetryUI(hashHex, hammingDist, dropped = false)
 
-        // Stage 2: 6-Region Spatial Pyramid Embedding & SQLite FTS5 Indexing
-        val embedder = orchestrator.getActiveEmbedder()
-        val regions = SpatialCropper.generatePyramidCrops(bitmap)
-        for (region in regions) {
-            val vector = embedder.embedCrop(region.bitmap)
-            val moment = IndexedMoment(
-                id = "${camera}_${timestamp}_${region.label}",
-                camera = camera,
-                timestamp = timestamp,
-                epochTime = epochTime,
-                vector = vector,
-                cropRegion = region.label,
-                imagePath = imagePath,
-                description = "Surveillance moment at $timestamp [${region.label}]"
-            )
-            vectorStore.addMoment(moment)
+        // Step 1: Send extracted keyframe to Qwen / VLM to generate detailed visual description
+        val vlm = orchestrator.getActiveVLM()
+        val frameDescription = vlm.describeFrame(bitmap, timestamp)
 
-            // Extract Visual Concept Tokens & Insert into SQLite FTS5 Table
-            val visualTokens = embedder.extractVisualTokens(region.bitmap, region.label)
-            sqliteFts.insertMoment(
-                momentId = moment.id,
-                camera = camera,
-                timestamp = timestamp,
-                epochTime = epochTime,
-                cropRegion = region.label,
-                imagePath = imagePath,
-                visualTokens = visualTokens
-            )
+        // Step 2: Embed the generated description + image features into 512-D vector
+        val embedder = orchestrator.getActiveEmbedder()
+        val textVector = embedder.embedText(frameDescription)
+        val imageVector = embedder.embedCrop(bitmap)
+
+        val combinedVector = FloatArray(512)
+        for (i in 0 until 512) {
+            combinedVector[i] = (textVector[i] * 0.6f) + (imageVector[i] * 0.4f)
         }
 
+        val moment = IndexedMoment(
+            id = "${camera}_${timestamp}",
+            camera = camera,
+            timestamp = timestamp,
+            epochTime = epochTime,
+            vector = combinedVector,
+            cropRegion = "frame",
+            imagePath = imagePath,
+            description = frameDescription
+        )
+
+        // Save in FAISS / Vector store
+        vectorStore.addMoment(moment)
+
+        // Save in SQLite FTS5 Full-Text Search
+        sqliteFts.insertMoment(
+            momentId = moment.id,
+            camera = camera,
+            timestamp = timestamp,
+            epochTime = epochTime,
+            cropRegion = "frame",
+            imagePath = imagePath,
+            visualTokens = frameDescription
+        )
+
         withContext(Dispatchers.Main) {
-            tvStatus.text = "Active Surveillance Index: ${vectorStore.size} vectors & ${sqliteFts.size()} FTS5 tokens in RAM"
+            tvStatus.text = "Active Surveillance Index: ${vectorStore.size} described moments in FAISS & SQLite"
         }
     }
 
     private suspend fun updateTelemetryUI(hashHex: String, hammingDist: Int, dropped: Boolean) {
         withContext(Dispatchers.Main) {
             if (!enableHashGate) {
-                tvHashValue.text = "Gate: BYPASS (100% Dense Keyframes) | dHash: 0x$hashHex"
+                tvHashValue.text = "Gate: BYPASS (100% Keyframes) | dHash: 0x$hashHex"
                 tvGateMetrics.text = "Accepted: $acceptedFramesCount / $acceptedFramesCount (100% Ingested - 0 Dropped)"
             } else {
                 val deltaStatus = if (dropped) "Δ=$hammingDist (Static Dropped ❌)" else "Δ=$hammingDist (Motion Keyframe Accepted ✅)"
@@ -586,7 +596,7 @@ class MainActivity : AppCompatActivity() {
                     acceptedFramesCount, droppedFramesCount, dropRate
                 )
             }
-            tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors: ${vectorStore.size} | FTS5 Rows: ${sqliteFts.size()}"
+            tvPyramidMetrics.text = "Index Mode: Qwen VLM Described Frames | Vectors: ${vectorStore.size} | FTS Rows: ${sqliteFts.size()}"
 
             // Update 3-Column Metrics Grid
             tvMetricFrames.text = "$acceptedFramesCount"
@@ -596,7 +606,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * STAGE 3 & 4: Hybrid Dense-Sparse Retrieval (MobileCLIP + SQLite FTS5 RRF) + On-Device VLM Reasoning.
+     * STAGE 3 & 4: Retrieve Top 5 Described Moments & Synthesize Answer with Qwen VLM Context Window.
      */
     private fun performLocalVideoRAGQuery(userQuery: String) {
         lifecycleScope.launch(Dispatchers.Default) {
@@ -610,36 +620,35 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 withContext(Dispatchers.Main) {
-                    tvResults.text = "Executing Hybrid RRF Retrieval (MobileCLIP Vectors + SQLite FTS5 BM25) & Native VLM Reasoning..."
+                    tvResults.text = "Retrieving Top 5 moments from FAISS/SQLite & Synthesizing answer via Qwen VLM Context Window..."
                     layoutStoryboardThumbnails.removeAllViews()
                     scrollStoryboard.visibility = View.GONE
                 }
 
-                // 1. Expand query natively
                 val expandedQueries = expandQueryNatively(userQuery)
                 withContext(Dispatchers.Main) {
                     tvExpandedQuery.text = "Query Expansions: ${expandedQueries.joinToString(" • ")}"
                 }
 
                 val pathMetadata = HashMap<String, IndexedMoment>()
-                val denseHits = mutableListOf<Pair<IndexedMoment, Float>>()
+                for (m in vectorStore.getAllMoments()) {
+                    pathMetadata[m.imagePath] = m
+                }
 
-                // 2. Dense Vector Retrieval (MobileCLIP)
+                val denseHits = mutableListOf<Pair<IndexedMoment, Float>>()
                 val embedder = orchestrator.getActiveEmbedder()
                 for (expandedQ in expandedQueries) {
                     val queryVector = embedder.embedText(expandedQ)
-                    val hits = vectorStore.search(queryVector, topK = 40)
+                    val hits = vectorStore.search(queryVector, topK = 5)
                     for (hit in hits) {
-                        pathMetadata[hit.first.imagePath] = hit.first
                         denseHits.add(hit)
                     }
                 }
 
-                // 3. Sparse Lexical Retrieval (SQLite FTS5 BM25)
-                val sparseHits = sqliteFts.searchSparse(userQuery, topK = 40)
+                val sparseHits = sqliteFts.searchSparse(userQuery, topK = 5)
 
-                // 4. Reciprocal Rank Fusion (RRF) Hybrid Merger
-                val fusedResults = HybridRetriever.fuseRRF(denseHits, sparseHits, pathMetadata, topK = 6)
+                // Select Top 5 retrieved moments
+                val fusedResults = HybridRetriever.fuseRRF(denseHits, sparseHits, pathMetadata, topK = 5)
 
                 if (fusedResults.isEmpty()) {
                     withContext(Dispatchers.Main) {
@@ -648,26 +657,23 @@ class MainActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                // Sort top candidates chronologically from start to end (increasing order)
-                val sortedCandidates = fusedResults.map { it.moment }.sortedBy { it.timestamp }
-                val topScore = fusedResults.first().rrfScore
+                val top5Moments = fusedResults.map { it.moment }.sortedBy { it.timestamp }
 
-                // Render Storyboard Thumbnails in sequential chronological order with Hybrid RRF Scores
+                // Render Top 5 Thumbnails in UI with real descriptions
                 withContext(Dispatchers.Main) {
-                    renderHybridStoryboardThumbnails(sortedCandidates, fusedResults)
+                    renderHybridStoryboardThumbnails(top5Moments, fusedResults)
                 }
 
-                // 5. Execute On-Device VLM Autoregressive Reasoning (Qwen2.5-VL 3B / Qwen2-VL 2B Native)
+                // Send Top 5 retrieved descriptions as Context Window to Qwen VLM
                 val vlm = orchestrator.getActiveVLM()
-                val finalExplanation = vlm.reasonOverTimeline(
+                val finalAnswer = vlm.answerFromRetrievedContext(
                     query = userQuery,
-                    storyboardMoments = sortedCandidates,
-                    topScore = topScore
+                    top5Moments = top5Moments
                 )
 
                 withContext(Dispatchers.Main) {
-                    Log.i("VideoRAG_Results", "Reasoning Complete: $finalExplanation")
-                    tvResults.text = finalExplanation
+                    Log.i("VideoRAG_Results", "Reasoning Complete: $finalAnswer")
+                    tvResults.text = finalAnswer
                 }
 
             } catch (e: Throwable) {
@@ -777,17 +783,17 @@ class MainActivity : AppCompatActivity() {
                 setPadding(2, 1, 0, 0)
             }
 
-            val tvRegion = TextView(this).apply {
-                text = "Sector: ${moment.cropRegion}"
-                setTextColor(Color.parseColor("#64748B"))
-                textSize = 9.5f
+            val tvDesc = TextView(this).apply {
+                text = if (moment.description.length > 55) moment.description.take(52) + "..." else moment.description
+                setTextColor(Color.parseColor("#475569"))
+                textSize = 9.0f
                 setPadding(2, 1, 0, 2)
             }
 
             cardLayout.addView(frameContainer)
             cardLayout.addView(tvTimestamp)
             cardLayout.addView(tvMatch)
-            cardLayout.addView(tvRegion)
+            cardLayout.addView(tvDesc)
             card.addView(cardLayout)
 
             // Click-to-Play Video at exact timestamp
