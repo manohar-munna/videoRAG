@@ -128,12 +128,38 @@ Traditional video search architectures suffer from two major bottlenecks:
 
 ### 📖 How to Use the Android Version
 
-#### Step 1: Build & Launch in Android Studio
-1. Open Android Studio, select **Open**, and choose the [`/android`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android) directory.
-2. Connect your physical Android phone (e.g. Vivo, Pixel, Samsung with USB Debugging enabled).
-3. Click **Run ▶ (Shift + F10)**.
+#### Step 1: Sideload On-Device Model Weights (ADB / USB Transfer)
 
-#### Step 2: Ingest a Video
+VideoRAG requires two lightweight neural components on mobile:
+1. **MobileCLIP-S2 (ONNX)**: Sideloaded to app internal files for sub-millisecond 512-D keyframe embedding.
+2. **Qwen2.5-VL 3B / Qwen2-VL 2B (GGUF + mmproj)**: Placed in the public `Download/qwen2_vl_2b/` directory.
+
+Run these ADB commands to push models directly to your connected Android phone:
+```bash
+# 1. Create model directory on device public storage
+adb shell "mkdir -p /sdcard/Download/qwen2_vl_2b"
+
+# 2. Push Qwen2-VL 2B / Qwen2.5-VL 3B GGUF weights & Vision Projector
+adb push models/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf /sdcard/Download/qwen2_vl_2b/
+adb push models/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-f16.gguf /sdcard/Download/qwen2_vl_2b/
+
+# 3. Push MobileCLIP-S2 ONNX Embedder
+adb push models/mobileclip_s2.onnx /sdcard/Download/
+```
+
+> [!TIP]
+> **No ADB?** You can copy the files via USB cable or download them directly in mobile Chrome to your phone's **`Internal Storage > Download > qwen2_vl_2b`** folder. Use the **`📂 Model Folder`** button inside the app to select the folder directly.
+
+#### Step 2: Build & Launch in Android Studio
+1. Open Android Studio, select **Open**, and choose the [`/android`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android) directory.
+2. Connect your physical Android phone (ensure **USB Debugging** and **All Files Access** permissions are granted).
+3. Click **Run ▶ (Shift + F10)** or assemble release APK:
+   ```bash
+   cd android
+   ./gradlew assembleRelease
+   ```
+
+#### Step 3: Ingest a Video
 1. **Choose Extraction Rate**:
    - **`0.5 FPS (2s)`** *(Recommended for 10–30 minute videos: samples 1 frame every 2 seconds)*.
    - **`1.0 FPS (1s)`** *(Samples 1 frame per second)*.
@@ -144,7 +170,7 @@ Traditional video search architectures suffer from two major bottlenecks:
    - **Stage 1 Edge Hash Gate**: Shows live 64-bit dHash hex values, Hamming distance `Δ`, and static frames dropped (e.g. `686 static frames dropped, 84.5% Gate Drop Rate`).
    - **3-Column Metrics Grid**: Shows real-time counts for **Extracted Frames**, **Indexed Regions**, and **Processing Time**.
 
-#### Step 3: Search Using Natural Language
+#### Step 4: Search Using Natural Language
 1. Enter any search prompt in the query box (e.g.):
    - `"camera crew or film crew with a black cart"`
    - `"people wearing pink cloths"`
@@ -152,7 +178,7 @@ Traditional video search architectures suffer from two major bottlenecks:
    - `"person carrying a black backpack"`
 2. Tap **`Search`**.
 
-#### Step 4: Inspect Storyboard & Situational Reasoning
+#### Step 5: Inspect Storyboard & Situational Reasoning
 1. **Chronological Storyboard**: The app displays matching keyframe thumbnail cards ordered sequentially from start to finish with:
    - Timestamp marker (e.g. `00:05:18`)
    - Cosine Match Percentage (e.g. `Match: 85%`)
@@ -162,10 +188,10 @@ Traditional video search architectures suffer from two major bottlenecks:
    - Step-by-step chronological event sequence
    - Causal verdict with timestamp confirmation `[CONFIRMED_AT: 00:07:10]`
 
-#### Step 5: Click-to-Play Video at Exact Keyframe Timestamp
+#### Step 6: Click-to-Play Video at Exact Keyframe Timestamp
 - **Tap any keyframe thumbnail card**: The app reveals the **Forensic Video Playback** card below, seeks your original video to that exact second, and begins playing footage from that moment with `⏸ Pause`, `▶ Play`, and `🔄 Replay Mark` controls!
 
-#### Step 6: Resetting Database
+#### Step 7: Resetting Database
 - Tap the **`🗑 Reset`** button in the top-right of the ingestion card at any time to wipe all indexed vectors, cached keyframe images, and hash history with one tap.
 
 ---
