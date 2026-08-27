@@ -1,5 +1,6 @@
 package com.cctv.videorag.indexing
 
+import org.json.JSONObject
 import kotlin.math.sqrt
 
 data class IndexedMoment(
@@ -10,8 +11,31 @@ data class IndexedMoment(
     val vector: FloatArray,
     val cropRegion: String,
     val imagePath: String,
-    val description: String = ""
-)
+    val description: String = "",
+    val jsonMetadata: String = ""
+) {
+    fun toJsonObject(): JSONObject {
+        return if (jsonMetadata.isNotEmpty()) {
+            try {
+                JSONObject(jsonMetadata)
+            } catch (_: Exception) {
+                fallbackJson()
+            }
+        } else {
+            fallbackJson()
+        }
+    }
+
+    private fun fallbackJson(): JSONObject {
+        return JSONObject().apply {
+            put("id", id)
+            put("camera", camera)
+            put("timestamp", timestamp)
+            put("description", description)
+            put("image_path", imagePath)
+        }
+    }
+}
 
 class MobileVectorStore {
     private val registry = ArrayList<IndexedMoment>()

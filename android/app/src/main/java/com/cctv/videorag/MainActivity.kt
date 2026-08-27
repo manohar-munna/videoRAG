@@ -535,9 +535,10 @@ class MainActivity : AppCompatActivity() {
         acceptedFramesCount++
         updateTelemetryUI(hashHex, hammingDist, dropped = false)
 
-        // Step 1: Send extracted keyframe to Qwen / VLM to generate detailed visual description
+        // Step 1: Send extracted keyframe to Qwen / VLM to generate structured JSON description
         val vlm = orchestrator.getActiveVLM()
-        val frameDescription = vlm.describeFrame(bitmap, timestamp)
+        val frameJson = vlm.describeFrameAsJson(bitmap, timestamp, acceptedFramesCount, imagePath)
+        val frameDescription = frameJson.getString("visual_description")
 
         // Step 2: Embed the generated description + image features into 512-D vector
         val embedder = orchestrator.getActiveEmbedder()
@@ -557,7 +558,8 @@ class MainActivity : AppCompatActivity() {
             vector = combinedVector,
             cropRegion = "frame",
             imagePath = imagePath,
-            description = frameDescription
+            description = frameDescription,
+            jsonMetadata = frameJson.toString()
         )
 
         // Save in FAISS / Vector store
@@ -576,6 +578,7 @@ class MainActivity : AppCompatActivity() {
 
         withContext(Dispatchers.Main) {
             tvStatus.text = "Active Surveillance Index: ${vectorStore.size} described moments in FAISS & SQLite"
+            tvIngestionInfo.text = "Ingesting Frame #${acceptedFramesCount} ($timestamp) ➔ JSON Generated:\n${frameJson.toString(2)}"
         }
     }
 

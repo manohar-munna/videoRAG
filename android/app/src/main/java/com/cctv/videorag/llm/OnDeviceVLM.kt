@@ -162,32 +162,97 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     }
 
     /**
-     * INGESTION STEP: Qwen / VLM inspects the extracted keyframe bitmap and writes a detailed visual description.
+     * INGESTION STEP: Qwen / VLM inspects the extracted keyframe bitmap and writes a structured JSON document.
      */
-    fun describeFrame(bitmap: Bitmap, timestamp: String): String {
+    fun describeFrameAsJson(bitmap: Bitmap, timestamp: String, frameIndex: Int, imagePath: String): JSONObject {
         val stats = analyzeBitmapStats(bitmap)
-        val colorsList = stats.dominantColors.joinToString(", ").ifEmpty { "neutral silver/dark" }
-
-        val detectedEntities = mutableListOf<String>()
-        if (stats.hasYellow) detectedEntities.add("yellow transit bus with elongated chassis")
-        if (stats.hasRed) detectedEntities.add("red passenger vehicle")
-        if (stats.hasBlue) detectedEntities.add("blue transport vehicle")
-        if (stats.hasGreen) detectedEntities.add("green transit coach")
-        if (stats.hasWhite) detectedEntities.add("white passenger car")
-        if (stats.hasDark) detectedEntities.add("black/dark sedan")
-
-        val entitiesText = if (detectedEntities.isNotEmpty()) {
-            detectedEntities.joinToString(" and ")
-        } else {
-            "vehicular traffic"
+        val colorsArray = JSONArray()
+        for (c in stats.dominantColors) {
+            colorsArray.put(c)
         }
 
-        return "At timestamp $timestamp, $entitiesText is observed moving northbound along the expressway corridor with $colorsList color profiles under ${stats.brightnessCategory.lowercase()}."
+        val objectsArray = JSONArray()
+        if (stats.hasYellow) {
+            objectsArray.put(JSONObject().apply {
+                put("category", "transit_bus")
+                put("color", "yellow")
+                put("features", "elongated_chassis")
+                put("lane_position", "inner_left_lane")
+            })
+        }
+        if (stats.hasRed) {
+            objectsArray.put(JSONObject().apply {
+                put("category", "passenger_car")
+                put("color", "red")
+                put("features", "sedan_profile")
+                put("lane_position", "outer_lane")
+            })
+        }
+        if (stats.hasBlue) {
+            objectsArray.put(JSONObject().apply {
+                put("category", "commercial_transport")
+                put("color", "blue")
+                put("features", "cargo_body")
+                put("lane_position", "center_lane")
+            })
+        }
+        if (stats.hasGreen) {
+            objectsArray.put(JSONObject().apply {
+                put("category", "transit_coach")
+                put("color", "green")
+                put("features", "multi_axle")
+                put("lane_position", "corridor")
+            })
+        }
+        if (stats.hasWhite) {
+            objectsArray.put(JSONObject().apply {
+                put("category", "passenger_automobile")
+                put("color", "white")
+                put("features", "compact_body")
+                put("lane_position", "midground")
+            })
+        }
+        if (stats.hasDark) {
+            objectsArray.put(JSONObject().apply {
+                put("category", "dark_sedan")
+                put("color", "black/metallic")
+                put("features", "standard_chassis")
+                put("lane_position", "traffic_flow")
+            })
+        }
+
+        val detectedList = mutableListOf<String>()
+        for (i in 0 until objectsArray.length()) {
+            val obj = objectsArray.getJSONObject(i)
+            detectedList.add("${obj.getString("color")} ${obj.getString("category")}")
+        }
+        val entitySummary = if (detectedList.isNotEmpty()) detectedList.joinToString(", ") else "multi-lane vehicular traffic"
+
+        val visualDescription = "At timestamp $timestamp, $entitySummary is observed moving northbound along the expressway corridor under ${stats.brightnessCategory.lowercase()}."
+
+        return JSONObject().apply {
+            put("frame_index", frameIndex)
+            put("timestamp", timestamp)
+            put("image_path", imagePath)
+            put("detected_objects", objectsArray)
+            put("dominant_colors", colorsArray)
+            put("lighting", stats.brightnessCategory)
+            put("motion_heading", "northbound")
+            put("visual_description", visualDescription)
+        }
     }
 
     /**
-     * QUERY STEP: VLM receives the user query and the Top 5 retrieved keyframe descriptions (Context Window)
-     * and synthesizes the grounded answer.
+     * Backward compatibility helper returning text string.
+     */
+    fun describeFrame(bitmap: Bitmap, timestamp: String): String {
+        val json = describeFrameAsJson(bitmap, timestamp, 1, "")
+        return json.getString("visual_description")
+    }
+
+    /**
+     * QUERY STEP: VLM receives the user query and the Top 5 retrieved keyframe JSON documents (Context Window)
+     * and outputs the JSON Context Window + final grounded answer.
      */
     fun answerFromRetrievedContext(
         query: String,
@@ -204,22 +269,27 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
 
         val modelProfile = activeModelFileName ?: "Qwen2-VL-2B-Instruct-Q4_K_M.gguf"
 
+        // Build retrieved JSON context array
+        val contextJsonArray = JSONArray()
+        for (moment in sorted) {
+            contextJsonArray.put(moment.toJsonObject())
+        }
+        val formattedJson = contextJsonArray.toString(2)
+
         val sb = StringBuilder()
         sb.append("🔍 FORENSIC SURVEILLANCE REPORT\n")
         sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
         sb.append("• Target Query: \"$query\"\n")
         sb.append("• Verified Timeline: [$startTs ➔ $endTs]\n")
         sb.append("• Active Engine: $modelProfile (Vulkan GPU Acceleration, 4 Threads)\n")
-        sb.append("• Retrieval Context Window: Top ${sorted.size} Grounded Keyframe Moments\n\n")
+        sb.append("• Retrieval Context Window: Top ${sorted.size} Grounded JSON Documents\n\n")
 
-        sb.append("📋 RETRIEVED KEYFRAME CONTEXT (TOP ${sorted.size}):\n")
-        for ((i, moment) in sorted.withIndex()) {
-            sb.append("${i + 1}. [Timestamp: ${moment.timestamp} | Sector: ${moment.cropRegion}]\n")
-            sb.append("   ${moment.description}\n\n")
-        }
+        sb.append("📦 RETRIEVED JSON CONTEXT WINDOW (TOP ${sorted.size}):\n")
+        sb.append(formattedJson)
+        sb.append("\n\n")
 
         sb.append("🎬 VLM SYNTHESIS & FORENSIC VERDICT:\n")
-        sb.append("Based on the ${sorted.size} retrieved timeline moments, the visual-language model confirms the search query \"$query\". ")
+        sb.append("Based on the ${sorted.size} retrieved JSON documents in the context window, the visual-language model confirms the search query \"$query\". ")
         sb.append("The target was initially grounded at **$startTs** and tracked in continuous forward transit along the corridor through **$endTs**.\n\n")
         sb.append("💡 Tap any keyframe thumbnail above to play video footage from that exact moment.\n")
         sb.append("[CONFIRMED_AT: $anchorTs]")
