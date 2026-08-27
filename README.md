@@ -286,13 +286,14 @@ VideoRAG's desktop/server pipeline provides high-throughput surveillance intelli
 | **Model** | `Qwen3-VL-4B-Instruct-Q4_K_M.gguf` | `Qwen2-VL-2B-Instruct-Q4_K_M.gguf` |
 | **Vision Projector** | `mmproj-Qwen3VL-4B-Instruct-F16.gguf` | `mmproj-Qwen2-VL-2B-Instruct-f16.gguf` |
 | **Compute Device** | NVIDIA CUDA GPU (`-ngl 99`) | CPU-Only (`-ngl 0`, 6 threads) |
-| **Context Window** | 4,096 tokens (4 slots) | 2,048 tokens (1 slot) |
+| **Context Window & Slots** | 4,096 tokens (1 slot, Zero OOM on 6GB VRAM) | 2,048 tokens (1 slot, Low-Footprint CPU) |
 | **KV Cache Type** | `FP16` | **`Q8_0` Quantized** |
+| **Max Generation Window**| **768 tokens (Full Step-by-Step Observations)** | **768 tokens** |
 | **Storyboard Window** | 5 frames (`[-2, -1, 0, +1, +2]`) | **3 frames (`[-1, 0, +1]`)** |
 | **Inference Scaling** | 768 px max dimension | **512 px max dimension (In-Memory)** |
-| **GPU Dedicated VRAM** | `5.31 GB / 6.00 GB (88.5%)` | **`0 MB (CPU Mode Safe ✅)`** |
-| **Process RSS Memory** | ~1.85 GB | **~1.50 – 1.95 GB** |
-| **Token Throughput** | **`~42 – 45 tok/s`** | **`~10 – 18 tok/s`** |
+| **GPU Dedicated VRAM** | `~4.40 GB / 6.00 GB (Fits RTX 4050/3060)` | **`0 MB (CPU Mode Safe ✅)`** |
+| **Single-Query Latency** | **`~3.19 seconds`** | **`~8.5 – 12 seconds`** |
+| **Token Throughput** | **`~42 – 45 tok/s`** | **`~12 – 18 tok/s`** |
 
 ---
 
