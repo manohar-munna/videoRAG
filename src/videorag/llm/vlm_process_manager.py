@@ -36,7 +36,7 @@ RUNTIME_PROFILES: Dict[str, Dict[str, Any]] = {
         "device": "gpu",
         "ngl": 99,
         "ctx": 4096,
-        "slots": 4,
+        "slots": 1,
         "kv_cache_type": "f16",
         "ctk": "f16",
         "ctv": "f16",

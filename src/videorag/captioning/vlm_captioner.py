@@ -213,7 +213,7 @@ class VLMCaptioner:
         self,
         query: str,
         episodes: List[Dict[str, Any]],
-        max_moments: int = 12,
+        max_moments: int = 5,
     ) -> str:
         """Perform comprehensive video-wide forensic synthesis across multiple distinct CCTV moments."""
         if not episodes:
@@ -323,7 +323,7 @@ class VLMCaptioner:
                     res = self._client.chat.completions.create(
                         model=self.model,
                         messages=[{"role": "user", "content": content_blocks}],
-                        max_tokens=256,
+                        max_tokens=768,
                         temperature=0.2,
                     )
                     answer = res.choices[0].message.content or ""
@@ -432,7 +432,7 @@ class VLMCaptioner:
                     res = self._client.chat.completions.create(
                         model=self.model,
                         messages=[{"role": "user", "content": content_blocks}],
-                        max_tokens=256,
+                        max_tokens=768,
                         temperature=0.2,
                     )
                     answer = res.choices[0].message.content or ""
