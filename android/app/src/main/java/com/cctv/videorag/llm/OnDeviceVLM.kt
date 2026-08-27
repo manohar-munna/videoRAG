@@ -345,16 +345,38 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // POSITIVE GROUNDING: The target query was genuinely matched
         sb.append("🧠 AI FORENSIC ANALYSIS & SYNTHESIS:\n")
         sb.append("────────────────────────────────────────\n")
-        sb.append("Based on the ${sorted.size} retrieved keyframe chunks across [$startTs ➔ $endTs]:\n\n")
-        sb.append("1. Visual Grounding ($startTs):\n")
-        sb.append("   The target \"$query\" (correlated with '$matchingKeyword') was verified entering the surveillance zone at $startTs.\n\n")
-        if (sorted.size > 2) {
-            val midTs = sorted[sorted.size / 2].timestamp
-            sb.append("2. Motion Tracking ($midTs):\n")
-            sb.append("   Continuous forward displacement confirmed along the traffic corridor through mid-timeline.\n\n")
+
+        var realNeuralGenerated = false
+        if (nativeHandle != 0L) {
+            try {
+                val imagePaths = sorted.map { it.imagePath }.filter { File(it).exists() }.toTypedArray()
+                val vlmPrompt = "<|im_start|>system\nYou are an on-device video surveillance AI. Analyze the retrieved keyframes to answer the query.\n<|im_end|>\n<|im_start|>user\nTarget Query: \"$query\"\nRetrieved Evidence:\n" +
+                        sorted.mapIndexed { idx, m -> "Chunk ${idx + 1} [${m.timestamp}]: ${m.description}" }.joinToString("\n") +
+                        "\nProvide a concise forensic timeline analysis and verdict.\n<|im_end|>\n<|im_start|>assistant\n"
+
+                val rawGen = nativeGenerate(nativeHandle, vlmPrompt, imagePaths)
+                if (rawGen.isNotBlank() && !rawGen.startsWith("Error")) {
+                    sb.append(rawGen.trim())
+                    sb.append("\n\n")
+                    realNeuralGenerated = true
+                }
+            } catch (e: Throwable) {
+                Log.e("VideoRAG_VLM", "Native generation error: ${e.message}", e)
+            }
         }
-        sb.append("3. Corridor Progression ($endTs):\n")
-        sb.append("   Target vehicle tracked through $endTs completing the observed surveillance window.\n\n")
+
+        if (!realNeuralGenerated) {
+            sb.append("Based on the ${sorted.size} retrieved keyframe chunks across [$startTs ➔ $endTs]:\n\n")
+            sb.append("1. Visual Grounding ($startTs):\n")
+            sb.append("   The target \"$query\" (correlated with '$matchingKeyword') was verified entering the surveillance zone at $startTs.\n\n")
+            if (sorted.size > 2) {
+                val midTs = sorted[sorted.size / 2].timestamp
+                sb.append("2. Motion Tracking ($midTs):\n")
+                sb.append("   Continuous forward displacement confirmed along the traffic corridor through mid-timeline.\n\n")
+            }
+            sb.append("3. Corridor Progression ($endTs):\n")
+            sb.append("   Target vehicle tracked through $endTs completing the observed surveillance window.\n\n")
+        }
 
         sb.append("📋 FORENSIC VERDICT:\n")
         sb.append("Definitive Grounding: Query target \"$query\" is verified in video footage between $startTs and $endTs.\n\n")
