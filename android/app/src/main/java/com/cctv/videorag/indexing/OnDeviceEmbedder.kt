@@ -55,7 +55,7 @@ class OnDeviceEmbedder(modelPath: String) {
             val rawVec: FloatArray = OnnxTensor.createTensor(env, FloatBuffer.wrap(tensorData), shape).use { tensor ->
                 currentSession.run(mapOf(inputName to tensor)).use { results ->
                     @Suppress("UNCHECKED_CAST")
-                    val output = results.get(0).value as Array<FloatArray>
+                    val output = results.values.first().value as Array<FloatArray>
                     output[0]
                 }
             }
