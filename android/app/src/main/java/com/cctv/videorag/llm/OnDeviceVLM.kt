@@ -225,9 +225,22 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             val obj = objectsArray.getJSONObject(i)
             detectedEntities.add("${obj.getString("color")} ${obj.getString("category")}")
         }
-        val entityText = if (detectedEntities.isNotEmpty()) detectedEntities.joinToString(", ") else "roadway corridor"
+        val entityText = if (detectedEntities.isNotEmpty()) detectedEntities.joinToString(", ") else "surveillance scene"
 
-        val visualDescription = "At timestamp $timestamp, $entityText observed under ${stats.brightnessCategory.lowercase()} with dominant ${stats.dominantColors.joinToString(", ")} palette."
+        var visualDescription = "At timestamp $timestamp, $entityText observed under ${stats.brightnessCategory.lowercase()} with dominant ${stats.dominantColors.joinToString(", ")} palette."
+
+        // SEND KEYFRAME IMAGE DIRECTLY TO REAL ON-DEVICE VLM
+        if (nativeHandle != 0L && imagePath.isNotBlank() && File(imagePath).exists()) {
+            try {
+                val prompt = "<|im_start|>system\nYou are an on-device video surveillance AI. Describe the objects, vehicles, colors, and motion in this video frame in 1-2 clear, factual sentences.<|im_end|>\n<|im_start|>user\nDescribe what is observed in this surveillance keyframe at timestamp $timestamp.<|im_end|>\n<|im_start|>assistant\n"
+                val vlmResponse = nativeGenerate(nativeHandle, prompt, arrayOf(imagePath))
+                if (vlmResponse.isNotBlank() && !vlmResponse.startsWith("Error")) {
+                    visualDescription = vlmResponse.trim()
+                }
+            } catch (e: Throwable) {
+                Log.e("VideoRAG_VLM", "VLM frame description error: ${e.message}", e)
+            }
+        }
 
         val colorsArray = JSONArray()
         for (c in stats.dominantColors) {
