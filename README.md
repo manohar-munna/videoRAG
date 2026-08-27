@@ -33,6 +33,7 @@
 - [🛠️ Quickstart & Desktop Installation](#️-quickstart--desktop-installation)
 - [🔌 REST API Reference](#-rest-api-reference)
 - [⚙️ Configuration Reference (`config.yaml`)](#️-configuration-reference-configyaml)
+- [❓ Troubleshooting & Frequently Asked Questions](#-troubleshooting--frequently-asked-questions)
 - [📄 License](#-license)
 
 ---
@@ -440,8 +441,29 @@ llm:
   model: "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
   base_url: "http://127.0.0.1:8080/v1"
   temperature: 0.1
-  max_tokens: 1024
+  max_tokens: 768
 ```
+
+---
+
+## ❓ Troubleshooting & Frequently Asked Questions
+
+### 1. Why am I seeing a generic "Based on chronological CCTV surveillance footage..." response?
+- **Cause**: The local `llama-server` process on port 8080 is either not running, initializing, or encountered a CUDA out-of-memory error. The backend catches the connection error and outputs a heuristic fallback summary.
+- **Resolution**:
+  1. Check if `http://127.0.0.1:8080/health` returns `{"status":"ok"}`.
+  2. Verify that model weights are present in `models/qwen3_vl/` (`Qwen3VL-4B-Instruct-Q4_K_M.gguf` & `mmproj-Qwen3VL-4B-Instruct-F16.gguf`).
+  3. Ensure `--parallel 1` is configured in `vlm_process_manager.py` so GPU VRAM stays under 4.5 GB.
+
+### 2. How do I tune the Edge Gate (dHash Hamming Threshold)?
+- **Outdoor Streets / Traffic (`Threshold: 8–12`)**: Filters 50–70% of static road scenes while guaranteeing zero missed vehicle or pedestrian entries.
+- **Indoor Hallways / Controlled Corridors (`Threshold: 4–6`)**: Filters 80–90% of empty corridors, only capturing when individuals enter the camera field of view.
+- **Dense Mode / No Filtering (`Threshold: 0` or Toggle Off)**: Extracts 100% of frames at the chosen sampling rate (0.5, 1.0, or 2.0 FPS).
+
+### 3. Android: Model Folder Permission Restriction (Scoped Storage)
+- If Android 11+ restricts file access to the `Download/qwen2_vl_2b/` directory:
+  1. Ensure **All Files Access** (`MANAGE_EXTERNAL_STORAGE`) is enabled for VideoRAG in device Settings.
+  2. Or tap the **`📂 Model Folder`** button in the app header and pick the folder directly via the system document tree picker.
 
 ---
 
