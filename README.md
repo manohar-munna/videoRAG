@@ -29,6 +29,7 @@
 - [🔍 Two-Stage Retrieval: FAISS Cosine + Cross-Encoder Reranking](#-two-stage-retrieval-faiss-cosine--cross-encoder-reranking)
 - [📹 Edge-Gate Frame Filtering (dHash / pHash)](#-edge-gate-frame-filtering-dhash--phash)
 - [🖥️ Surveillance Command Center Web UI](#️-surveillance-command-center-web-ui)
+- [🔬 Real-Time Forensic Diagnostics & Retrieval Debug Panel](#-real-time-forensic-diagnostics--retrieval-debug-panel)
 - [🛠️ Quickstart & Desktop Installation](#️-quickstart--desktop-installation)
 - [🔌 REST API Reference](#-rest-api-reference)
 - [⚙️ Configuration Reference (`config.yaml`)](#️-configuration-reference-configyaml)
@@ -295,6 +296,39 @@ The built-in web control room at `http://127.0.0.1:8000/` includes:
 2. **Multi-Camera Monitor**: Synchronized DVR player supporting local MP4 footage, RTSP streams, and YouTube Live feeds.
 3. **Forensic Storyboard**: Chronological keyframe display citing exact timestamps (`[CONFIRMED_AT: HH:MM:SS]`).
 4. **Developer Hub**: Live telemetry tracking GPU VRAM, RAM %, token speed, and edge gate filter metrics.
+
+---
+
+## 🔬 Real-Time Forensic Diagnostics & Retrieval Debug Panel
+
+VideoRAG includes a **Real-Time Forensic Retrieval Diagnostics Panel** integrated directly into the Web UI. It allows security operators and AI engineers to verify query execution and isolate whether an unexpected result stems from a **Retriever Failure** or **VLM Cognitive Limits**:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 🔬 FORENSIC RETRIEVAL DIAGNOSTICS                                  [ACTIVE] │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. Query Expansion & Color Integrity Audit                                  │
+│    > "people wearing pink color costumes"                                   │
+│    > "person wearing pink clothing"                                         │
+│    > "individual dressed in pink garments" [COLOR PRESERVED ✅]              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. Text Reranker Status: BYPASSED (Visual Mode) | Funnel Depth: 12 Episodes │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. Automated Pipeline Isolation Verdict:                                    │
+│    🔍 RETRIEVER OK: Top visual hits present in storyboard.                  │
+│       Auditing VLM reasoning layer for temporal and object grounding.       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 4. Raw Vector Database Top Hits (Recall@15):                                │
+│    Rank 1: 00:07:36 | Region: [global]      | Score: 0.8178 | [SENT ✅]     │
+│    Rank 2: 00:07:30 | Region: [top_left]    | Score: 0.8167 | [SENT ✅]     │
+│    Rank 3: 02:08:44 | Region: [bottom_left] | Score: 0.8061 | [MISSED ❌]   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Diagnostic Isolation Rules:
+- **Color Dilution Check**: Verifies that color modifiers (`pink`, `red`, `blue`, `white`) strictly propagate through all expanded synonyms. If a generic synonym lacks the active modifier, it flags `[WARN: COLOR DILUTED]`.
+- **Storyboard Gap Audit**: If the highest-scoring raw visual hit in FAISS is missing from the compiled VLM storyboard, the panel flags `Retriever Failure: Storyboard Gap`.
+- **Interactive Click-to-Seek**: Clicking any raw vector match row in the Recall@15 table immediately seeks the video player to that exact timestamp for manual visual inspection.
 
 ---
 
