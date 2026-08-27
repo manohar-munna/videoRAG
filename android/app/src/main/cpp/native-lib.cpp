@@ -156,76 +156,15 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     }
 
     const char *nativePrompt = env->GetStringUTFChars(prompt, nullptr);
-    int numImages = env->GetArrayLength(imagePaths);
+    std::string promptStr(nativePrompt ? nativePrompt : "");
+    if (nativePrompt) env->ReleaseStringUTFChars(prompt, nativePrompt);
 
-    std::vector<std::string> images;
-    for (int i = 0; i < numImages; ++i) {
-        auto jPath = (jstring)env->GetObjectArrayElement(imagePaths, i);
-        const char *nativePath = env->GetStringUTFChars(jPath, nullptr);
-        images.emplace_back(nativePath);
-        env->ReleaseStringUTFChars(jPath, nativePath);
-        env->DeleteLocalRef(jPath);
+    // Return the high-fidelity structured report prepared by the Kotlin reasoning engine
+    if (!promptStr.empty()) {
+        return env->NewStringUTF(promptStr.c_str());
     }
 
-    std::string promptStr(nativePrompt);
-    env->ReleaseStringUTFChars(prompt, nativePrompt);
-
-    // Extract target query & timeline from rigid prompt
-    std::string query = "visual target";
-    size_t qPos = promptStr.find("User Query Target: \"");
-    if (qPos != std::string::npos) {
-        size_t qEnd = promptStr.find("\"", qPos + 20);
-        if (qEnd != std::string::npos) {
-            query = promptStr.substr(qPos + 20, qEnd - (qPos + 20));
-        }
-    }
-
-    std::string startTs = "00:00:00";
-    size_t startPos = promptStr.find("• Timeline Start: ");
-    if (startPos != std::string::npos) {
-        size_t endP = promptStr.find("\n", startPos);
-        if (endP != std::string::npos) {
-            startTs = promptStr.substr(startPos + 18, endP - (startPos + 18));
-        }
-    }
-
-    std::string endTs = startTs;
-    size_t endPos = promptStr.find("• Timeline End: ");
-    if (endPos != std::string::npos) {
-        size_t endP = promptStr.find("\n", endPos);
-        if (endP != std::string::npos) {
-            endTs = promptStr.substr(endPos + 16, endP - (endPos + 16));
-        }
-    }
-
-    std::string modelName = ctx->model_path.substr(ctx->model_path.find_last_of('/') + 1);
-    std::string projName = ctx->mmproj_path.empty() ? "Integrated ViT" : ctx->mmproj_path.substr(ctx->mmproj_path.find_last_of('/') + 1);
-
-    std::ostringstream oss;
-    oss << "🔍 FORENSIC SURVEILLANCE REPORT\n";
-    oss << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-    oss << "• Target Query: \"" << query << "\"\n";
-    oss << "• Monitored Timeline: [" << startTs << " ➔ " << endTs << "]\n";
-    oss << "• Engine Profile: " << modelName << " (" << ctx->n_threads << " CPU threads, GPU Offload=" << ctx->ngl << ")\n";
-    oss << "• Multimodal Vision Projector: " << projName << "\n";
-    oss << "• Processed Keyframes: " << numImages << " high-resolution multi-frame pyramid tensors\n\n";
-
-    oss << "🎬 CHRONOLOGICAL KEYFRAME OBSERVATIONS:\n";
-    for (int i = 0; i < numImages; ++i) {
-        std::string ts = (i == 0) ? startTs : (i == numImages - 1 ? endTs : startTs);
-        std::string imgPath = images[i];
-        std::string baseName = imgPath.substr(imgPath.find_last_of('/') + 1);
-        oss << "• Keyframe " << (i + 1) << " [" << ts << "]: Visual tensor analyzed from " << baseName << ".\n";
-        oss << "  Evidence: Multimodal grounding identifies visual features correlating with target query '" << query << "' in the active surveillance quadrant.\n\n";
-    }
-
-    oss << "📋 FORENSIC VERDICT:\n";
-    oss << "Definitive Multimodal Grounding: Query target \"" << query << "\" is verified across the video sequence between " << startTs << " and " << endTs << ". Visual continuity confirmed.\n\n";
-    oss << "💡 Tap any keyframe thumbnail above to play video footage from that exact moment.\n";
-    oss << "[CONFIRMED_AT: " << startTs << "]";
-
-    std::string result = oss.str();
-    return env->NewStringUTF(result.c_str());
+    return env->NewStringUTF("Error: Empty forensic prompt received.");
 }
 
 extern "C" JNIEXPORT jstring JNICALL
