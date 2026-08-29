@@ -42,6 +42,17 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         }
 
     companion object {
+        /**
+         * How many retrieved keyframes go to the model per query.
+         *
+         * Each frame costs ~17 s (13.4 s encode + 3.7 s decode) at ~299 tokens on an
+         * SD8Gen2, so this trades latency for recall. At 2 a query answered "no yellow
+         * bus" because ranks 1-2 were 00:00:00 and 00:00:13 while the bus was at
+         * 00:00:29 - correct for the frames it saw, wrong for the video. 5 gives
+         * retrieval room to be imperfect without the answer being wrong.
+         */
+        const val MAX_FRAMES_TO_ANALYSE = 5
+
         init {
             try {
                 System.loadLibrary("llama_jni")
@@ -84,10 +95,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                     it.length() > 50_000_000L
                 }
                 if (modelFile != null) {
-                    val mmprojFile = files.firstOrNull {
-                        it.extension.lowercase() == "gguf" &&
-                        it.name.contains("mmproj", ignoreCase = true)
-                    }
+                    val mmprojFile = pickProjector(files)
                     activeModelDirectory = dir.absolutePath
                     activeModelFileName = modelFile.name
                     return Pair(modelFile, mmprojFile)
@@ -113,10 +121,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                             it.length() > 50_000_000L
                         }
                         if (model != null) {
-                            val mmproj = subFiles.firstOrNull {
-                                it.extension.lowercase() == "gguf" &&
-                                it.name.contains("mmproj", ignoreCase = true)
-                            }
+                            val mmproj = pickProjector(subFiles)
                             activeModelDirectory = sub.absolutePath
                             activeModelFileName = model.name
                             return Pair(model, mmproj)
@@ -127,6 +132,29 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         }
 
         return null
+    }
+
+    /**
+     * Choose the multimodal projector, preferring a quantised one.
+     *
+     * Measured on a Snapdragon 8 Gen 2 (11.5 GB RAM, ~2.6 GB actually available):
+     * the f16 projector is 1.33 GB and, alongside the 986 MB model, cannot stay
+     * resident — it is re-read from storage every call and never converged below
+     * 72 s per frame. The Q8_0 projector is 710 MB, fits, holds a steady ~20.3 s,
+     * and showed no measurable loss of vision quality (it still reads fine text
+     * such as vehicle livery and on-screen overlays).
+     *
+     * listFiles() ordering is arbitrary, so without this the f16 file wins roughly
+     * half the time and performance silently collapses.
+     */
+    private fun pickProjector(files: Array<File>): File? {
+        val projectors = files.filter {
+            it.extension.lowercase() == "gguf" && it.name.contains("mmproj", ignoreCase = true)
+        }
+        if (projectors.isEmpty()) return null
+        return projectors.firstOrNull { it.name.contains("q8", ignoreCase = true) }
+            ?: projectors.firstOrNull { it.name.contains("q4", ignoreCase = true) }
+            ?: projectors.minByOrNull { it.length() }   // fall back to the smallest
     }
 
     fun isNativeGGUFAvailable(): Boolean {
@@ -165,96 +193,38 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
      * INGESTION STEP: Real on-device visual analysis of the keyframe bitmap.
      * Extracts actual colors, sectors, and entities present in the frame.
      */
+    /**
+     * INGESTION STEP: record what can be measured cheaply about a keyframe.
+     *
+     * Deliberately does NOT run the VLM. Encoding one frame costs ~20 s on a
+     * Snapdragon 8 Gen 2, so captioning during ingestion would take hours for a
+     * short clip. Frames are captioned lazily at query time instead, over only the
+     * handful that retrieval actually surfaces.
+     *
+     * This previously asserted object categories from colour thresholds alone —
+     * a yellow pixel cluster became a "transit_bus" in the "inner_left_lane" — and
+     * those inventions then fed both the search index and the answer text. It now
+     * records only what a histogram can honestly support: colours and lighting.
+     */
     fun describeFrameAsJson(bitmap: Bitmap, timestamp: String, frameIndex: Int, imagePath: String): JSONObject {
         val stats = analyzeFramePixels(bitmap)
-        val objectsArray = JSONArray()
-
-        // 1. Detect Yellow / Golden Transit Entity
-        if (stats.hasYellow) {
-            val quadrant = if (stats.yellowInLowerLeft) "bottom_left (foreground)" else "center (midground)"
-            objectsArray.put(JSONObject().apply {
-                put("category", "transit_bus")
-                put("color", "yellow")
-                put("quadrant", quadrant)
-                put("lane_position", "inner_left_lane")
-            })
-        }
-
-        // 2. Detect Dark / Black Passenger Sedans
-        if (stats.hasDark) {
-            objectsArray.put(JSONObject().apply {
-                put("category", "passenger_sedan")
-                put("color", "black/metallic")
-                put("quadrant", "traffic_corridor")
-                put("lane_position", "adjacent_lanes")
-            })
-        }
-
-        // 3. Detect Blue Transport Vehicles
-        if (stats.hasBlue) {
-            objectsArray.put(JSONObject().apply {
-                put("category", "commercial_transport")
-                put("color", "blue")
-                put("quadrant", "center_right")
-                put("lane_position", "middle_lane")
-            })
-        }
-
-        // 4. Detect Red Vehicles
-        if (stats.hasRed) {
-            objectsArray.put(JSONObject().apply {
-                put("category", "passenger_vehicle")
-                put("color", "red")
-                put("quadrant", "outer_lane")
-                put("lane_position", "right_lane")
-            })
-        }
-
-        // 5. Detect White / Silver Automobiles
-        if (stats.hasWhite) {
-            objectsArray.put(JSONObject().apply {
-                put("category", "passenger_automobile")
-                put("color", "white/silver")
-                put("quadrant", "midground")
-                put("lane_position", "corridor")
-            })
-        }
-
-        val detectedEntities = mutableListOf<String>()
-        for (i in 0 until objectsArray.length()) {
-            val obj = objectsArray.getJSONObject(i)
-            detectedEntities.add("${obj.getString("color")} ${obj.getString("category")}")
-        }
-        val entityText = if (detectedEntities.isNotEmpty()) detectedEntities.joinToString(", ") else "surveillance scene"
-
-        var visualDescription = "At timestamp $timestamp, $entityText observed under ${stats.brightnessCategory.lowercase()} with dominant ${stats.dominantColors.joinToString(", ")} palette."
-
-        // SEND KEYFRAME IMAGE DIRECTLY TO REAL ON-DEVICE VLM
-        if (nativeHandle != 0L && imagePath.isNotBlank() && File(imagePath).exists()) {
-            try {
-                val prompt = "<|im_start|>system\nYou are an on-device video surveillance AI. Describe the objects, vehicles, colors, and motion in this video frame in 1-2 clear, factual sentences.<|im_end|>\n<|im_start|>user\nDescribe what is observed in this surveillance keyframe at timestamp $timestamp.<|im_end|>\n<|im_start|>assistant\n"
-                val vlmResponse = nativeGenerate(nativeHandle, prompt, arrayOf(imagePath))
-                if (vlmResponse.isNotBlank() && !vlmResponse.startsWith("Error")) {
-                    visualDescription = vlmResponse.trim()
-                }
-            } catch (e: Throwable) {
-                Log.e("VideoRAG_VLM", "VLM frame description error: ${e.message}", e)
-            }
-        }
 
         val colorsArray = JSONArray()
-        for (c in stats.dominantColors) {
-            colorsArray.put(c)
-        }
+        for (c in stats.dominantColors) colorsArray.put(c)
+
+        val colorText = if (stats.dominantColors.isEmpty()) "no dominant colour"
+                        else stats.dominantColors.joinToString(", ")
 
         return JSONObject().apply {
             put("frame_index", frameIndex)
             put("timestamp", timestamp)
             put("image_path", imagePath)
-            put("detected_objects", objectsArray)
             put("dominant_colors", colorsArray)
             put("lighting", stats.brightnessCategory)
-            put("visual_description", visualDescription)
+            put("analysis", "colour histogram only; not yet inspected by the vision model")
+            put("visual_description",
+                "Keyframe at $timestamp. Dominant colours: $colorText. " +
+                "Lighting: ${stats.brightnessCategory}.")
         }
     }
 
@@ -270,135 +240,97 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
      * QUERY STEP: Evaluates the user query against the retrieved keyframe evidence.
      * Produces a truthful, evidence-grounded response (Positive Match vs Negative Not-Found).
      */
+    /**
+     * QUERY STEP: send the retrieved keyframe images and the user's question to the
+     * on-device VLM and return what it actually reports.
+     *
+     * This previously ran a lexical gate over the generated descriptions and, when no
+     * query token matched, returned a hardcoded "NEGATIVE FINDING" block asserting the
+     * footage showed a "highway traffic corridor consisting of transit buses" — for any
+     * video, without consulting the model. The VLM is now always asked, and it is given
+     * the frames themselves rather than a summary of them, so the answer is grounded in
+     * pixels instead of in our own generated text.
+     */
+    /**
+     * QUERY STEP: send the retrieved keyframe images and the question to the
+     * on-device VLM and return what it actually reports.
+     *
+     * This previously ran a lexical gate over our own generated descriptions and,
+     * when no query token matched, returned a hardcoded "NEGATIVE FINDING" block
+     * asserting the footage showed a "highway traffic corridor consisting of transit
+     * buses" - for any video, without ever consulting the model. The VLM is now always
+     * asked, and is given the frames themselves rather than a summary of them, so the
+     * answer is grounded in pixels instead of in text we generated.
+     */
     fun answerFromRetrievedContext(
         query: String,
         top5Moments: List<IndexedMoment>
     ): String {
         if (top5Moments.isEmpty()) {
-            return "No video keyframe moments available to evaluate query '$query'."
+            return "No indexed keyframes to search. Ingest a video first."
         }
 
-        val sorted = top5Moments.sortedBy { it.timestamp }
+        // Send only the few best-ranked frames. Encode cost is per frame and dominates
+        // the query: at ~20 s/frame, five frames is a 100 s wait before the first token,
+        // and at the 720p frames the decoder used to store it was ~87 s each. The list
+        // arrives ranked, so take the top MAX_FRAMES_TO_ANALYSE and then order them in
+        // time for the model.
+        val ranked = top5Moments.take(MAX_FRAMES_TO_ANALYSE)
+        val sorted = ranked.sortedBy { it.timestamp }
         val startTs = sorted.first().timestamp
         val endTs = sorted.last().timestamp
-        val anchorTs = sorted.first().timestamp
-        val modelProfile = activeModelFileName ?: "Qwen2-VL-2B-Instruct-Q4_K_M.gguf"
+        val imagePaths = sorted.map { it.imagePath }.filter { File(it).exists() }
 
-        val qLow = query.lowercase().trim()
-        val queryTokens = qLow.split(Regex("[^a-zA-Z0-9]+")).filter { it.length > 2 }
-
-        // Check if any retrieved keyframe contains visual or lexical evidence for the query
-        var matchFound = false
-        var matchingKeyword = ""
-
-        val supportedGroundings = mapOf(
-            "bus" to "transit_bus",
-            "coach" to "transit_bus",
-            "yellow" to "yellow",
-            "car" to "passenger_sedan",
-            "sedan" to "passenger_sedan",
-            "automobile" to "passenger_automobile",
-            "truck" to "commercial_transport",
-            "blue" to "blue",
-            "red" to "red",
-            "white" to "white",
-            "black" to "black"
-        )
-
-        for (token in queryTokens) {
-            for (moment in sorted) {
-                val json = moment.toJsonObject()
-                val desc = json.optString("visual_description", "").lowercase()
-                val colors = json.optJSONArray("dominant_colors")?.let { arr ->
-                    (0 until arr.length()).map { arr.getString(it).lowercase() }
-                } ?: emptyList()
-
-                if (desc.contains(token) || colors.contains(token) || (supportedGroundings.containsKey(token) && desc.contains(supportedGroundings[token]!!))) {
-                    matchFound = true
-                    matchingKeyword = token
-                    break
-                }
-            }
-            if (matchFound) break
+        if (nativeHandle == 0L) {
+            return "On-device model not loaded, so no visual analysis was performed. " +
+                   "Retrieved ${sorted.size} keyframes spanning [$startTs - $endTs]. " +
+                   "Place the GGUF model and mmproj in Download/qwen2_vl_2b, or pick the " +
+                   "folder with the Model Folder button, then search again."
+        }
+        if (imagePaths.isEmpty()) {
+            return "Retrieved ${sorted.size} keyframes for [$startTs - $endTs], but their " +
+                   "image files are missing from storage, so they could not be analysed."
         }
 
-        val sb = StringBuilder()
-        sb.append("🔍 FORENSIC SURVEILLANCE REPORT\n")
-        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-        sb.append("• Target Query: \"$query\"\n")
-        sb.append("• Monitored Timeline: [$startTs ➔ $endTs]\n")
-        sb.append("• Active Engine: $modelProfile (Vulkan GPU Acceleration, 4 Threads)\n")
-        sb.append("• Retrieval Context Window: Top ${sorted.size} Keyframe Chunks\n\n")
+        // One media marker per frame; mtmd substitutes the encoded image at each
+        // marker, keeping frames in chronological order inside the prompt.
+        val marker = "<__media__>"
+        val frameList = sorted
+            .filter { File(it.imagePath).exists() }
+            .joinToString(separator = "\n") { "Frame at ${it.timestamp}:\n" + marker }
 
-        sb.append("📦 RETRIEVED VIDEO CHUNKS (TOP ${sorted.size}):\n")
-        sb.append("────────────────────────────────────────\n")
-        for ((i, moment) in sorted.withIndex()) {
-            val jsonObj = moment.toJsonObject()
-            val desc = jsonObj.optString("visual_description", moment.description)
-            val lighting = jsonObj.optString("lighting", "Balanced Lighting")
-            val colors = jsonObj.optJSONArray("dominant_colors")?.let { arr ->
-                (0 until arr.length()).map { arr.getString(it) }.joinToString(", ")
-            } ?: "Distinctive Colors"
+        val system = "You are a CCTV analyst. Answer only from what is visible in the " +
+                     "frames. If the thing being asked about is not visible, say so " +
+                     "plainly. Do not speculate about what happened outside these frames."
 
-            sb.append("🔹 Chunk ${i + 1} [Timestamp: ${moment.timestamp}]\n")
-            sb.append("   • Colors: $colors | Lighting: $lighting\n")
-            sb.append("   • Evidence: $desc\n\n")
+        val prompt = """<|im_start|>system
+$system<|im_end|>
+<|im_start|>user
+These are keyframes from a surveillance video, in time order.
+
+$frameList
+
+Question: $query
+
+Describe what you actually see that relates to the question, and cite the timestamp of any frame where you see it.<|im_end|>
+<|im_start|>assistant
+"""
+
+        val answer = try {
+            nativeGenerate(nativeHandle, prompt, imagePaths.toTypedArray())
+        } catch (e: Throwable) {
+            Log.e("VideoRAG_VLM", "nativeGenerate failed: ${e.message}", e)
+            return "Visual analysis failed: ${e.message ?: e.javaClass.simpleName}"
         }
 
-        if (!matchFound) {
-            // TRUTHFUL NEGATIVE FINDING: The target query is NOT present in the video!
-            sb.append("❌ NEGATIVE FINDING — TARGET NOT FOUND:\n")
-            sb.append("────────────────────────────────────────\n")
-            sb.append("No visual evidence correlating with \"$query\" was detected in the surveillance footage across [$startTs ➔ $endTs].\n\n")
-            sb.append("• Observed Video Content: Highway traffic corridor consisting of transit buses, passenger cars, and commercial transport.\n")
-            sb.append("• Verification: 0 of ${sorted.size} retrieved chunks matched the requested query target \"$query\".\n")
-            return sb.toString()
+        if (answer.isBlank() || answer.startsWith("Error")) {
+            return "The on-device model returned no usable output. $answer".trim()
         }
 
-        // POSITIVE GROUNDING: The target query was genuinely matched
-        sb.append("🧠 AI FORENSIC ANALYSIS & SYNTHESIS:\n")
-        sb.append("────────────────────────────────────────\n")
-
-        var realNeuralGenerated = false
-        if (nativeHandle != 0L) {
-            try {
-                val imagePaths = sorted.map { it.imagePath }.filter { File(it).exists() }.toTypedArray()
-                val vlmPrompt = "<|im_start|>system\nYou are an on-device video surveillance AI. Analyze the retrieved keyframes to answer the query.\n<|im_end|>\n<|im_start|>user\nTarget Query: \"$query\"\nRetrieved Evidence:\n" +
-                        sorted.mapIndexed { idx, m -> "Chunk ${idx + 1} [${m.timestamp}]: ${m.description}" }.joinToString("\n") +
-                        "\nProvide a concise forensic timeline analysis and verdict.\n<|im_end|>\n<|im_start|>assistant\n"
-
-                val rawGen = nativeGenerate(nativeHandle, vlmPrompt, imagePaths)
-                if (rawGen.isNotBlank() && !rawGen.startsWith("Error")) {
-                    sb.append(rawGen.trim())
-                    sb.append("\n\n")
-                    realNeuralGenerated = true
-                }
-            } catch (e: Throwable) {
-                Log.e("VideoRAG_VLM", "Native generation error: ${e.message}", e)
-            }
-        }
-
-        if (!realNeuralGenerated) {
-            sb.append("Based on the ${sorted.size} retrieved keyframe chunks across [$startTs ➔ $endTs]:\n\n")
-            sb.append("1. Visual Grounding ($startTs):\n")
-            sb.append("   The target \"$query\" (correlated with '$matchingKeyword') was verified entering the surveillance zone at $startTs.\n\n")
-            if (sorted.size > 2) {
-                val midTs = sorted[sorted.size / 2].timestamp
-                sb.append("2. Motion Tracking ($midTs):\n")
-                sb.append("   Continuous forward displacement confirmed along the traffic corridor through mid-timeline.\n\n")
-            }
-            sb.append("3. Corridor Progression ($endTs):\n")
-            sb.append("   Target vehicle tracked through $endTs completing the observed surveillance window.\n\n")
-        }
-
-        sb.append("📋 FORENSIC VERDICT:\n")
-        sb.append("Definitive Grounding: Query target \"$query\" is verified in video footage between $startTs and $endTs.\n\n")
-        sb.append("💡 Tap any keyframe thumbnail above to play video footage from that exact moment.\n")
-        sb.append("[CONFIRMED_AT: $anchorTs]")
-
-        return sb.toString()
+        val footer = "Analysed ${imagePaths.size} keyframes spanning [$startTs - $endTs] " +
+                     "using ${activeModelFileName ?: "the on-device model"}."
+        return answer.trim() + "\n\n---\n" + footer
     }
-
     private data class FramePixelStats(
         val dominantColors: List<String>,
         val brightnessCategory: String,
@@ -519,9 +451,10 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
 
     fun getDiagnosticInfo(): String {
         return if (nativeHandle != 0L) {
-            "🟢 Active: ${activeModelFileName ?: "Qwen2.5-VL / Qwen2-VL"} (Vulkan GPU, 4 Threads)"
+            // Reports the real state: the build is CPU-only, GGML_VULKAN is not enabled.
+            "Loaded: ${activeModelFileName ?: "on-device model"} (CPU, 5 threads)"
         } else {
-            "🟢 Active: On-Device Vision-Language Engine"
+            "No model loaded - place GGUF files in Download/qwen2_vl_2b"
         }
     }
 

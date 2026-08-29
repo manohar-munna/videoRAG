@@ -5,6 +5,35 @@ import java.lang.Long.bitCount
 import kotlin.math.abs
 
 object MobileFrameFilter {
+
+    /**
+     * Minimum Hamming distance from the last KEPT keyframe for a frame to count as a
+     * new scene. Matches the desktop pipeline's default (hash_filter.py, threshold=10)
+     * and the range documented in the README for outdoor/traffic scenes.
+     *
+     * The gate previously dropped only at a distance of 1, i.e. only frames that were
+     * near bit-identical, so on real footage it effectively never fired and every
+     * sampled frame was indexed.
+     */
+    const val DEFAULT_HAMMING_THRESHOLD = 10
+
+    /**
+     * True if [currentHash] differs enough from the last kept keyframe to be worth
+     * indexing. The first frame is always a keyframe.
+     *
+     * Compare against the last KEPT frame, not the immediately preceding sampled one:
+     * comparing to the previous frame lets a slow pan drift arbitrarily far while each
+     * step stays under threshold.
+     */
+    fun isKeyframe(
+        lastKeptHash: Long?,
+        currentHash: Long,
+        threshold: Int = DEFAULT_HAMMING_THRESHOLD
+    ): Boolean {
+        if (lastKeptHash == null) return true
+        return hammingDistance(lastKeptHash, currentHash) >= threshold
+    }
+
     /**
      * Compute a 64-bit perceptual difference hash (dHash) of a Bitmap.
      * High-speed execution (under 0.15ms on mobile CPU).
