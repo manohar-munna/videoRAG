@@ -13,6 +13,7 @@
 
 #include <jni.h>
 #include <string>
+#include <map>
 #include <vector>
 #include <sstream>
 #include <unistd.h>
@@ -37,7 +38,20 @@ struct NativeVLMContext {
     std::string     model_path;
     int             n_threads = 5;
     bool            has_vision = false;
+
+    // Vision-encoder output, keyed by mtmd's per-image id (a SHA-256 of the pixels).
+    //
+    // Encoding one keyframe costs ~13-17 s and dominates query time. Follow-up questions
+    // retrieve largely the same frames as the question before them, so without this the
+    // same pixels are re-encoded on every turn. Keyed by content hash rather than file
+    // path, so an identical frame reached by a different route still hits.
+    std::map<std::string, std::vector<float>> embd_cache;
+    size_t embd_cache_bytes = 0;
 };
+
+// Roughly 1.8 MB per 640x360 keyframe (299 tokens x 1536 dims x 4 bytes). 192 MB holds
+// a hundred or so frames, which is far more than one conversation revisits.
+static const size_t EMBD_CACHE_MAX_BYTES = 192ull * 1024 * 1024;
 
 // Route llama/ggml logging into logcat instead of stderr, which is discarded on Android.
 void log_to_logcat(ggml_log_level level, const char * text, void * /*user_data*/) {
@@ -227,15 +241,73 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
         return env->NewStringUTF("Error: failed to tokenize multimodal prompt.");
     }
 
+    // Walk the chunks ourselves rather than calling mtmd_helper_eval_chunks, so an image
+    // already encoded on a previous turn can be decoded straight from cache. Text chunks
+    // still go through the helper.
     llama_pos n_past = 0;
-    const int32_t eval_rc = mtmd_helper_eval_chunks(
-        ctx->ctx_mtmd, ctx->ctx_llama, chunks,
-        /*n_past*/ 0, /*seq_id*/ 0, /*n_batch*/ 2048,
-        /*logits_last*/ true, &n_past);
+    const size_t n_chunks = mtmd_input_chunks_size(chunks);
+    const int32_t n_embd  = llama_model_n_embd(ctx->model);
+    int32_t eval_rc = 0;
+    int cache_hits = 0, cache_misses = 0;
+
+    for (size_t i = 0; i < n_chunks; ++i) {
+        const mtmd_input_chunk * chunk = mtmd_input_chunks_get(chunks, i);
+        const bool is_last = (i + 1 == n_chunks);
+
+        if (mtmd_input_chunk_get_type(chunk) != MTMD_INPUT_CHUNK_TYPE_IMAGE) {
+            eval_rc = mtmd_helper_eval_chunk_single(
+                ctx->ctx_mtmd, ctx->ctx_llama, chunk,
+                n_past, /*seq_id*/ 0, /*n_batch*/ 2048, is_last, &n_past);
+            if (eval_rc != 0) break;
+            continue;
+        }
+
+        const char * id = mtmd_input_chunk_get_id(chunk);
+        const size_t n_tok = mtmd_input_chunk_get_n_tokens(chunk);
+        const size_t need = n_tok * (size_t) n_embd;
+        const std::string key = id ? id : "";
+
+        auto it = key.empty() ? ctx->embd_cache.end() : ctx->embd_cache.find(key);
+        if (it == ctx->embd_cache.end()) {
+            cache_misses++;
+            if (mtmd_encode_chunk(ctx->ctx_mtmd, chunk) != 0) {
+                LOGE("mtmd_encode_chunk failed at chunk %zu", i);
+                eval_rc = 1; break;
+            }
+            const float * out = mtmd_get_output_embd(ctx->ctx_mtmd);
+            if (!out) { LOGE("no output embeddings"); eval_rc = 1; break; }
+
+            if (!key.empty() && ctx->embd_cache_bytes + need * sizeof(float) <= EMBD_CACHE_MAX_BYTES) {
+                ctx->embd_cache.emplace(key, std::vector<float>(out, out + need));
+                ctx->embd_cache_bytes += need * sizeof(float);
+                it = ctx->embd_cache.find(key);
+            } else {
+                // cache full (or unkeyed): decode straight from the encoder output
+                eval_rc = mtmd_helper_decode_image_chunk(
+                    ctx->ctx_mtmd, ctx->ctx_llama, chunk,
+                    const_cast<float *>(out), n_past, /*seq_id*/ 0, /*n_batch*/ 2048,
+                    &n_past, nullptr, nullptr);
+                if (eval_rc != 0) break;
+                continue;
+            }
+        } else {
+            cache_hits++;
+        }
+
+        eval_rc = mtmd_helper_decode_image_chunk(
+            ctx->ctx_mtmd, ctx->ctx_llama, chunk,
+            it->second.data(), n_past, /*seq_id*/ 0, /*n_batch*/ 2048,
+            &n_past, nullptr, nullptr);
+        if (eval_rc != 0) break;
+    }
     mtmd_input_chunks_free(chunks);
 
+    LOGI("image encode cache: %d hit, %d miss (%zu entries, %.1f MB)",
+         cache_hits, cache_misses, ctx->embd_cache.size(),
+         ctx->embd_cache_bytes / 1e6);
+
     if (eval_rc != 0) {
-        LOGE("mtmd_helper_eval_chunks failed: %d", eval_rc);
+        LOGE("multimodal eval failed: %d", eval_rc);
         return env->NewStringUTF("Error: multimodal forward pass failed.");
     }
 
