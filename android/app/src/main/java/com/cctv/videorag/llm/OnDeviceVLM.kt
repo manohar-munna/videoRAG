@@ -264,7 +264,8 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
      */
     fun answerFromRetrievedContext(
         query: String,
-        top5Moments: List<IndexedMoment>
+        top5Moments: List<IndexedMoment>,
+        history: List<ConversationTurn> = emptyList()
     ): String {
         if (top5Moments.isEmpty()) {
             return "No indexed keyframes to search. Ingest a video first."
@@ -309,13 +310,24 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                      "Reply in plain English sentences. Never output bounding boxes, " +
                      "coordinates, or object-reference tags."
 
+        // Replay recent turns so follow-ups resolve against what was already said.
+        // Answers are truncated: the point is to carry the established facts, not to
+        // spend the context window re-reading full prose.
+        val priorContext = if (history.isEmpty()) "" else buildString {
+            append("\nEarlier in this conversation:\n")
+            for (t in history) {
+                append("Q: ").append(t.question).append("\n")
+                append("A: ").append(t.answer.substringBefore("\n---").trim().take(220)).append("\n")
+            }
+        }
+
         val prompt = """<|im_start|>system
 $system<|im_end|>
 <|im_start|>user
 These are keyframes from a surveillance video, in time order.
 
 $frameList
-
+$priorContext
 Question: $query
 
 Answer in 2-4 plain English sentences: say whether you can see it, describe what you actually see, and give the timestamp of the frame where you see it.<|im_end|>

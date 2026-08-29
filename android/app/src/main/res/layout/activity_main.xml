@@ -1,683 +1,247 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/mainScrollView"
+<!--
+  Conversational layout: import a video, then ask questions in a chat thread.
+
+  Replaces the previous form-style screen (query box + one results blob) and drops
+  controls that were debug surface rather than function: the URL importer, the JSON
+  inspector, the dHash gate toggle (now correctly defaulted on) and the FPS pills
+  (sampling is fixed at 1 FPS). What remains is import, reset, and the conversation.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_window"
-    android:fillViewport="true">
+    android:orientation="vertical"
+    android:background="@color/bg_window">
 
+    <!-- ── header ───────────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/card_bg"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp"
+        android:elevation="2dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="VideoRAG"
+            android:textColor="@color/primary"
+            android:textSize="19sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvModelBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/badge_edge_bg"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:text="Checking…"
+            android:textColor="@color/primary"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/btnSelectModelFolder"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/btn_folder_bg"
+            android:minWidth="0dp"
+            android:paddingHorizontal="10dp"
+            android:text="📂"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- ── video import bar ─────────────────────────────────────── -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:background="@color/card_bg"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="10dp">
 
-        <!-- Top Header Bar -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="2dp">
+            android:orientation="horizontal">
 
-            <LinearLayout
+            <Button
+                android:id="@+id/btnPickVideo"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="44dp"
                 android:layout_weight="1"
-                android:orientation="horizontal">
+                android:background="@drawable/btn_primary_bg"
+                android:text="📁  Import video"
+                android:textAllCaps="false"
+                android:textColor="#ffffff"
+                android:textSize="14sp" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="VideoRAG "
-                    android:textColor="@color/primary"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Mobile"
-                    android:textColor="@color/text_title"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <!-- Badge -->
-            <TextView
-                android:id="@+id/tvModelBadge"
+            <Button
+                android:id="@+id/btnClearAll"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/badge_edge_bg"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp"
-                android:text="EDGE NPU/GPU"
-                android:textColor="@color/primary"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+                android:layout_height="44dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/btn_reset_bg"
+                android:minWidth="0dp"
+                android:paddingHorizontal="14dp"
+                android:text="Reset"
+                android:textAllCaps="false"
+                android:textColor="@color/danger"
+                android:textSize="13sp" />
         </LinearLayout>
 
+        <ProgressBar
+            android:id="@+id/pbIngestion"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="8dp"
+            android:visibility="gone" />
+
         <TextView
-            android:id="@+id/tvStatus"
+            android:id="@+id/tvIngestionInfo"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Active Surveillance Index: 0 region vectors in RAM"
+            android:layout_marginTop="6dp"
+            android:text="Import a video to start."
             android:textColor="@color/text_muted"
-            android:textSize="13sp"
-            android:layout_marginBottom="16dp" />
+            android:textSize="12sp" />
+    </LinearLayout>
 
-        <!-- 1. VIDEO INGESTION & PIPELINE CARD -->
-        <androidx.cardview.widget.CardView
+    <!-- ── inline video player (revealed when a timestamp is tapped) ── -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cardVideoPlayback"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="#000000"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="3dp"
+        xmlns:app="http://schemas.android.com/apk/res-auto">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="1dp">
+            android:orientation="vertical">
+
+            <VideoView
+                android:id="@+id/videoViewPlayback"
+                android:layout_width="match_parent"
+                android:layout_height="200dp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <!-- Card Header with Reset Button -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="12dp">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="📹 Video Ingestion &amp; Keyframe Pipeline"
-                        android:textColor="@color/text_title"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
-
-                    <Button
-                        android:id="@+id/btnSelectModelFolder"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:background="@drawable/btn_folder_bg"
-                        android:text="📂 Model Folder"
-                        android:textAllCaps="false"
-                        android:textColor="#2563EB"
-                        android:textStyle="bold"
-                        android:textSize="12sp"
-                        android:paddingHorizontal="10dp"
-                        android:layout_marginEnd="6dp" />
-
-                    <Button
-                        android:id="@+id/btnClearAll"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:background="@drawable/btn_clear_bg"
-                        android:text="🗑 Reset"
-                        android:textAllCaps="false"
-                        android:textColor="#DC2626"
-                        android:textStyle="bold"
-                        android:textSize="12sp"
-                        android:paddingHorizontal="10dp" />
-                </LinearLayout>
-
-                <!-- Ingestion Action Buttons -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="12dp">
-
-                    <Button
-                        android:id="@+id/btnPickVideo"
-                        android:layout_width="0dp"
-                        android:layout_height="42dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/btn_primary_bg"
-                        android:text="📁 Upload"
-                        android:textAllCaps="false"
-                        android:textColor="#ffffff"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:layout_marginEnd="4dp" />
-
-                    <Button
-                        android:id="@+id/btnToggleUrl"
-                        android:layout_width="0dp"
-                        android:layout_height="42dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/btn_folder_bg"
-                        android:text="🌐 Link"
-                        android:textAllCaps="false"
-                        android:textColor="#2563EB"
-                        android:textStyle="bold"
-                        android:textSize="12sp"
-                        android:layout_marginHorizontal="4dp" />
-
-                    <Button
-                        android:id="@+id/btnViewAllJson"
-                        android:layout_width="0dp"
-                        android:layout_height="42dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/btn_folder_bg"
-                        android:text="📄 View JSON"
-                        android:textAllCaps="false"
-                        android:textColor="#2563EB"
-                        android:textStyle="bold"
-                        android:textSize="12sp"
-                        android:layout_marginStart="4dp" />
-                </LinearLayout>
-
-                <!-- Extraction Rate Selector -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Extraction Rate: "
-                        android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
-
-                    <Button
-                        android:id="@+id/btnFps05"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:background="@drawable/btn_pill_inactive"
-                        android:text="0.5 FPS"
-                        android:textAllCaps="false"
-                        android:textColor="@color/text_main"
-                        android:textSize="11sp"
-                        android:layout_marginStart="4dp"
-                        android:paddingHorizontal="8dp" />
-
-                    <Button
-                        android:id="@+id/btnFps10"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:background="@drawable/btn_pill_active"
-                        android:text="1.0 FPS (1s)"
-                        android:textAllCaps="false"
-                        android:textColor="#ffffff"
-                        android:textSize="11sp"
-                        android:layout_marginStart="4dp"
-                        android:paddingHorizontal="8dp" />
-
-                    <Button
-                        android:id="@+id/btnFps20"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:background="@drawable/btn_pill_inactive"
-                        android:text="2.0 FPS"
-                        android:textAllCaps="false"
-                        android:textColor="@color/text_main"
-                        android:textSize="11sp"
-                        android:layout_marginStart="4dp"
-                        android:paddingHorizontal="8dp" />
-
-                    <Button
-                        android:id="@+id/btnToggleHashGate"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:background="@drawable/btn_folder_bg"
-                        android:text="Gate: OFF"
-                        android:textAllCaps="false"
-                        android:textColor="#2563EB"
-                        android:textSize="11sp"
-                        android:layout_marginStart="4dp"
-                        android:paddingHorizontal="8dp" />
-                </LinearLayout>
-
-                <!-- URL Ingestion Input Box (Toggleable) -->
-                <LinearLayout
-                    android:id="@+id/layoutUrlInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:visibility="gone"
-                    android:layout_marginBottom="12dp">
-
-                    <EditText
-                        android:id="@+id/etVideoUrl"
-                        android:layout_width="0dp"
-                        android:layout_height="42dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/edittext_bg"
-                        android:hint="Enter direct video URL (.mp4)..."
-                        android:textColorHint="@color/text_light"
-                        android:textColor="@color/text_title"
-                        android:paddingHorizontal="10dp"
-                        android:textSize="12sp" />
-
-                    <Button
-                        android:id="@+id/btnDownloadUrl"
-                        android:layout_width="wrap_content"
-                        android:layout_height="42dp"
-                        android:background="@drawable/btn_primary_bg"
-                        android:text="Fetch"
-                        android:textAllCaps="false"
-                        android:textColor="#ffffff"
-                        android:textSize="12sp"
-                        android:layout_marginStart="6dp" />
-                </LinearLayout>
-
-                <!-- Status Info Text -->
-                <TextView
-                    android:id="@+id/tvIngestionInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Select a video file to extract keyframes and index spatial regions."
-                    android:textColor="@color/text_muted"
-                    android:textSize="12sp"
-                    android:layout_marginBottom="8dp" />
-
-                <!-- Progress Bar -->
-                <ProgressBar
-                    android:id="@+id/pbIngestion"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="6dp"
-                    android:progressTint="@color/primary"
-                    android:visibility="gone"
-                    android:layout_marginBottom="12dp" />
-
-                <!-- Stage 1 Edge Gate Box -->
-                <LinearLayout
-                    android:id="@+id/layoutHashTelemetry"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/telemetry_box_bg"
-                    android:padding="12dp"
-                    android:layout_marginBottom="12dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="⚡ Stage 1: Edge Hash Gate &amp; 64-bit dHash Filter (0.15ms)"
-                        android:textColor="@color/primary_dark"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="4dp" />
-
-                    <TextView
-                        android:id="@+id/tvHashValue"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:text="Last dHash: 0x0000000000000000 | Δ=0 (Static Dropped ❌)"
-                        android:textColor="@color/text_title"
-                        android:textSize="11.5sp" />
-
-                    <TextView
-                        android:id="@+id/tvGateMetrics"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Accepted: 0 | Dropped Static: 0 (Gate Drop Rate: 0.0%)"
-                        android:textColor="@color/success"
-                        android:textSize="11.5sp"
-                        android:textStyle="bold"
-                        android:layout_marginTop="2dp" />
-
-                    <TextView
-                        android:id="@+id/tvPyramidMetrics"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Spatial Pyramid: 6 crops / frame | Vectors: 0"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp"
-                        android:layout_marginTop="2dp" />
-                </LinearLayout>
-
-                <!-- 3-Column Metrics Summary Grid -->
-                <LinearLayout
-                    android:id="@+id/layoutMetricsGrid"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:weightSum="3">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:background="@drawable/metric_card_bg"
-                        android:padding="8dp"
-                        android:layout_marginEnd="4dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Extracted Frames"
-                            android:textColor="@color/text_muted"
-                            android:textSize="10sp" />
-
-                        <TextView
-                            android:id="@+id/tvMetricFrames"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="0"
-                            android:textColor="@color/primary"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvMetricDropped"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="(0 dropped)"
-                            android:textColor="@color/text_light"
-                            android:textSize="9.5sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:background="@drawable/metric_card_bg"
-                        android:padding="8dp"
-                        android:layout_marginHorizontal="2dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Indexed Regions"
-                            android:textColor="@color/text_muted"
-                            android:textSize="10sp" />
-
-                        <TextView
-                            android:id="@+id/tvMetricRegions"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="0"
-                            android:textColor="@color/primary"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="vectors in RAM"
-                            android:textColor="@color/text_light"
-                            android:textSize="9.5sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:background="@drawable/metric_card_bg"
-                        android:padding="8dp"
-                        android:layout_marginStart="4dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Processing Time"
-                            android:textColor="@color/text_muted"
-                            android:textSize="10sp" />
-
-                        <TextView
-                            android:id="@+id/tvMetricTime"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="00:00"
-                            android:textColor="@color/primary"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvMetricTotalFrames"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="active status"
-                            android:textColor="@color/text_light"
-                            android:textSize="9.5sp" />
-                    </LinearLayout>
-                </LinearLayout>
-
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 2. NATURAL LANGUAGE FORENSIC SEARCH CARD -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="🔍 Natural Language Forensic Search"
-                    android:textColor="@color/text_title"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="10dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="10dp">
-
-                    <EditText
-                        android:id="@+id/etQuery"
-                        android:layout_width="0dp"
-                        android:layout_height="46dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/edittext_bg"
-                        android:hint="camera crew or film crew with a black cart..."
-                        android:textColorHint="@color/text_light"
-                        android:textColor="@color/text_title"
-                        android:paddingHorizontal="12dp"
-                        android:textSize="13sp" />
-
-                    <Button
-                        android:id="@+id/btnSearch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="46dp"
-                        android:text="Search"
-                        android:textAllCaps="false"
-                        android:background="@drawable/btn_primary_bg"
-                        android:textColor="#ffffff"
-                        android:textSize="13sp"
-                        android:textStyle="bold"
-                        android:layout_marginStart="8dp" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvExpandedQuery"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Query Expansions: camera crew • black vehicle • cart in surveillance"
-                    android:textColor="@color/text_muted"
-                    android:textSize="11sp" />
-
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 3. FORENSIC STORYBOARD & ON-DEVICE VLM REASONING CARD -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="🎬 Forensic Storyboard &amp; On-Device VLM Reasoning"
-                    android:textColor="@color/text_title"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="10dp" />
-
-                <!-- Matched Frames Horizontal Carousel -->
-                <HorizontalScrollView
-                    android:id="@+id/scrollStoryboard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:visibility="gone"
-                    android:layout_marginBottom="12dp">
-
-                    <LinearLayout
-                        android:id="@+id/layoutStoryboardThumbnails"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
-
-                <!-- Forensic Reasoning Text Box -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/telemetry_box_bg"
-                    android:padding="14dp">
-
-                    <TextView
-                        android:id="@+id/tvResults"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Awaiting query. Upload a video file to extract keyframes, then search for any visual moment."
-                        android:textColor="@color/text_main"
-                        android:textSize="13sp"
-                        android:lineSpacingExtra="4dp" />
-                </LinearLayout>
-
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 4. FORENSIC VIDEO PLAYBACK CARD -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardVideoPlayback"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="24dp"
-            android:visibility="gone"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="14dp"
-            app:cardElevation="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="8dp">
-
-                    <TextView
-                        android:id="@+id/tvPlayerTitle"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="▶️ Forensic Video Playback"
-                        android:textColor="@color/primary"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
-
-                    <Button
-                        android:id="@+id/btnClosePlayer"
-                        android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:background="@drawable/btn_reset_bg"
-                        android:text="✕ Close"
-                        android:textAllCaps="false"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp"
-                        android:paddingHorizontal="10dp" />
-                </LinearLayout>
+                android:background="@color/card_bg"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp">
 
                 <TextView
                     android:id="@+id/tvPlayerTimestamp"
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Playing from timestamp: 00:07:10"
-                    android:textColor="@color/text_title"
+                    android:layout_weight="1"
+                    android:textColor="@color/text_muted"
                     android:textSize="12sp"
-                    android:layout_marginBottom="10dp" />
+                    android:text="" />
 
-                <!-- Video Frame Viewport -->
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="220dp"
-                    android:background="#000000">
+                <Button
+                    android:id="@+id/btnPlayPause"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:background="@drawable/btn_outline_white"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="12dp"
+                    android:text="⏸"
+                    android:textSize="12sp" />
 
-                    <VideoView
-                        android:id="@+id/videoViewPlayback"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:layout_gravity="center" />
-                </FrameLayout>
+                <Button
+                    android:id="@+id/btnReplayTimestamp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/btn_outline_white"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="12dp"
+                    android:text="↺"
+                    android:textSize="12sp" />
 
-                <!-- Controls -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="10dp">
-
-                    <Button
-                        android:id="@+id/btnPlayPause"
-                        android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:background="@drawable/btn_primary_bg"
-                        android:text="⏸ Pause"
-                        android:textAllCaps="false"
-                        android:textColor="#ffffff"
-                        android:textSize="12sp"
-                        android:paddingHorizontal="14dp" />
-
-                    <Button
-                        android:id="@+id/btnReplayTimestamp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:background="@drawable/btn_outline_white"
-                        android:text="🔄 Replay Mark"
-                        android:textAllCaps="false"
-                        android:textColor="@color/text_main"
-                        android:textSize="12sp"
-                        android:layout_marginStart="8dp"
-                        android:paddingHorizontal="14dp" />
-                </LinearLayout>
-
+                <Button
+                    android:id="@+id/btnClosePlayer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/btn_outline_white"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="12dp"
+                    android:text="✕"
+                    android:textSize="12sp" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
+    <!-- ── conversation ─────────────────────────────────────────── -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/mainScrollView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingHorizontal="12dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:id="@+id/layoutChatMessages"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- ── composer ─────────────────────────────────────────────── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/card_bg"
+        android:elevation="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="10dp">
+
+        <EditText
+            android:id="@+id/etQuery"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_weight="1"
+            android:background="@drawable/edittext_bg"
+            android:hint="Ask about the video…"
+            android:imeOptions="actionSend"
+            android:inputType="text"
+            android:paddingHorizontal="14dp"
+            android:textColor="@color/text_main"
+            android:textColorHint="@color/text_light"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnSearch"
+            android:layout_width="wrap_content"
+            android:layout_height="46dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/btn_primary_bg"
+            android:minWidth="0dp"
+            android:paddingHorizontal="18dp"
+            android:text="Send"
+            android:textAllCaps="false"
+            android:textColor="#ffffff"
+            android:textSize="14sp" />
     </LinearLayout>
-</androidx.core.widget.NestedScrollView>
+</LinearLayout>
