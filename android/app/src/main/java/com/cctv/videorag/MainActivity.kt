@@ -57,6 +57,12 @@ class MainActivity : AppCompatActivity() {
     /** Sampling rate. Fixed at 1 FPS now that the FPS pills are gone. */
     private val sampleFps = 1.0
 
+    /**
+     * Cosine above which two retrieved frames count as the same shot and the later one
+     * is not worth spending ~17 s to encode. See dropNearDuplicates().
+     */
+    private val MAX_KEEP_SIMILARITY = 0.92f
+
     /** Prior turns, oldest first, fed back to the model so follow-ups have context. */
     private val conversation = mutableListOf<ConversationTurn>()
 
@@ -437,10 +443,18 @@ class MainActivity : AppCompatActivity() {
             return Answer("I couldn't find anything matching that in this video.", emptyList())
         }
 
-        val moments = ranked.map { it.first }
+        // Drop near-duplicate hits before they reach the model.
+        //
+        // Surveillance retrieval is highly redundant: asking for "white truck" over a
+        // static camera returns several frames of the same parked truck in the same
+        // scene. Each one costs ~17 s to encode and adds nothing the previous frame did
+        // not already show. The CLIP vectors are already computed, so cosine similarity
+        // between selected frames is free - keep a frame only if it differs enough from
+        // everything already chosen.
+        val moments = dropNearDuplicates(ranked, MAX_KEEP_SIMILARITY)
         // the VLM only looks at the first MAX_FRAMES_TO_ANALYSE, in time order - mirror
         // that exactly so the strip shows what was actually sent, not what was retrieved
-        val sent = moments.take(OnDeviceVLM.MAX_FRAMES_TO_ANALYSE).sortedBy { it.timestamp }
+        val sent = moments.sortedBy { it.timestamp }
         lastFramesSent = sent.map { it.timestamp }
 
         val vlm = orchestrator.getActiveVLM()
@@ -452,6 +466,36 @@ class MainActivity : AppCompatActivity() {
         return Answer(text, sent.map {
             ChatView.FrameRef(it.imagePath, it.timestamp, parseTimestampSeconds(it.timestamp))
         })
+    }
+
+    /**
+     * Keep a retrieved frame only if it is visually distinct from the ones already kept.
+     *
+     * Cosine on the CLIP image vectors we already hold. 0.92 is deliberately permissive:
+     * it removes frames of the same static scene while keeping a frame where the subject
+     * has moved or the scene has changed, which is the information a viewer actually
+     * wants across a long recording.
+     */
+    private fun dropNearDuplicates(
+        ranked: List<Pair<IndexedMoment, Float>>,
+        maxSimilarity: Float
+    ): List<IndexedMoment> {
+        val kept = mutableListOf<IndexedMoment>()
+        for ((moment, _) in ranked) {
+            val tooSimilar = kept.any { cosine(it.vector, moment.vector) > maxSimilarity }
+            if (!tooSimilar) kept.add(moment)
+            if (kept.size >= OnDeviceVLM.MAX_FRAMES_TO_ANALYSE) break
+        }
+        val dropped = ranked.size.coerceAtMost(20) - kept.size
+        if (dropped > 0) Log.i("VideoRAG_Query", "dedup: kept ${kept.size} distinct frames")
+        return kept
+    }
+
+    private fun cosine(a: FloatArray, b: FloatArray): Float {
+        var dot = 0f
+        val n = minOf(a.size, b.size)
+        for (i in 0 until n) dot += a[i] * b[i]
+        return dot   // vectors are already L2-normalised by the embedder
     }
 
     /** "HH:MM:SS" or "MM:SS" -> seconds. */

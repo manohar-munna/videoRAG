@@ -308,13 +308,18 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         val frameCount = shown.size
         val lineTemplate = shown.joinToString("\n") { "${it.timestamp} - <what this frame shows>" }
 
-        val system = "You are a CCTV analyst reviewing a short sequence of keyframes in " +
-                     "time order. Describe what happens across them chronologically, frame " +
-                     "by frame, citing each timestamp. Answer only from what is visible; if " +
-                     "the subject is not there, say so plainly rather than guessing. Do not " +
-                     "speculate about what happened between or outside these frames. Reply " +
-                     "in plain English sentences. Never output bounding boxes, coordinates, " +
-                     "or object-reference tags."
+        // The frames are retrieval hits, not consecutive video: they can be minutes
+        // apart. Without saying so the model narrates them as continuous motion and
+        // invents movement between samples that were never observed - a real hazard when
+        // the output is meant to be surveillance evidence.
+        val system = "You are a CCTV analyst. You are shown a few still keyframes taken " +
+                     "from a longer recording. They are in time order but NOT consecutive - " +
+                     "minutes may pass between them, so never describe motion or travel " +
+                     "between two frames, only what each one shows. Report by subject: name " +
+                     "a thing once and list every timestamp it appears at. Answer only from " +
+                     "what is visible; if the subject is not there, say so plainly rather " +
+                     "than guessing. Reply in plain English sentences. Never output bounding " +
+                     "boxes, coordinates, or object-reference tags."
 
         // Replay recent turns so follow-ups resolve against what was already said.
         // Answers are truncated: the point is to carry the established facts, not to
@@ -336,12 +341,17 @@ $frameList
 $priorContext
 Question: $query
 
-Describe every frame listed above, in order, then summarise. Use exactly this layout and write one line for each of the $frameCount frames:
+Report by subject, not frame by frame. Identify each thing relevant to the question, then give every timestamp where that same thing appears, like this:
 
-$lineTemplate
-Summary: <one sentence covering the whole sequence>
+A white van marked "MOTION PICTURE" is visible at 00:03:42, 00:07:20 and 00:10:54.
+A group of people stands beside it at 00:07:20 and 00:08:46.
 
-Say what each frame actually shows relating to the question, and write "not visible in this frame" when the subject is absent from that one. If this is a follow-up, use the earlier exchange to resolve what "it" or "they" refers to.<|im_end|>
+Rules:
+- Group the timestamps of one subject onto one line; do not repeat a subject.
+- Quote any text, sign or marking you can read on a vehicle or building.
+- Say what changed between the times you list, if anything did.
+- If the subject of the question never appears, say so in one line.
+- If this is a follow-up, use the earlier exchange to resolve what "it" or "they" refers to.<|im_end|>
 <|im_start|>assistant
 """
 
