@@ -304,11 +304,13 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // "yellow bus" in detection mode, emitting <|object_ref_start|>...<|box_start|>
         // (606,182),(709,325)<|box_end|> instead of prose. Correct, but not an answer a
         // person can read. Frame the task as prose Q&A and rule coordinates out explicitly.
-        val system = "You are a CCTV analyst. Answer only from what is visible in the " +
-                     "frames. If the thing being asked about is not visible, say so " +
-                     "plainly. Do not speculate about what happened outside these frames. " +
-                     "Reply in plain English sentences. Never output bounding boxes, " +
-                     "coordinates, or object-reference tags."
+        val system = "You are a CCTV analyst reviewing a short sequence of keyframes in " +
+                     "time order. Describe what happens across them chronologically, frame " +
+                     "by frame, citing each timestamp. Answer only from what is visible; if " +
+                     "the subject is not there, say so plainly rather than guessing. Do not " +
+                     "speculate about what happened between or outside these frames. Reply " +
+                     "in plain English sentences. Never output bounding boxes, coordinates, " +
+                     "or object-reference tags."
 
         // Replay recent turns so follow-ups resolve against what was already said.
         // Answers are truncated: the point is to carry the established facts, not to
@@ -330,7 +332,7 @@ $frameList
 $priorContext
 Question: $query
 
-Answer this specific question in 2-4 plain English sentences, using only what the frames show. Do not restate the question back as the answer. If it is a follow-up, use the earlier exchange to resolve what "it" or "they" refers to, then describe the new detail being asked about. Cite the timestamp of the frame you are describing. If the frames do not show enough to answer, say exactly that.<|im_end|>
+Work through the frames in time order. For each one, start the line with its timestamp and say what it shows relating to the question - including when the subject is absent from that frame. Then finish with a single sentence summarising what happens across the sequence. Use only what is visible, do not restate the question as the answer, and if it is a follow-up use the earlier exchange to resolve what "it" or "they" refers to.<|im_end|>
 <|im_start|>assistant
 """
 
