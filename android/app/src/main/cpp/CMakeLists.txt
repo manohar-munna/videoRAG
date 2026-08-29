@@ -36,6 +36,16 @@ set(BUILD_SHARED_LIBS    OFF CACHE BOOL "" FORCE)  # statically absorb into our 
 # HAVE_FP16_VECTOR_ARITHMETIC all fail even on clang 18.
 if(${ANDROID_ABI} STREQUAL "arm64-v8a")
     set(GGML_CPU_ARM_ARCH "armv8.2-a+fp16+dotprod+i8mm" CACHE STRING "" FORCE)
+elseif(${ANDROID_ABI} STREQUAL "x86_64")
+    # x86_64 is the emulator target. Without these ggml builds a scalar kernel, and
+    # cross-compiling means GGML_NATIVE cannot probe the host: measured 24 s to encode
+    # a keyframe on an emulator versus 13 s on a physical arm64 phone, i.e. the
+    # emulator was slower than the device it stands in for. Every x86_64 host that can
+    # run the Android emulator under WHPX/KVM supports AVX2.
+    set(GGML_AVX  ON CACHE BOOL "" FORCE)
+    set(GGML_AVX2 ON CACHE BOOL "" FORCE)
+    set(GGML_FMA  ON CACHE BOOL "" FORCE)
+    set(GGML_F16C ON CACHE BOOL "" FORCE)
 endif()
 
 add_subdirectory(llama.cpp EXCLUDE_FROM_ALL)
