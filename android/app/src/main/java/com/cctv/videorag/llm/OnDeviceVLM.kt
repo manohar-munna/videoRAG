@@ -330,7 +330,7 @@ $frameList
 $priorContext
 Question: $query
 
-Answer in 2-4 plain English sentences: say whether you can see it, describe what you actually see, and give the timestamp of the frame where you see it.<|im_end|>
+Answer this specific question in 2-4 plain English sentences, using only what the frames show. Do not restate the question back as the answer. If it is a follow-up, use the earlier exchange to resolve what "it" or "they" refers to, then describe the new detail being asked about. Cite the timestamp of the frame you are describing. If the frames do not show enough to answer, say exactly that.<|im_end|>
 <|im_start|>assistant
 """
 
