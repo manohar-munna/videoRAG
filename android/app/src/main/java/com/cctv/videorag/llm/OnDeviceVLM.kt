@@ -299,9 +299,15 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             .filter { File(it.imagePath).exists() }
             .joinToString(separator = "\n") { "Frame at ${it.timestamp}:\n" + marker }
 
+        // Qwen2-VL has native visual grounding and will answer a bare noun phrase like
+        // "yellow bus" in detection mode, emitting <|object_ref_start|>...<|box_start|>
+        // (606,182),(709,325)<|box_end|> instead of prose. Correct, but not an answer a
+        // person can read. Frame the task as prose Q&A and rule coordinates out explicitly.
         val system = "You are a CCTV analyst. Answer only from what is visible in the " +
                      "frames. If the thing being asked about is not visible, say so " +
-                     "plainly. Do not speculate about what happened outside these frames."
+                     "plainly. Do not speculate about what happened outside these frames. " +
+                     "Reply in plain English sentences. Never output bounding boxes, " +
+                     "coordinates, or object-reference tags."
 
         val prompt = """<|im_start|>system
 $system<|im_end|>
@@ -312,7 +318,7 @@ $frameList
 
 Question: $query
 
-Describe what you actually see that relates to the question, and cite the timestamp of any frame where you see it.<|im_end|>
+Answer in 2-4 plain English sentences: say whether you can see it, describe what you actually see, and give the timestamp of the frame where you see it.<|im_end|>
 <|im_start|>assistant
 """
 
@@ -329,8 +335,46 @@ Describe what you actually see that relates to the question, and cite the timest
 
         val footer = "Analysed ${imagePaths.size} keyframes spanning [$startTs - $endTs] " +
                      "using ${activeModelFileName ?: "the on-device model"}."
-        return answer.trim() + "\n\n---\n" + footer
+        return humanise(answer.trim()) + "\n\n---\n" + footer
     }
+    /**
+     * Turn Qwen2-VL grounding output into a readable sentence.
+     *
+     * Even when asked for prose the model sometimes answers a short noun-phrase query in
+     * detection mode:
+     *     <|object_ref_start|>yellow bus<|object_ref_end|><|box_start|>(606,182),(709,325)<|box_end|>
+     * That is a correct, useful answer - the box is in normalised 0-1000 coordinates and
+     * did land on the bus - so translate it rather than showing raw tags or discarding it.
+     */
+    private fun humanise(raw: String): String {
+        val refRx = Regex("""<\|object_ref_start\|>(.*?)<\|object_ref_end\|>""")
+        val boxRx = Regex("""<\|box_start\|>\((\d+),(\d+)\),\((\d+),(\d+)\)<\|box_end\|>""")
+        if (!refRx.containsMatchIn(raw) && !boxRx.containsMatchIn(raw)) return raw
+
+        val labels = refRx.findAll(raw).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.toList()
+        val boxes = boxRx.findAll(raw).map {
+            val (x1, y1, x2, y2) = it.destructured
+            // 0-1000 normalised -> percentage of frame, plus a rough position in words
+            val cx = (x1.toInt() + x2.toInt()) / 2
+            val cy = (y1.toInt() + y2.toInt()) / 2
+            val h = when { cx < 333 -> "left"; cx < 667 -> "centre"; else -> "right" }
+            val v = when { cy < 333 -> "upper"; cy < 667 -> "middle"; else -> "lower" }
+            "$v $h of the frame"
+        }.toList()
+
+        val subject = labels.firstOrNull() ?: "the subject"
+        val where = boxes.firstOrNull()
+        val sb = StringBuilder()
+        sb.append(if (where != null) "Yes - $subject is visible in the $where."
+                  else "Yes - $subject is visible.")
+        if (labels.size > 1) sb.append(" Also detected: ${labels.drop(1).joinToString(", ")}.")
+
+        // keep any prose the model produced alongside the tags
+        val leftover = raw.replace(refRx, "").replace(boxRx, "").trim()
+        if (leftover.isNotEmpty()) sb.append("\n\n").append(leftover)
+        return sb.toString()
+    }
+
     private data class FramePixelStats(
         val dominantColors: List<String>,
         val brightnessCategory: String,
