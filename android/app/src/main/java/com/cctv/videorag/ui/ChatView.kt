@@ -1,6 +1,7 @@
 package com.cctv.videorag.ui
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -13,10 +14,13 @@ import android.text.style.StyleSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import com.cctv.videorag.R
+import java.io.File
 
 /**
  * Renders the question/answer thread.
@@ -28,6 +32,9 @@ import com.cctv.videorag.R
 object ChatView {
 
     private const val PENDING_TAG = "pending"
+
+    /** A keyframe that was actually sent to the model, shown as evidence under its answer. */
+    data class FrameRef(val imagePath: String, val timestamp: String, val seconds: Int)
 
     /** A timestamp anywhere in an answer becomes a tappable seek link. */
     private val TIMESTAMP = Regex("""\b(?:(\d{1,2}):)?([0-5]?\d):([0-5]\d)\b""")
@@ -73,7 +80,8 @@ object ChatView {
     fun addAssistantMessage(
         container: LinearLayout,
         text: String,
-        onTimestamp: ((Int) -> Unit)? = null
+        onTimestamp: ((Int) -> Unit)? = null,
+        frames: List<FrameRef> = emptyList()
     ) {
         val ctx = container.context
         val row = LinearLayout(ctx).apply {
@@ -98,6 +106,77 @@ object ChatView {
         if (onTimestamp != null) bubble.movementMethod = LinkMovementMethod.getInstance()
         row.addView(bubble)
         container.addView(row)
+
+        if (frames.isNotEmpty()) addFrameStrip(container, frames, onTimestamp)
+    }
+
+    /**
+     * The keyframes actually handed to the model, under its answer.
+     *
+     * This is the evidence for the reply: retrieval picks a handful of frames out of the
+     * whole video and the model only ever sees those, so showing them makes a wrong
+     * answer diagnosable — you can see immediately whether the model misread a frame or
+     * simply never received the right one. Tapping a thumbnail seeks the video, the same
+     * as tapping a timestamp in the text.
+     */
+    private fun addFrameStrip(
+        container: LinearLayout,
+        frames: List<FrameRef>,
+        onTimestamp: ((Int) -> Unit)?
+    ) {
+        val ctx = container.context
+
+        container.addView(TextView(ctx).apply {
+            text = "Frames analysed (${frames.size}) — tap to jump"
+            setTextColor(ctx.getColor(R.color.text_light))
+            textSize = 11f
+            setPadding(dp(ctx, 4f), 0, 0, dp(ctx, 4f))
+        })
+
+        val scroller = HorizontalScrollView(ctx).apply {
+            isHorizontalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(ctx, 10f) }
+        }
+        val strip = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+
+        for (f in frames) {
+            val cell = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                background = bubbleBg(ctx, ctx.getColor(R.color.card_bg), ctx.getColor(R.color.card_border))
+                setPadding(dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 4f), dp(ctx, 4f))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = dp(ctx, 6f) }
+                isClickable = true
+                setOnClickListener { onTimestamp?.invoke(f.seconds) }
+            }
+            cell.addView(ImageView(ctx).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(ctx, 116f), dp(ctx, 66f))
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                // decode small: these are thumbnails in a scrolling row, and a query can
+                // add several at once
+                val file = File(f.imagePath)
+                if (file.exists()) {
+                    val opts = BitmapFactory.Options().apply { inSampleSize = 4 }
+                    BitmapFactory.decodeFile(file.absolutePath, opts)?.let { setImageBitmap(it) }
+                } else {
+                    setBackgroundColor(ctx.getColor(R.color.card_border))
+                }
+            })
+            cell.addView(TextView(ctx).apply {
+                text = f.timestamp
+                setTextColor(ctx.getColor(R.color.primary))
+                textSize = 10.5f
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                setPadding(0, dp(ctx, 3f), 0, 0)
+            })
+            strip.addView(cell)
+        }
+        scroller.addView(strip)
+        container.addView(scroller)
     }
 
     /** Placeholder shown while the model runs; replaced by [replacePending]. */
@@ -135,12 +214,13 @@ object ChatView {
     fun replacePending(
         container: LinearLayout,
         text: String,
-        onTimestamp: ((Int) -> Unit)? = null
+        onTimestamp: ((Int) -> Unit)? = null,
+        frames: List<FrameRef> = emptyList()
     ) {
         for (i in container.childCount - 1 downTo 0) {
             if (container.getChildAt(i).tag == PENDING_TAG) { container.removeViewAt(i); break }
         }
-        addAssistantMessage(container, text, onTimestamp)
+        addAssistantMessage(container, text, onTimestamp, frames)
     }
 
     /** A quiet centred note (status, errors) that is not part of the dialogue. */

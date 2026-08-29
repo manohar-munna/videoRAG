@@ -23,6 +23,7 @@ import com.cctv.videorag.indexing.*
 import com.cctv.videorag.ingestion.*
 import com.cctv.videorag.llm.*
 import com.cctv.videorag.ui.ChatView
+import com.cctv.videorag.ui.DebugPanel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,6 +60,13 @@ class MainActivity : AppCompatActivity() {
     /** Prior turns, oldest first, fed back to the model so follow-ups have context. */
     private val conversation = mutableListOf<ConversationTurn>()
 
+    // Diagnostics captured per query, surfaced by the debug panel rather than on screen.
+    private var lastQuery: String? = null
+    private var lastHits: List<Triple<String, String, Float>> = emptyList()
+    private var lastFramesSent: List<String> = emptyList()
+    private var lastLatencyMs: Long? = null
+    private var tokenizerStatus: String = "not run"
+
     // ── views ─────────────────────────────────────────────────────
     private lateinit var scrollView: NestedScrollView
     private lateinit var chatContainer: LinearLayout
@@ -68,6 +76,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPickVideo: Button
     private lateinit var btnClearAll: Button
     private lateinit var btnSelectModelFolder: Button
+    private lateinit var btnDebug: Button
     private lateinit var etQuery: EditText
     private lateinit var btnSearch: Button
     private lateinit var cardVideoPlayback: CardView
@@ -144,6 +153,7 @@ class MainActivity : AppCompatActivity() {
         btnPickVideo = findViewById(R.id.btnPickVideo)
         btnClearAll = findViewById(R.id.btnClearAll)
         btnSelectModelFolder = findViewById(R.id.btnSelectModelFolder)
+        btnDebug = findViewById(R.id.btnDebug)
         etQuery = findViewById(R.id.etQuery)
         btnSearch = findViewById(R.id.btnSearch)
         cardVideoPlayback = findViewById(R.id.cardVideoPlayback)
@@ -158,6 +168,7 @@ class MainActivity : AppCompatActivity() {
         btnPickVideo.setOnClickListener { pickVideoLauncher.launch("video/*") }
         btnSelectModelFolder.setOnClickListener { selectFolderLauncher.launch(null) }
         btnClearAll.setOnClickListener { resetAllData() }
+        btnDebug.setOnClickListener { showDebugPanel() }
 
         btnSearch.setOnClickListener { submitQuestion() }
         etQuery.setOnEditorActionListener { _, _, _ -> submitQuestion(); true }
@@ -216,6 +227,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 val tk = ClipTokenizer.fromAssets(this@MainActivity)
                 val r = ClipTokenizerSelfTest.run(this@MainActivity, tk)
+                tokenizerStatus = if (r.ok) "CLIP BPE, ${r.passed}/${r.passed} match Python" else "MISMATCH (${r.failed} failed)"
                 if (!r.ok) withContext(Dispatchers.Main) {
                     ChatView.addSystemNote(
                         chatContainer,
@@ -379,24 +391,33 @@ class MainActivity : AppCompatActivity() {
         isBusy = true
         btnSearch.isEnabled = false
 
+        lastQuery = q
+        val startedAt = System.currentTimeMillis()
         lifecycleScope.launch(Dispatchers.Default) {
-            val answer = try { answerQuestion(q) }
+            val result = try { answerQuestion(q) }
                          catch (e: Throwable) {
                              Log.e("VideoRAG_Query", "query failed", e)
-                             "Something went wrong: ${e.message ?: e.javaClass.simpleName}"
+                             Answer("Something went wrong: ${e.message ?: e.javaClass.simpleName}", emptyList())
                          }
-            conversation.add(ConversationTurn(q, answer))
+            lastLatencyMs = System.currentTimeMillis() - startedAt
+            conversation.add(ConversationTurn(q, result.text))
             withContext(Dispatchers.Main) {
                 isBusy = false
                 btnSearch.isEnabled = true
-                ChatView.replacePending(chatContainer, answer) { seconds -> playVideoAt(seconds) }
+                ChatView.replacePending(
+                    chatContainer, result.text,
+                    onTimestamp = { seconds -> playVideoAt(seconds) },
+                    frames = result.frames
+                )
                 scrollToBottom()
             }
         }
     }
 
     /** Retrieve with CLIP (max-pooled across regions), then answer with the VLM. */
-    private suspend fun answerQuestion(question: String): String {
+    private data class Answer(val text: String, val frames: List<ChatView.FrameRef>)
+
+    private suspend fun answerQuestion(question: String): Answer {
         val embedder = orchestrator.getActiveEmbedder()
 
         // Each frame is indexed as 6 regions; collapse to the best region per frame so a
@@ -411,14 +432,36 @@ class MainActivity : AppCompatActivity() {
         Log.i("VideoRAG_Query", "top=" + ranked.take(5).joinToString {
             "${it.first.timestamp}[${it.first.cropRegion}]=%.3f".format(it.second)
         })
-        if (ranked.isEmpty()) return "I couldn't find anything matching that in this video."
+        lastHits = ranked.take(10).map { Triple(it.first.timestamp, it.first.cropRegion, it.second) }
+        if (ranked.isEmpty()) {
+            return Answer("I couldn't find anything matching that in this video.", emptyList())
+        }
+
+        val moments = ranked.map { it.first }
+        // the VLM only looks at the first MAX_FRAMES_TO_ANALYSE, in time order - mirror
+        // that exactly so the strip shows what was actually sent, not what was retrieved
+        val sent = moments.take(OnDeviceVLM.MAX_FRAMES_TO_ANALYSE).sortedBy { it.timestamp }
+        lastFramesSent = sent.map { it.timestamp }
 
         val vlm = orchestrator.getActiveVLM()
-        return vlm.answerFromRetrievedContext(
+        val text = vlm.answerFromRetrievedContext(
             query = question,
-            top5Moments = ranked.map { it.first },
+            top5Moments = moments,
             history = conversation.takeLast(3)
         )
+        return Answer(text, sent.map {
+            ChatView.FrameRef(it.imagePath, it.timestamp, parseTimestampSeconds(it.timestamp))
+        })
+    }
+
+    /** "HH:MM:SS" or "MM:SS" -> seconds. */
+    private fun parseTimestampSeconds(ts: String): Int {
+        val p = ts.split(":").mapNotNull { it.toIntOrNull() }
+        return when (p.size) {
+            3 -> p[0] * 3600 + p[1] * 60 + p[2]
+            2 -> p[0] * 60 + p[1]
+            else -> 0
+        }
     }
 
     // ── playback ──────────────────────────────────────────────────
@@ -435,6 +478,45 @@ class MainActivity : AppCompatActivity() {
         videoViewPlayback.seekTo(lastSelectedTimestampMs)
         videoViewPlayback.start()
         btnPlayPause.text = "⏸"
+    }
+
+    /** Diagnostics that used to clutter the main screen, now one tap away. */
+    private fun showDebugPanel() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val vlmInfo = try {
+                val v = orchestrator.getFrameDescriber()
+                if (v.isNativeGGUFAvailable()) v.getDiagnosticInfo() else "no GGUF found"
+            } catch (e: Throwable) { "error: ${e.message}" }
+
+            val embInfo = try {
+                orchestrator.getActiveEmbedder(); "MobileCLIP-S2 dual tower, 512-D, ONNX"
+            } catch (e: Throwable) { "unavailable: ${e.message?.take(90)}" }
+
+            val json = vectorStore.getAllMoments()
+                .distinctBy { it.imagePath }
+                .take(40)
+                .joinToString(",\n") { it.toJsonObject().toString(1) }
+                .ifEmpty { null }?.let { "[\n$it\n]" }
+
+            val state = DebugPanel.State(
+                modelInfo = vlmInfo,
+                embedderInfo = embInfo,
+                tokenizerInfo = tokenizerStatus,
+                keyframesKept = acceptedFramesCount,
+                duplicatesDropped = droppedFramesCount,
+                vectorCount = vectorStore.size,
+                ftsRows = sqliteFts.size(),
+                sampleFps = sampleFps,
+                gateEnabled = true,
+                gateThreshold = hashThreshold,
+                lastQuery = lastQuery,
+                lastHits = lastHits,
+                framesSentToModel = lastFramesSent,
+                lastLatencyMs = lastLatencyMs,
+                indexedJson = json
+            )
+            withContext(Dispatchers.Main) { DebugPanel.show(this@MainActivity, state) }
+        }
     }
 
     private fun scrollToBottom() = scrollView.post { scrollView.fullScroll(View.FOCUS_DOWN) }
