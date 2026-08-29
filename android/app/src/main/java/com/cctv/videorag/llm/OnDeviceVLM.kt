@@ -306,8 +306,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // person can read. Frame the task as prose Q&A and rule coordinates out explicitly.
         val shown = sorted.filter { File(it.imagePath).exists() }
         val frameCount = shown.size
-        val lineTemplate = shown.joinToString("
-") { "${it.timestamp} - <what this frame shows>" }
+        val lineTemplate = shown.joinToString("\n") { "${it.timestamp} - <what this frame shows>" }
 
         val system = "You are a CCTV analyst reviewing a short sequence of keyframes in " +
                      "time order. Describe what happens across them chronologically, frame " +
