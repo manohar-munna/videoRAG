@@ -241,7 +241,9 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
 
     const llama_vocab * vocab = llama_model_get_vocab(ctx->model);
     std::ostringstream oss;
-    const int max_new_tokens = 256;
+    // a per-frame narration over 5 keyframes plus a summary needs more room
+    // than a single verdict sentence
+    const int max_new_tokens = 400;
 
     for (int i = 0; i < max_new_tokens; ++i) {
         const llama_token tok = llama_sampler_sample(ctx->sampler, ctx->ctx_llama, -1);

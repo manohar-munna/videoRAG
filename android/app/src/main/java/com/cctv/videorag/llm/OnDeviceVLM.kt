@@ -304,6 +304,11 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // "yellow bus" in detection mode, emitting <|object_ref_start|>...<|box_start|>
         // (606,182),(709,325)<|box_end|> instead of prose. Correct, but not an answer a
         // person can read. Frame the task as prose Q&A and rule coordinates out explicitly.
+        val shown = sorted.filter { File(it.imagePath).exists() }
+        val frameCount = shown.size
+        val lineTemplate = shown.joinToString("
+") { "${it.timestamp} - <what this frame shows>" }
+
         val system = "You are a CCTV analyst reviewing a short sequence of keyframes in " +
                      "time order. Describe what happens across them chronologically, frame " +
                      "by frame, citing each timestamp. Answer only from what is visible; if " +
@@ -332,7 +337,12 @@ $frameList
 $priorContext
 Question: $query
 
-Work through the frames in time order. For each one, start the line with its timestamp and say what it shows relating to the question - including when the subject is absent from that frame. Then finish with a single sentence summarising what happens across the sequence. Use only what is visible, do not restate the question as the answer, and if it is a follow-up use the earlier exchange to resolve what "it" or "they" refers to.<|im_end|>
+Describe every frame listed above, in order, then summarise. Use exactly this layout and write one line for each of the $frameCount frames:
+
+$lineTemplate
+Summary: <one sentence covering the whole sequence>
+
+Say what each frame actually shows relating to the question, and write "not visible in this frame" when the subject is absent from that one. If this is a follow-up, use the earlier exchange to resolve what "it" or "they" refers to.<|im_end|>
 <|im_start|>assistant
 """
 
