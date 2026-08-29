@@ -1,282 +1,298 @@
+// JNI bridge for com.cctv.videorag.llm.OnDeviceVLM
+//
+// Rewritten against current llama.cpp + libmtmd. The previous implementation
+// targeted a May-2024 vendored snapshot and could never load a Qwen2-VL GGUF:
+// that build had no qwen2vl architecture, no M-RoPE and no qwen2vl_merger
+// projector, so llama_load_model_from_file() returned nullptr, nativeHandle
+// stayed 0, and every call site in Kotlin silently fell through to a template.
+//
+// Two structural fixes beyond the API migration:
+//   1. Images are no longer evaluated at position 0 ahead of the prompt.
+//      mtmd_tokenize() interleaves text and image chunks in template order.
+//   2. Greedy argmax over the whole vocab is replaced by a sampler chain.
+
 #include <jni.h>
 #include <string>
 #include <vector>
-#include <cmath>
-#include <cstring>
 #include <sstream>
-#include <fstream>
-#include <dirent.h>
 #include <unistd.h>
-#include <sys/stat.h>
 #include <android/log.h>
 
 #include "llama.h"
-#include "clip.h"
-#include "llava.h"
+#include "mtmd.h"
+#include "mtmd-helper.h"
 
 #define TAG "VideoRAG_Native"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, TAG, __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN,  TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
-// Build info definitions for common.cpp
-int LLAMA_BUILD_NUMBER = 2800;
-char const *LLAMA_COMMIT = "b2800";
-char const *LLAMA_COMPILER = "Clang NDK";
-char const *LLAMA_BUILD_TARGET = "Android ARM64";
+namespace {
 
 struct NativeVLMContext {
-    llama_model * model = nullptr;
+    llama_model   * model     = nullptr;
     llama_context * ctx_llama = nullptr;
-    clip_ctx * ctx_clip = nullptr;
-    std::string model_path;
-    std::string mmproj_path;
-    int n_threads = 4;
-    int n_ctx = 2048;
-    bool is_initialized = false;
+    mtmd_context  * ctx_mtmd  = nullptr;
+    llama_sampler * sampler   = nullptr;
+    std::string     model_path;
+    int             n_threads = 5;
+    bool            has_vision = false;
 };
 
-static void llama_batch_add(struct llama_batch & batch, llama_token id, llama_pos pos, const std::vector<llama_seq_id> & seq_ids, bool logits) {
-    batch.token   [batch.n_tokens] = id;
-    batch.pos     [batch.n_tokens] = pos;
-    batch.n_seq_id[batch.n_tokens] = seq_ids.size();
-    for (size_t i = 0; i < seq_ids.size(); ++i) {
-        batch.seq_id[batch.n_tokens][i] = seq_ids[i];
+// Route llama/ggml logging into logcat instead of stderr, which is discarded on Android.
+void log_to_logcat(ggml_log_level level, const char * text, void * /*user_data*/) {
+    if (!text) return;
+    switch (level) {
+        case GGML_LOG_LEVEL_ERROR: LOGE("%s", text); break;
+        case GGML_LOG_LEVEL_WARN:  LOGW("%s", text); break;
+        default:                   LOGI("%s", text); break;
     }
-    batch.logits  [batch.n_tokens] = logits;
-    batch.n_tokens++;
 }
 
-static void llama_batch_clear(struct llama_batch & batch) {
-    batch.n_tokens = 0;
+std::string jstring_to_std(JNIEnv * env, jstring s) {
+    if (!s) return {};
+    const char * c = env->GetStringUTFChars(s, nullptr);
+    std::string out(c ? c : "");
+    if (c) env->ReleaseStringUTFChars(s, c);
+    return out;
 }
+
+} // namespace
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(
-    JNIEnv *env,
-    jobject /* this */,
-    jstring modelPath,
-    jstring mmprojPath,
-    jint layersToOffload
-) {
-    const char *nativeModelPath = env->GetStringUTFChars(modelPath, nullptr);
-    const char *nativeMmprojPath = env->GetStringUTFChars(mmprojPath, nullptr);
+        JNIEnv * env, jobject /*thiz*/,
+        jstring modelPath, jstring mmprojPath, jint layersToOffload) {
 
-    std::string mPath(nativeModelPath ? nativeModelPath : "");
-    std::string projPath(nativeMmprojPath ? nativeMmprojPath : "");
+    const std::string m_path = jstring_to_std(env, modelPath);
+    const std::string p_path = jstring_to_std(env, mmprojPath);
 
-    env->ReleaseStringUTFChars(modelPath, nativeModelPath);
-    env->ReleaseStringUTFChars(mmprojPath, nativeMmprojPath);
-
-    LOGI("Loading REAL On-Device GGUF model: %s", mPath.c_str());
+    llama_log_set(log_to_logcat, nullptr);
+    mtmd_helper_log_set(log_to_logcat, nullptr);
 
     llama_backend_init();
+
+    LOGI("Loading model: %s", m_path.c_str());
 
     llama_model_params mparams = llama_model_default_params();
     mparams.n_gpu_layers = layersToOffload;
 
-    llama_model * model = llama_load_model_from_file(mPath.c_str(), mparams);
+    llama_model * model = llama_model_load_from_file(m_path.c_str(), mparams);
     if (!model) {
-        LOGE("Failed to load llama model from: %s", mPath.c_str());
+        // Reaches here if the architecture is unknown to this llama.cpp build.
+        LOGE("llama_model_load_from_file failed for %s", m_path.c_str());
         return 0L;
     }
 
     llama_context_params cparams = llama_context_default_params();
-    cparams.n_ctx = 2048;
-    cparams.n_threads = 4;
-    cparams.n_batch = 512;
+    // Sizing note: image tokens scale with SOURCE resolution, not with anything we
+    // choose here. VideoFrameDecoder emits frames at the video's native size, so a
+    // 1280x720 clip yields ~1125 tokens per frame - five of those is 5,625 and
+    // overflows a 4096 context. Frames are now downscaled at decode AND capped via
+    // image_max_tokens below; this ceiling is the third layer of protection.
+    cparams.n_ctx   = 8192;
+    cparams.n_batch = 2048;   // image chunks are submitted in one batch
+    cparams.n_threads       = 5;
+    cparams.n_threads_batch = 5;
 
-    llama_context * ctx_llama = llama_new_context_with_model(model, cparams);
-    if (!ctx_llama) {
-        LOGE("Failed to create llama context from model: %s", mPath.c_str());
-        llama_free_model(model);
+    llama_context * lctx = llama_init_from_model(model, cparams);
+    if (!lctx) {
+        LOGE("llama_init_from_model failed");
+        llama_model_free(model);
         return 0L;
     }
 
-    clip_ctx * ctx_clip = nullptr;
-    if (!projPath.empty() && access(projPath.c_str(), R_OK) == 0) {
-        LOGI("Loading Vision Projector (clip): %s", projPath.c_str());
-        ctx_clip = clip_model_load(projPath.c_str(), 1);
-        if (!ctx_clip) {
-            LOGW("Failed to load clip vision projector from: %s", projPath.c_str());
+    auto * ctx = new NativeVLMContext();
+    ctx->model      = model;
+    ctx->ctx_llama  = lctx;
+    ctx->model_path = m_path;
+    ctx->n_threads  = 5;
+
+    if (!p_path.empty() && access(p_path.c_str(), R_OK) == 0) {
+        LOGI("Loading multimodal projector: %s", p_path.c_str());
+        mtmd_context_params mp = mtmd_context_params_default();
+        mp.use_gpu        = (layersToOffload > 0);
+        mp.print_timings  = true;
+        mp.n_threads      = ctx->n_threads;
+        mp.media_marker   = mtmd_default_marker();
+        // Hard ceiling on tokens per image. Encode cost scales with token count:
+        // measured ~20.3 s at 264 tokens (640x360) on an SD8Gen2, so an uncapped
+        // 720p frame at ~1125 tokens costs ~87 s. Upstream warns Qwen-VL wants >=1024
+        // tokens for grounding accuracy, so this is an explicit speed/accuracy trade
+        // and deliberately sits at the top of the affordable range rather than the
+        // bottom of the accurate one.
+        mp.image_max_tokens = 512;
+
+        ctx->ctx_mtmd = mtmd_init_from_file(p_path.c_str(), model, mp);
+        if (!ctx->ctx_mtmd) {
+            LOGE("mtmd_init_from_file failed — continuing text-only");
+        } else {
+            ctx->has_vision = mtmd_support_vision(ctx->ctx_mtmd);
+            LOGI("Projector loaded (vision=%d)", (int) ctx->has_vision);
         }
+    } else {
+        LOGW("No readable mmproj at '%s' — text-only mode", p_path.c_str());
     }
 
-    auto *ctx = new NativeVLMContext();
-    ctx->model = model;
-    ctx->ctx_llama = ctx_llama;
-    ctx->ctx_clip = ctx_clip;
-    ctx->model_path = mPath;
-    ctx->mmproj_path = projPath;
-    ctx->n_threads = 4;
-    ctx->n_ctx = 2048;
-    ctx->is_initialized = true;
+    llama_sampler_chain_params sp = llama_sampler_chain_default_params();
+    ctx->sampler = llama_sampler_chain_init(sp);
+    llama_sampler_chain_add(ctx->sampler, llama_sampler_init_top_k(40));
+    llama_sampler_chain_add(ctx->sampler, llama_sampler_init_top_p(0.9f, 1));
+    llama_sampler_chain_add(ctx->sampler, llama_sampler_init_temp(0.2f));
+    llama_sampler_chain_add(ctx->sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
-    LOGI("Real On-Device VLM successfully initialized in RAM! (handle=%p)", ctx);
+    LOGI("VLM initialised (handle=%p)", (void *) ctx);
     return reinterpret_cast<jlong>(ctx);
 }
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInit(
-    JNIEnv *env,
-    jobject thiz,
-    jstring modelDir,
-    jint layersToOffload
-) {
-    const char *nativeModelDir = env->GetStringUTFChars(modelDir, nullptr);
-    std::string baseDir(nativeModelDir ? nativeModelDir : "");
-    env->ReleaseStringUTFChars(modelDir, nativeModelDir);
+        JNIEnv * env, jobject thiz, jstring modelDir, jint layersToOffload) {
 
-    std::string modelFile = baseDir + "/Qwen2-VL-2B-Instruct-Q4_K_M.gguf";
-    std::string mmprojFile = baseDir + "/mmproj-Qwen2-VL-2B-Instruct-f16.gguf";
+    const std::string dir = jstring_to_std(env, modelDir);
+    const std::string m   = dir + "/Qwen2-VL-2B-Instruct-Q4_K_M.gguf";
+    // Q8_0 is preferred: measured ~20.3s/frame vs >=72s for f16 on an SD8Gen2,
+    // 710MB vs 1.33GB resident, and no measurable loss of vision quality.
+    const std::string q8  = dir + "/mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf";
+    const std::string f16 = dir + "/mmproj-Qwen2-VL-2B-Instruct-f16.gguf";
+    const std::string p   = (access(q8.c_str(), R_OK) == 0) ? q8 : f16;
 
-    jstring jModel = env->NewStringUTF(modelFile.c_str());
-    jstring jProj = env->NewStringUTF(mmprojFile.c_str());
-    jlong handle = Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(env, thiz, jModel, jProj, layersToOffload);
-    env->DeleteLocalRef(jModel);
-    env->DeleteLocalRef(jProj);
-    return handle;
+    jstring jm = env->NewStringUTF(m.c_str());
+    jstring jp = env->NewStringUTF(p.c_str());
+    jlong h = Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(env, thiz, jm, jp, layersToOffload);
+    env->DeleteLocalRef(jm);
+    env->DeleteLocalRef(jp);
+    return h;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
-    JNIEnv *env,
-    jobject /* this */,
-    jlong handle,
-    jstring prompt,
-    jobjectArray imagePaths
-) {
-    auto *ctx = reinterpret_cast<NativeVLMContext *>(handle);
-    if (!ctx || !ctx->is_initialized || !ctx->ctx_llama) {
-        return env->NewStringUTF("Error: Native VLM engine is not loaded.");
+        JNIEnv * env, jobject /*thiz*/,
+        jlong handle, jstring prompt, jobjectArray imagePaths) {
+
+    auto * ctx = reinterpret_cast<NativeVLMContext *>(handle);
+    if (!ctx || !ctx->ctx_llama) {
+        return env->NewStringUTF("Error: native VLM engine is not loaded.");
     }
 
-    const char *nativePrompt = env->GetStringUTFChars(prompt, nullptr);
-    std::string promptStr(nativePrompt ? nativePrompt : "");
-    if (nativePrompt) env->ReleaseStringUTFChars(prompt, nativePrompt);
+    std::string prompt_str = jstring_to_std(env, prompt);
+    const jsize n_images = imagePaths ? env->GetArrayLength(imagePaths) : 0;
 
-    int numImages = env->GetArrayLength(imagePaths);
-    int n_past = 0;
+    // Start each generation from a clean KV cache so calls do not accumulate.
+    llama_memory_clear(llama_get_memory(ctx->ctx_llama), true);
 
-    // 1. Process image keyframes with multimodal projector if present
-    if (ctx->ctx_clip && numImages > 0) {
-        for (int i = 0; i < numImages && i < 2; ++i) {
-            auto jPath = (jstring)env->GetObjectArrayElement(imagePaths, i);
-            const char *nativePath = env->GetStringUTFChars(jPath, nullptr);
-            if (nativePath && access(nativePath, R_OK) == 0) {
-                llava_image_embed * embed = llava_image_embed_make_with_filename(ctx->ctx_clip, ctx->n_threads, nativePath);
-                if (embed) {
-                    llava_eval_image_embed(ctx->ctx_llama, embed, 512, &n_past);
-                    llava_image_embed_free(embed);
-                }
+    std::vector<mtmd_bitmap *> bitmaps;
+    if (ctx->ctx_mtmd && ctx->has_vision) {
+        for (jsize i = 0; i < n_images; ++i) {
+            auto jp = (jstring) env->GetObjectArrayElement(imagePaths, i);
+            const std::string path = jstring_to_std(env, jp);
+            env->DeleteLocalRef(jp);
+            if (path.empty() || access(path.c_str(), R_OK) != 0) {
+                LOGW("Skipping unreadable image: %s", path.c_str());
+                continue;
             }
-            if (nativePath) env->ReleaseStringUTFChars(jPath, nativePath);
-            env->DeleteLocalRef(jPath);
+            auto wrap = mtmd_helper_bitmap_init_from_file(
+                ctx->ctx_mtmd, path.c_str(), false, mtmd_helper_init_opt_default());
+            if (!wrap.bitmap) {
+                LOGW("Failed to decode image: %s", path.c_str());
+                continue;
+            }
+            bitmaps.push_back(wrap.bitmap);
         }
     }
 
-    // 2. Tokenize prompt
-    std::vector<llama_token> tokens;
-    tokens.resize(promptStr.size() + 16);
-    int n_tokens = llama_tokenize(llama_get_model(ctx->ctx_llama), promptStr.c_str(), promptStr.length(), tokens.data(), tokens.size(), true, false);
-    if (n_tokens < 0) {
-        tokens.resize(-n_tokens);
-        n_tokens = llama_tokenize(llama_get_model(ctx->ctx_llama), promptStr.c_str(), promptStr.length(), tokens.data(), tokens.size(), true, false);
-    }
-    tokens.resize(std::max(0, n_tokens));
-
-    // 3. Evaluate prompt tokens in batch
-    llama_batch batch = llama_batch_init(512, 0, 1);
-    for (int i = 0; i < (int)tokens.size(); ++i) {
-        llama_batch_add(batch, tokens[i], n_past++, { 0 }, i == (int)tokens.size() - 1);
-        if (batch.n_tokens >= 512 || i == (int)tokens.size() - 1) {
-            if (llama_decode(ctx->ctx_llama, batch) != 0) {
-                LOGE("llama_decode failed during prompt processing");
-                llama_batch_free(batch);
-                return env->NewStringUTF("Error: Neural forward pass failed.");
-            }
-            batch.n_tokens = 0;
-        }
+    // mtmd places each image where a marker appears. If the caller supplied no
+    // markers, prepend one per decoded image so ordering stays deterministic.
+    const std::string marker = mtmd_default_marker();
+    if (!bitmaps.empty() && prompt_str.find(marker) == std::string::npos) {
+        std::string prefix;
+        for (size_t i = 0; i < bitmaps.size(); ++i) prefix += marker + "\n";
+        prompt_str = prefix + prompt_str;
     }
 
-    // 4. Autoregressive token generation
+    mtmd_input_text text{};
+    text.text          = prompt_str.c_str();
+    text.text_len      = prompt_str.size();
+    text.add_special   = false;  // caller supplies the full chat template
+    text.parse_special = true;
+
+    mtmd_input_chunks * chunks = mtmd_input_chunks_init();
+    const int32_t rc = mtmd_tokenize(ctx->ctx_mtmd, chunks, &text,
+                                     (const mtmd_bitmap **) bitmaps.data(), bitmaps.size());
+    for (auto * b : bitmaps) mtmd_bitmap_free(b);
+
+    if (rc != 0) {
+        mtmd_input_chunks_free(chunks);
+        LOGE("mtmd_tokenize failed: %d", rc);
+        return env->NewStringUTF("Error: failed to tokenize multimodal prompt.");
+    }
+
+    llama_pos n_past = 0;
+    const int32_t eval_rc = mtmd_helper_eval_chunks(
+        ctx->ctx_mtmd, ctx->ctx_llama, chunks,
+        /*n_past*/ 0, /*seq_id*/ 0, /*n_batch*/ 2048,
+        /*logits_last*/ true, &n_past);
+    mtmd_input_chunks_free(chunks);
+
+    if (eval_rc != 0) {
+        LOGE("mtmd_helper_eval_chunks failed: %d", eval_rc);
+        return env->NewStringUTF("Error: multimodal forward pass failed.");
+    }
+
+    const llama_vocab * vocab = llama_model_get_vocab(ctx->model);
     std::ostringstream oss;
-    int max_new_tokens = 256;
+    const int max_new_tokens = 256;
+
     for (int i = 0; i < max_new_tokens; ++i) {
-        auto * logits = llama_get_logits_ith(ctx->ctx_llama, batch.n_tokens - 1);
-        int n_vocab = llama_n_vocab(llama_get_model(ctx->ctx_llama));
+        const llama_token tok = llama_sampler_sample(ctx->sampler, ctx->ctx_llama, -1);
+        llama_sampler_accept(ctx->sampler, tok);
 
-        // Greedy token selection
-        llama_token new_token = 0;
-        float max_logit = -1e9f;
-        for (int v = 0; v < n_vocab; ++v) {
-            if (logits[v] > max_logit) {
-                max_logit = logits[v];
-                new_token = v;
-            }
-        }
+        if (llama_vocab_is_eog(vocab, tok)) break;
 
-        if (new_token == llama_token_eos(llama_get_model(ctx->ctx_llama))) {
-            break;
-        }
+        char piece[256];
+        const int n = llama_token_to_piece(vocab, tok, piece, sizeof(piece), 0, true);
+        if (n > 0) oss.write(piece, n);
 
-        char piece[128];
-        int n_piece = llama_token_to_piece(llama_get_model(ctx->ctx_llama), new_token, piece, sizeof(piece), false);
-        if (n_piece > 0) {
-            oss.write(piece, n_piece);
-        }
-
-        llama_batch_clear(batch);
-        llama_batch_add(batch, new_token, n_past++, { 0 }, true);
+        llama_batch batch = llama_batch_get_one(const_cast<llama_token *>(&tok), 1);
         if (llama_decode(ctx->ctx_llama, batch) != 0) {
+            LOGW("llama_decode failed at token %d — stopping", i);
             break;
         }
-    }
-    llama_batch_free(batch);
-
-    std::string response = oss.str();
-    if (response.empty()) {
-        response = "Neural inference completed.";
+        n_past++;
     }
 
-    return env->NewStringUTF(response.c_str());
+    std::string out = oss.str();
+    if (out.empty()) out = "Error: model produced no output.";
+    return env->NewStringUTF(out.c_str());
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGetModelInfo(
-    JNIEnv *env,
-    jobject /* this */,
-    jlong handle
-) {
-    auto *ctx = reinterpret_cast<NativeVLMContext *>(handle);
-    if (!ctx || !ctx->is_initialized) {
-        return env->NewStringUTF("Not Initialized");
-    }
+        JNIEnv * env, jobject /*thiz*/, jlong handle) {
 
-    std::string modelName = ctx->model_path.substr(ctx->model_path.find_last_of('/') + 1);
-    std::ostringstream oss;
-    oss << modelName << " (ARM64 NEON, 4 threads)";
-    return env->NewStringUTF(oss.str().c_str());
+    auto * ctx = reinterpret_cast<NativeVLMContext *>(handle);
+    if (!ctx || !ctx->ctx_llama) return env->NewStringUTF("Not initialized");
+
+    const size_t slash = ctx->model_path.find_last_of('/');
+    const std::string name = (slash == std::string::npos)
+        ? ctx->model_path : ctx->model_path.substr(slash + 1);
+
+    char buf[256];
+    snprintf(buf, sizeof(buf), "%s (arm64, %d threads, vision=%s)",
+             name.c_str(), ctx->n_threads, ctx->has_vision ? "yes" : "no");
+    return env->NewStringUTF(buf);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_cctv_videorag_llm_OnDeviceVLM_nativeClose(
-    JNIEnv *env,
-    jobject /* this */,
-    jlong handle
-) {
-    auto *ctx = reinterpret_cast<NativeVLMContext *>(handle);
-    if (ctx) {
-        LOGI("Releasing native VLM context...");
-        if (ctx->ctx_clip) {
-            clip_free(ctx->ctx_clip);
-        }
-        if (ctx->ctx_llama) {
-            llama_free(ctx->ctx_llama);
-        }
-        if (ctx->model) {
-            llama_free_model(ctx->model);
-        }
-        delete ctx;
-    }
+        JNIEnv * /*env*/, jobject /*thiz*/, jlong handle) {
+
+    auto * ctx = reinterpret_cast<NativeVLMContext *>(handle);
+    if (!ctx) return;
+    LOGI("Releasing native VLM context");
+    if (ctx->sampler)   llama_sampler_free(ctx->sampler);
+    if (ctx->ctx_mtmd)  mtmd_free(ctx->ctx_mtmd);
+    if (ctx->ctx_llama) llama_free(ctx->ctx_llama);
+    if (ctx->model)     llama_model_free(ctx->model);
+    delete ctx;
 }

@@ -20,6 +20,31 @@ import java.util.Locale
 
 class VideoFrameDecoder(private val context: Context) {
 
+    companion object {
+        /**
+         * Longest edge for a stored keyframe.
+         *
+         * Frames were previously stored at the video's native resolution. Vision-token
+         * count scales with that, and encode time scales with tokens: a 1280x720 frame
+         * is ~1125 tokens and ~87 s on an SD8Gen2, versus ~264 tokens and ~20 s at
+         * 640x360. Storing 720p also overflowed the model's context once several frames
+         * were sent together. 640 keeps a 16:9 frame near ~264 tokens.
+         */
+        const val MAX_KEYFRAME_DIM = 640
+    }
+
+    /** Scale so the longest edge is at most [maxDim], preserving aspect ratio. */
+    private fun downscale(src: Bitmap, maxDim: Int): Bitmap {
+        val longest = maxOf(src.width, src.height)
+        if (longest <= maxDim) return src
+        val scale = maxDim.toFloat() / longest
+        val w = (src.width * scale).toInt().coerceAtLeast(1)
+        val h = (src.height * scale).toInt().coerceAtLeast(1)
+        val out = Bitmap.createScaledBitmap(src, w, h, true)
+        if (out != src) src.recycle()
+        return out
+    }
+
     /**
      * Decode video from Uri (local file / content picker) into downsampled keyframes at specified target frame rate.
      */
@@ -43,7 +68,8 @@ class VideoFrameDecoder(private val context: Context) {
             var frameIdx = 0
             while (curTimeMs < durationMs) {
                 val timeUs = curTimeMs * 1000L
-                val frameBitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                val rawFrame = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                val frameBitmap = rawFrame?.let { downscale(it, MAX_KEYFRAME_DIM) }
                 if (frameBitmap != null) {
                     val secondsTotal = curTimeMs / 1000
                     val hh = secondsTotal / 3600

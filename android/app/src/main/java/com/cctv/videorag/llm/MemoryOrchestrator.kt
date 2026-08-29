@@ -23,9 +23,25 @@ class MemoryOrchestrator(
         vlm = null
         
         if (embedder == null) {
-            embedder = OnDeviceEmbedder(onnxModelPath)
+            // Throws ModelUnavailableException if the CLIP towers are missing; callers
+            // surface that instead of silently falling back to meaningless vectors.
+            embedder = OnDeviceEmbedder.create(context)
         }
         return embedder!!
+    }
+
+    /**
+     * A VLM handle for frame description during ingestion, which is colour-histogram
+     * work and needs no native model. Returning this without calling loadVLM() is what
+     * keeps ingestion off the load/unload treadmill: previously every single frame ran
+     * getActiveVLM() then getActiveEmbedder(), and the mutex unloaded one to load the
+     * other each time - roughly 780 model swaps for a 13-minute clip at 1 FPS.
+     */
+    suspend fun getFrameDescriber(): OnDeviceVLM = lock.withLock {
+        if (vlm == null) {
+            vlm = OnDeviceVLM(context, vlmModelPath)   // deliberately not loaded
+        }
+        return vlm!!
     }
 
     /**

@@ -49,7 +49,10 @@ class MainActivity : AppCompatActivity() {
     private var acceptedFramesCount = 0
     private var droppedFramesCount = 0
     private var selectedFps = 1.0 // Default: 1 frame per second
-    private var enableHashGate = false // Default: NO HASHING (100% dense frame extraction)
+    // Gate ON by default. With it off, every sampled frame is embedded, captioned and
+    // stored - on a long clip that is mostly duplicate footage of an empty scene.
+    private var enableHashGate = true
+    private var hashThreshold = MobileFrameFilter.DEFAULT_HAMMING_THRESHOLD
     private var currentVideoUri: Uri? = null
     private var lastSelectedTimestampMs: Int = 0
     private var ingestionStartTimeMs: Long = 0L
@@ -131,14 +134,18 @@ class MainActivity : AppCompatActivity() {
 
             Log.i("MainActivity", "User selected model folder: $realPath ($treeUri)")
 
-            lifecycleScope.launch(Dispatchers.Main) {
-                val vlm = orchestrator.getActiveVLM()
+            // customModelDirectory's setter calls loadVLM(), so this must not run on Main.
+            lifecycleScope.launch(Dispatchers.IO) {
+                val vlm = orchestrator.getFrameDescriber()
                 vlm.customModelDirectory = realPath
-                updateModelBadge()
-                if (vlm.isNativeGGUFAvailable()) {
-                    Toast.makeText(this@MainActivity, "🟢 Qwen2.5-VL / Qwen2-VL Loaded from: $realPath", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(this@MainActivity, "Folder selected: $realPath. Verifying .gguf files...", Toast.LENGTH_LONG).show()
+                val ok = vlm.isNativeGGUFAvailable()
+                withContext(Dispatchers.Main) {
+                    updateModelBadge()
+                    Toast.makeText(
+                        this@MainActivity,
+                        if (ok) "Model files found in $realPath" else "No .gguf files found in $realPath",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
@@ -152,6 +159,7 @@ class MainActivity : AppCompatActivity() {
         initOrchestrator()
         setupListeners()
         checkAndRequestStoragePermission()
+        runTokenizerSelfTest()
     }
 
     override fun onResume() {
@@ -177,14 +185,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Reports whether the model FILES are present. Deliberately does not load them:
+     * this runs from onCreate and onResume, and it previously called getActiveVLM() on
+     * Dispatchers.Main, mapping a ~1.7 GB model load onto the UI thread on every resume.
+     * The badge also no longer claims the model is "Active" merely because files exist.
+     */
     private fun updateModelBadge() {
         val tvModelBadge = findViewById<TextView>(R.id.tvModelBadge) ?: return
-        lifecycleScope.launch(Dispatchers.Main) {
-            val vlm = orchestrator.getActiveVLM()
-            if (vlm.isNativeGGUFAvailable()) {
-                tvModelBadge.text = "🟢 Qwen2.5-VL / Qwen2-VL (Active)"
-            } else {
-                tvModelBadge.text = "EDGE NPU/GPU"
+        lifecycleScope.launch(Dispatchers.IO) {
+            val available = orchestrator.getFrameDescriber().isNativeGGUFAvailable()
+            withContext(Dispatchers.Main) {
+                tvModelBadge.text = if (available) "Model files found" else "No model files"
             }
         }
     }
@@ -275,16 +287,19 @@ class MainActivity : AppCompatActivity() {
         btnFps20.setOnClickListener { selectFps(2.0, btnFps20) }
 
         // dHash Gate Toggle (No Hashing vs Filtering)
+        // Reflect the real default (gate ON) rather than whatever the layout hardcodes.
+        applyHashGateButtonState()
+
         btnToggleHashGate.setOnClickListener {
             enableHashGate = !enableHashGate
             if (enableHashGate) {
-                btnToggleHashGate.text = "Gate: ON"
+                btnToggleHashGate.text = "Gate: $hashThreshold"
                 btnToggleHashGate.setTextColor(ContextCompat.getColor(this, R.color.primary))
-                Toast.makeText(this, "dHash Filter ON (Drops Duplicate Frames)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "dHash gate ON - drops frames within $hashThreshold bits of the last keyframe", Toast.LENGTH_SHORT).show()
             } else {
                 btnToggleHashGate.text = "Gate: OFF"
                 btnToggleHashGate.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
-                Toast.makeText(this, "dHash Filter OFF (100% Dense Keyframes)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "dHash gate OFF - every sampled frame is indexed", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -341,6 +356,42 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Confirm the Kotlin CLIP BPE port still matches Python's token ids.
+     * A drift here is invisible at runtime - embeddings just land in the wrong place -
+     * so it is checked explicitly rather than assumed.
+     */
+    private fun runTokenizerSelfTest() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val tk = ClipTokenizer.fromAssets(this@MainActivity)
+                val r = ClipTokenizerSelfTest.run(this@MainActivity, tk)
+                if (!r.ok) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Tokenizer self-test FAILED (${r.failed}) - text search will be unreliable",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            } catch (e: Throwable) {
+                Log.e("VideoRAG_Tokenizer", "self-test error", e)
+            }
+        }
+    }
+
+    /** Keep the gate button's label and colour in sync with [enableHashGate]. */
+    private fun applyHashGateButtonState() {
+        if (enableHashGate) {
+            btnToggleHashGate.text = "Gate: $hashThreshold"
+            btnToggleHashGate.setTextColor(ContextCompat.getColor(this, R.color.primary))
+        } else {
+            btnToggleHashGate.text = "Gate: OFF"
+            btnToggleHashGate.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+        }
+    }
+
     private fun selectFps(fps: Double, selectedButton: Button) {
         selectedFps = fps
         btnFps05.setBackgroundResource(R.drawable.btn_pill_inactive)
@@ -377,7 +428,7 @@ class MainActivity : AppCompatActivity() {
 
         tvStatus.text = "Active Surveillance Index: 0 region vectors & 0 FTS5 rows"
         tvIngestionInfo.text = "Select a video file (1.0 FPS Dense Mode: 100% frames indexed)."
-        tvHashValue.text = if (!enableHashGate) "Gate: BYPASS (100% Dense Keyframes)" else "Last dHash: None | Δ=--"
+        tvHashValue.text = if (!enableHashGate) "Gate: OFF (every frame indexed)" else "Gate: threshold $hashThreshold | awaiting first frame"
         tvGateMetrics.text = "Accepted: 0 | Dropped: 0"
         tvPyramidMetrics.text = "Spatial Pyramid: 6 crops / frame | Vectors: 0"
 
@@ -452,18 +503,25 @@ class MainActivity : AppCompatActivity() {
 
                 withContext(Dispatchers.Main) {
                     pbIngestion.visibility = View.GONE
-                    val modeLabel = if (!enableHashGate) "100% Dense Mode" else "Filtered Mode"
+                    val modeLabel = if (!enableHashGate) "gate off" else "dHash gate, threshold $hashThreshold"
                     tvIngestionInfo.text = "Ingestion Complete! Indexed ${acceptedFramesCount} keyframes (${droppedFramesCount} dropped) into ${vectorStore.size} Dense Vectors & ${sqliteFts.size()} SQLite FTS5 Rows ($modeLabel)."
                     tvStatus.text = "Active Surveillance Index: ${vectorStore.size} vectors & ${sqliteFts.size()} FTS5 tokens in RAM"
                     tvResults.text = "Video indexing complete! Enter any search query above to search footage."
                     Toast.makeText(this@MainActivity, "Indexed ${acceptedFramesCount} frames (${vectorStore.size} vectors + SQLite FTS5)!", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Throwable) {
-                Log.e("VideoRAG_Ingest", "Video decode failed", e)
+                Log.e("VideoRAG_Ingest", "Ingestion failed", e)
                 withContext(Dispatchers.Main) {
                     pbIngestion.visibility = View.GONE
-                    tvIngestionInfo.text = "Decode error: ${e.message ?: "Failed to decode video"}"
-                    tvResults.text = "Error processing video: ${e.localizedMessage}"
+                    // Distinguish a missing/unloadable CLIP model from a genuine decode
+                    // failure - "Decode error" for a model problem sent us hunting in the
+                    // wrong place.
+                    val isModel = e is OnDeviceEmbedder.ModelUnavailableException ||
+                                  e.cause is OnDeviceEmbedder.ModelUnavailableException
+                    val what = if (isModel) "CLIP model error" else "Decode error"
+                    val detail = e.message ?: e.cause?.message ?: e.javaClass.simpleName
+                    tvIngestionInfo.text = "$what: $detail"
+                    tvResults.text = "$what\n\n$detail\n\n(${e.javaClass.name})"
                 }
             }
         }
@@ -524,22 +582,16 @@ class MainActivity : AppCompatActivity() {
         val currentHash = MobileFrameFilter.calculateDHash(bitmap)
         val hashHex = MobileFrameFilter.formatHashHex(currentHash)
 
-        var hammingDist = 64
-        var isDropped = false
+        // Distance from the last KEPT keyframe. 64 means "no baseline yet".
+        var hammingDist = lastFrameHash?.let { MobileFrameFilter.hammingDistance(it, currentHash) } ?: 64
 
-        // dHash Filtering: Filter out redundant static frames
         if (enableHashGate) {
-            lastFrameHash?.let { lastHash ->
-                hammingDist = MobileFrameFilter.hammingDistance(lastHash, currentHash)
-                if (hammingDist <= 1) {
-                    droppedFramesCount++
-                    isDropped = true
-                }
-            }
-
-            if (isDropped) {
+            val keep = MobileFrameFilter.isKeyframe(lastFrameHash, currentHash, hashThreshold)
+            if (!keep) {
+                droppedFramesCount++
                 updateTelemetryUI(hashHex, hammingDist, dropped = true)
-                return
+                return   // note: lastFrameHash is NOT advanced, so the next frame is
+                         // still compared against the last frame we actually kept
             }
         }
 
@@ -547,39 +599,45 @@ class MainActivity : AppCompatActivity() {
         acceptedFramesCount++
         updateTelemetryUI(hashHex, hammingDist, dropped = false)
 
-        // Step 1: Send extracted keyframe to Qwen / VLM to generate structured JSON description
-        val vlm = orchestrator.getActiveVLM()
+        // Step 1: cheap per-frame stats. No VLM load here - see getFrameDescriber().
+        val vlm = orchestrator.getFrameDescriber()
         val frameJson = vlm.describeFrameAsJson(bitmap, timestamp, acceptedFramesCount, imagePath)
         val frameDescription = frameJson.getString("visual_description")
 
-        // Step 2: Embed the generated description + image features into 512-D vector
+        // Step 2: index the frame as 6 spatial regions in CLIP's image space.
+        //
+        // No text/image blending any more: the old code mixed a hash-bucket text vector
+        // with a colour histogram at 0.6/0.4, which combined two unrelated coordinate
+        // systems. Queries are embedded with the text tower and frames with the image
+        // tower, which is what puts them in one comparable space.
+        //
+        // Regions matter for small objects. Measured on this footage, a bus covering ~3%
+        // of the frame left every candidate within 0.02 cosine of the others and ranked
+        // the right frame 4th-5th; per-region embeddings with max-pooling at query time
+        // move it to 2nd.
         val embedder = orchestrator.getActiveEmbedder()
-        val textVector = embedder.embedText(frameDescription)
-        val imageVector = embedder.embedCrop(bitmap)
-
-        val combinedVector = FloatArray(512)
-        for (i in 0 until 512) {
-            combinedVector[i] = (textVector[i] * 0.6f) + (imageVector[i] * 0.4f)
+        val crops = SpatialCropper.generatePyramidCrops(bitmap)
+        for (crop in crops) {
+            val v = embedder.embedImage(crop.bitmap)
+            vectorStore.addMoment(
+                IndexedMoment(
+                    id = "${camera}_${timestamp}_${crop.label}",
+                    camera = camera,
+                    timestamp = timestamp,
+                    epochTime = epochTime,
+                    vector = v,
+                    cropRegion = crop.label,
+                    imagePath = imagePath,
+                    description = frameDescription,
+                    jsonMetadata = frameJson.toString()
+                )
+            )
+            if (crop.bitmap != bitmap) crop.bitmap.recycle()
         }
 
-        val moment = IndexedMoment(
-            id = "${camera}_${timestamp}",
-            camera = camera,
-            timestamp = timestamp,
-            epochTime = epochTime,
-            vector = combinedVector,
-            cropRegion = "frame",
-            imagePath = imagePath,
-            description = frameDescription,
-            jsonMetadata = frameJson.toString()
-        )
-
-        // Save in FAISS / Vector store
-        vectorStore.addMoment(moment)
-
-        // Save in SQLite FTS5 Full-Text Search
+        // One lexical row per FRAME (the dense index holds the 6 per-region vectors).
         sqliteFts.insertMoment(
-            momentId = moment.id,
+            momentId = "${camera}_${timestamp}",
             camera = camera,
             timestamp = timestamp,
             epochTime = epochTime,
@@ -597,7 +655,7 @@ class MainActivity : AppCompatActivity() {
     private suspend fun updateTelemetryUI(hashHex: String, hammingDist: Int, dropped: Boolean) {
         withContext(Dispatchers.Main) {
             if (!enableHashGate) {
-                tvHashValue.text = "Gate: BYPASS (100% Keyframes) | dHash: 0x$hashHex"
+                tvHashValue.text = "Gate: OFF (every frame indexed) | dHash: 0x$hashHex"
                 tvGateMetrics.text = "Accepted: $acceptedFramesCount / $acceptedFramesCount (100% Ingested - 0 Dropped)"
             } else {
                 val deltaStatus = if (dropped) "Δ=$hammingDist (Static Dropped ❌)" else "Δ=$hammingDist (Motion Keyframe Accepted ✅)"
@@ -650,15 +708,25 @@ class MainActivity : AppCompatActivity() {
                     pathMetadata[m.imagePath] = m
                 }
 
-                val denseHits = mutableListOf<Pair<IndexedMoment, Float>>()
+                // Each frame is indexed as 6 regions, so a raw top-K would return several
+                // crops of the same frame. Max-pool to the best-scoring region per frame:
+                // the frame's score is its most relevant region, which is what makes a
+                // small object competitive against frames that are similar overall.
                 val embedder = orchestrator.getActiveEmbedder()
+                val bestPerFrame = HashMap<String, Pair<IndexedMoment, Float>>()
                 for (expandedQ in expandedQueries) {
                     val queryVector = embedder.embedText(expandedQ)
-                    val hits = vectorStore.search(queryVector, topK = 5)
-                    for (hit in hits) {
-                        denseHits.add(hit)
+                    // pull deeper than we need, since 6 regions share each frame
+                    for ((moment, score) in vectorStore.search(queryVector, topK = 40)) {
+                        val prev = bestPerFrame[moment.imagePath]
+                        if (prev == null || score > prev.second) {
+                            bestPerFrame[moment.imagePath] = moment to score
+                        }
                     }
                 }
+                val denseHits = bestPerFrame.values.sortedByDescending { it.second }.toMutableList()
+                Log.i("VideoRAG_Query", "dense: ${denseHits.size} frames; top=" +
+                    denseHits.take(5).joinToString { "${it.first.timestamp}[${it.first.cropRegion}]=%.3f".format(it.second) })
 
                 val sparseHits = sqliteFts.searchSparse(userQuery, topK = 5)
 
@@ -779,8 +847,12 @@ class MainActivity : AppCompatActivity() {
             frameContainer.addView(imageView)
             frameContainer.addView(playBadge)
 
-            val rawScore = result?.rrfScore ?: 0.016f
-            val matchPercent = (rawScore * 3000).toInt().coerceIn(15, 99)
+            // RRF scores are ~1/(60+rank); they are a ranking signal, not a
+            // probability, so the old (rrfScore * 3000).coerceIn(15,99) presented an
+            // arbitrary number as a confidence. Show the rank instead, which is what
+            // the score actually encodes.
+            val rank = fusedResults.indexOfFirst { it.moment.imagePath == moment.imagePath }
+            val rankLabel = if (rank >= 0) "#${rank + 1}" else "-"
             val matchType = result?.matchType ?: "Hybrid"
 
             val tvTimestamp = TextView(this).apply {
@@ -791,7 +863,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             val tvMatch = TextView(this).apply {
-                text = "Match: $matchPercent% ($matchType)"
+                text = "Rank $rankLabel · $matchType"
                 setTextColor(Color.parseColor("#2563EB"))
                 textSize = 10f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
