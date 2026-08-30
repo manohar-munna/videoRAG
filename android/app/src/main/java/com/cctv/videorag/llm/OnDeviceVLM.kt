@@ -323,7 +323,9 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // person can read. Frame the task as prose Q&A and rule coordinates out explicitly.
         val shown = sorted.filter { File(it.imagePath).exists() }
         val frameCount = shown.size
-        val lineTemplate = shown.joinToString("\n") { "${it.timestamp} - <what this frame shows>" }
+        // Leave each line open after the dash for the model to continue. A placeholder
+        // like "<what this frame shows>" gets echoed back verbatim, brackets included.
+        val lineTemplate = shown.joinToString("\n") { "${it.timestamp} -" }
 
         // The frames are retrieval hits, not consecutive video: they can be minutes
         // apart. Without saying so the model narrates them as continuous motion and
@@ -358,19 +360,9 @@ $frameList
 $priorContext
 Question: $query
 
-First look at each frame and list the people, vehicles and objects you can actually see, grouping each subject onto one line with the timestamps where it appears:
+Write one line for each frame, starting with its timestamp and a dash, describing what that frame shows in relation to the question. Note clothing colour, vehicle markings and any text you can read. Say plainly when the thing asked about is not in a frame.
 
-<subject you can see> at <timestamps>
-<another subject you can see> at <timestamps>
-
-Then, on a final line beginning "Answer:", say what that means for the question.
-
-Rules:
-- The shape above is a form to fill in, not content. Never repeat its wording.
-- Describe what is in the frames BEFORE deciding whether the question's subject is among them. Pay attention to clothing colour, vehicle markings and any readable text.
-- Use only the timestamps listed above.
-- Only say the subject is absent if you have listed what IS in the frames and it genuinely is not there.
-- If this is a follow-up, use the earlier exchange to resolve what "it" or "they" refers to.<|im_end|>
+$lineTemplate<|im_end|>
 <|im_start|>assistant
 """
 
@@ -387,8 +379,52 @@ Rules:
 
         val footer = "Analysed ${imagePaths.size} keyframes spanning [$startTs - $endTs] " +
                      "using ${activeModelFileName ?: "the on-device model"}."
-        return humanise(answer.trim()) + "\n\n---\n" + footer
+        return groupBySubject(humanise(answer.trim())) + "\n\n---\n" + footer
     }
+    /**
+     * Collapse repeated per-frame descriptions into one line per subject.
+     *
+     * Asking the model to group timestamps itself failed repeatedly: given a worked
+     * example it copied the example, given placeholders it emitted the placeholders,
+     * and given a two-step "describe then answer" it prefixed every line with "Answer:".
+     * A 2B model reliably does one thing here - describe a single image - so the model
+     * describes each frame and the aggregation happens in code, where it is exact.
+     *
+     * "00:03:42 - White truck parked by a crowd."
+     * "00:07:20 - White truck parked by a crowd."   ->  one line, both timestamps
+     */
+    private fun groupBySubject(text: String): String {
+        val lineRx = Regex("""^\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–:]\s*(.+?)\s*$""")
+        val order = LinkedHashMap<String, MutableList<String>>()   // normalised -> timestamps
+        val display = HashMap<String, String>()                    // normalised -> first wording
+        val passthrough = mutableListOf<String>()
+
+        for (raw in text.lines()) {
+            val m = lineRx.find(raw)
+            if (m == null) {
+                if (raw.isNotBlank()) passthrough.add(raw.trim())
+                continue
+            }
+            val ts = m.groupValues[1]
+            val desc = m.groupValues[2].trim().trimEnd('.')
+            val key = desc.lowercase().replace(Regex("[^a-z0-9 ]"), "").replace(Regex("\\s+"), " ")
+            if (key.isEmpty()) continue
+            order.getOrPut(key) { mutableListOf() }.add(ts)
+            display.putIfAbsent(key, desc)
+        }
+        if (order.isEmpty()) return text
+
+        val out = StringBuilder()
+        for ((key, times) in order) {
+            val what = display[key] ?: continue
+            out.append(what.replaceFirstChar { it.uppercase() })
+            out.append(if (times.size == 1) " at ${times[0]}." else " at ${times.dropLast(1).joinToString(", ")} and ${times.last()}.")
+            out.append('\n')
+        }
+        for (p in passthrough) out.append(p).append('\n')
+        return out.toString().trim()
+    }
+
     /**
      * Turn Qwen2-VL grounding output into a readable sentence.
      *
