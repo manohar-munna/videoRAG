@@ -358,16 +358,18 @@ $frameList
 $priorContext
 Question: $query
 
-Answer the question above about THESE frames. Report by subject: name a thing once, then list every timestamp it appears at, one subject per line, in this shape:
+First look at each frame and list the people, vehicles and objects you can actually see, grouping each subject onto one line with the timestamps where it appears:
 
-<what you see> is visible at <timestamps where it appears>.
-<another thing you see> is visible at <its timestamps>.
+<subject you can see> at <timestamps>
+<another subject you can see> at <timestamps>
+
+Then, on a final line beginning "Answer:", say what that means for the question.
 
 Rules:
 - The shape above is a form to fill in, not content. Never repeat its wording.
-- Use only the timestamps listed above, and only for frames where you actually see the thing.
-- Quote any text, sign or marking you can read on a vehicle or building.
-- Do not restate the question as your answer. If the thing asked about is not in any of these frames, write exactly: "Not visible in the retrieved frames." and then name what is there instead.
+- Describe what is in the frames BEFORE deciding whether the question's subject is among them. Pay attention to clothing colour, vehicle markings and any readable text.
+- Use only the timestamps listed above.
+- Only say the subject is absent if you have listed what IS in the frames and it genuinely is not there.
 - If this is a follow-up, use the earlier exchange to resolve what "it" or "they" refers to.<|im_end|>
 <|im_start|>assistant
 """

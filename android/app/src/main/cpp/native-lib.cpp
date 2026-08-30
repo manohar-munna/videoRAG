@@ -133,13 +133,14 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(
         // encoding dominates query latency: on a Vivo I2304 five frames cost ~130 s of
         // a ~150 s query.
         //
-        // 256 rather than 512 because it was measured, not assumed. On the Venice
-        // keyframe a 256-token cap did not degrade the answer - it read MORE fine text
-        // than the uncapped run, correctly reporting "MOTION PICTURE" off the truck
-        // livery plus the temperature, humidity and AQI from the overlay bar. Upstream
-        // warns Qwen-VL prefers >=1024 tokens for grounding, so if small-object recall
-        // regresses this is the first number to raise back.
-        mp.image_max_tokens = 256;
+        // Raised back to 512 after 256 cost recall: asked for "people wearing pink
+        // colour costumes" the model answered "not visible" on frames where several
+        // people in vivid pink fill the centre of shot. 640x360 keyframes come out at
+        // ~299 tokens naturally, so 512 does not bind and 256 was actively truncating
+        // detail - for roughly a 10% saving, since the frames were already under the
+        // old cap. Upstream warns Qwen-VL prefers >=1024 tokens for grounding, so this
+        // ceiling exists to bound pathological inputs, not to trim normal ones.
+        mp.image_max_tokens = 512;
 
         ctx->ctx_mtmd = mtmd_init_from_file(p_path.c_str(), model, mp);
         if (!ctx->ctx_mtmd) {
