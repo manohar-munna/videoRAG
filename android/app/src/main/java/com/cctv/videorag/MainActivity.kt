@@ -74,6 +74,7 @@ class MainActivity : AppCompatActivity() {
     private var lastFramesSent: List<String> = emptyList()
     private var lastLatencyMs: Long? = null
     private var tokenizerStatus: String = "not run"
+    private var modelHintShown = false
 
     // ── views ─────────────────────────────────────────────────────
     private lateinit var scrollView: NestedScrollView
@@ -135,10 +136,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         initViews()
+        // Both models live in one permission-free directory; see ModelPaths.
         orchestrator = MemoryOrchestrator(
             this,
-            "${filesDir.absolutePath}/mobileclip_s2.onnx",
-            "${filesDir.absolutePath}/qwen2_vl_2b/"
+            ModelPaths.modelsDir(this).absolutePath,
+            ModelPaths.modelsDir(this).absolutePath
         )
         setupListeners()
         checkAndRequestStoragePermission()
@@ -225,6 +227,10 @@ class MainActivity : AppCompatActivity() {
                      catch (_: Throwable) { false }
             withContext(Dispatchers.Main) {
                 tvModelBadge.text = if (ok) "Model ready" else "No model"
+                if (!ok && !modelHintShown) {
+                    modelHintShown = true
+                    ChatView.addSystemNote(chatContainer, ModelPaths.instructions(this@MainActivity), isError = true)
+                }
             }
         }
     }

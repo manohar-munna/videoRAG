@@ -6,6 +6,7 @@ import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
+import com.cctv.videorag.ModelPaths
 import java.io.File
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
@@ -53,13 +54,6 @@ class OnDeviceEmbedder private constructor(
         const val DIM = 512
         const val IMAGE_SIZE = 256          // MobileCLIP-S2's native input resolution
 
-        // Directories searched for the exported towers, mirroring the GGUF lookup.
-        private val SEARCH_DIRS = listOf(
-            "/storage/emulated/0/Download/mobileclip",
-            "/sdcard/Download/mobileclip",
-            "/storage/emulated/0/Download",
-            "/sdcard/Download"
-        )
         // fp32 first, int8 only as a fallback.
         //
         // int8 dynamic quantisation rewrites convolutions to ConvInteger, and
@@ -78,12 +72,16 @@ class OnDeviceEmbedder private constructor(
         private val STD  = floatArrayOf(1f, 1f, 1f)
 
         fun create(context: Context): OnDeviceEmbedder {
-            val imgFile = IMAGE_MODELS.firstNotNullOfOrNull { locate(it) }
-            val txtFile = TEXT_MODELS.firstNotNullOfOrNull { locate(it) }
+            val imgFile = IMAGE_MODELS.firstNotNullOfOrNull { n ->
+                ModelPaths.find(context) { it.name == n }
+            }
+            val txtFile = TEXT_MODELS.firstNotNullOfOrNull { n ->
+                ModelPaths.find(context) { it.name == n }
+            }
             if (imgFile == null || txtFile == null) {
                 throw ModelUnavailableException(
-                    "CLIP towers not found. Place ${IMAGE_MODELS.first()} and " +
-                    "${TEXT_MODELS.first()} in Download/mobileclip/ then restart."
+                    "CLIP towers not found (${IMAGE_MODELS.first()}, ${TEXT_MODELS.first()}).\n" +
+                    ModelPaths.instructions(context)
                 )
             }
             val env = OrtEnvironment.getEnvironment()
@@ -109,8 +107,6 @@ class OnDeviceEmbedder private constructor(
             return OnDeviceEmbedder(env, s1, s2, ClipTokenizer.fromAssets(context))
         }
 
-        private fun locate(name: String): File? =
-            SEARCH_DIRS.asSequence().map { File(it, name) }.firstOrNull { it.isFile && it.length() > 1_000_000 }
     }
 
     /** Embed one image (or crop) into a unit-length 512-D vector. */

@@ -66,6 +66,24 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
      * Discovers exact GGUF model file and mmproj projector file in mobile storage.
      */
     fun findActiveModelFiles(): Pair<File, File?>? {
+        // Canonical location first: the app's own external dir needs no permission and
+        // cannot be revoked. The guessed /sdcard/Download paths below only work when
+        // MANAGE_EXTERNAL_STORAGE happens to be granted - it is not by default, is lost
+        // on reinstall, and its absence is what produced "model not loaded" while the
+        // weights sat readable on disk.
+        val canonical = com.cctv.videorag.ModelPaths.modelsDir(context)
+        val ggufHere = (canonical.listFiles() ?: emptyArray()).filter {
+            it.isFile && it.extension.equals("gguf", true) && it.canRead()
+        }
+        val modelHere = ggufHere.firstOrNull {
+            !it.name.contains("mmproj", true) && it.length() > 50_000_000L
+        }
+        if (modelHere != null) {
+            activeModelDirectory = canonical.absolutePath
+            activeModelFileName = modelHere.name
+            return Pair(modelHere, pickProjector(ggufHere.toTypedArray()))
+        }
+
         val candidatePaths = mutableListOf<String>()
         customModelDirectory?.let { candidatePaths.add(it) }
 
