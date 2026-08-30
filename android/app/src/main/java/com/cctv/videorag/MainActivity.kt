@@ -65,6 +65,9 @@ class MainActivity : AppCompatActivity() {
      */
     private val MAX_KEEP_SIMILARITY = 0.92f
 
+    /** Below this CLIP score the subject is treated as absent - see answerQuestion(). */
+    private val MIN_RELEVANCE = 0.19f
+
     /** Prior turns, oldest first, fed back to the model so follow-ups have context. */
     private val conversation = mutableListOf<ConversationTurn>()
 
@@ -476,6 +479,32 @@ class MainActivity : AppCompatActivity() {
         lastHits = ranked.take(10).map { Triple(it.first.timestamp, it.first.cropRegion, it.second) }
         if (ranked.isEmpty()) {
             return Answer("I couldn't find anything matching that in this video.", emptyList())
+        }
+
+        // Answer "not in this video" from the retrieval scores, before spending three
+        // minutes of VLM time proving it the hard way.
+        //
+        // search() always returns its top K, however poor the match, so without this the
+        // best of a bad set is handed to the model as though it were evidence - and a
+        // 2B VLM shown five irrelevant frames will generally describe something rather
+        // than object. Measured over the 13-minute clip after the caption fix:
+        //   "white truck"              (present) 0.233
+        //   "people in pink costumes"  (present) 0.218
+        //   "red double decker bus in the snow" (absent) 0.163, falling to 0.106
+        // Present subjects sit around 0.22-0.23 and absent ones near 0.16, so 0.19
+        // separates them with margin on both sides. Deliberately set low: a false
+        // "not found" is worse than a slow answer, because the user cannot tell whether
+        // the footage lacks the subject or the search failed.
+        val topScore = ranked.first().second
+        if (topScore < MIN_RELEVANCE) {
+            Log.i("VideoRAG_Query", "top score %.3f < %.2f - answering absent"
+                .format(topScore, MIN_RELEVANCE))
+            return Answer(
+                "I couldn't find anything matching that in this video. " +
+                "The closest frame was at ${ranked.first().first.timestamp}, but it is " +
+                "not a strong enough match to report.",
+                emptyList()
+            )
         }
 
         // Drop near-duplicate hits before they reach the model.
