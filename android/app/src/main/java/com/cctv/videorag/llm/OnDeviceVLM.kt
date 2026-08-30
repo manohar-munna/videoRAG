@@ -323,9 +323,11 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // person can read. Frame the task as prose Q&A and rule coordinates out explicitly.
         val shown = sorted.filter { File(it.imagePath).exists() }
         val frameCount = shown.size
-        // Leave each line open after the dash for the model to continue. A placeholder
-        // like "<what this frame shows>" gets echoed back verbatim, brackets included.
-        val lineTemplate = shown.joinToString("\n") { "${it.timestamp} -" }
+        // Prefill the assistant turn with the first timestamp so the model continues an
+        // established pattern instead of choosing a format. Instructions alone produced,
+        // in turn: a copied worked example, literal <placeholders>, "Answer:" on every
+        // line, and finally a two-word reply with no timestamps at all.
+        val firstStamp = shown.firstOrNull()?.timestamp ?: "00:00:00"
 
         // The frames are retrieval hits, not consecutive video: they can be minutes
         // apart. Without saying so the model narrates them as continuous motion and
@@ -360,11 +362,9 @@ $frameList
 $priorContext
 Question: $query
 
-Write one line for each frame, starting with its timestamp and a dash, describing what that frame shows in relation to the question. Note clothing colour, vehicle markings and any text you can read. Say plainly when the thing asked about is not in a frame.
-
-$lineTemplate<|im_end|>
+Write one line for each of the $frameCount frames, starting with its timestamp, describing what that frame shows in relation to the question. Note clothing colour, vehicle markings and any text you can read. Say plainly when the thing asked about is not in a frame.<|im_end|>
 <|im_start|>assistant
-"""
+$firstStamp -"""
 
         val answer = try {
             nativeGenerate(nativeHandle, prompt, imagePaths.toTypedArray())
@@ -379,7 +379,9 @@ $lineTemplate<|im_end|>
 
         val footer = "Analysed ${imagePaths.size} keyframes spanning [$startTs - $endTs] " +
                      "using ${activeModelFileName ?: "the on-device model"}."
-        return groupBySubject(humanise(answer.trim())) + "\n\n---\n" + footer
+        // the prefilled "HH:MM:SS -" is part of the answer, so put it back on the front
+        val full = "$firstStamp -" + answer.trimEnd()
+        return groupBySubject(humanise(full)) + "\n\n---\n" + footer
     }
     /**
      * Collapse repeated per-frame descriptions into one line per subject.
