@@ -66,6 +66,29 @@ class MemoryOrchestrator(
         return vlm!!
     }
     
+    /**
+     * Free the CLIP towers while keeping the VLM and its vision-encode cache intact.
+     *
+     * A query needs CLIP for exactly one embedText() call, then never again - retrieval
+     * is plain Kotlin over vectors already in memory. Leaving the towers resident costs
+     * ~400 MB of fp32 weights (143 MB image + 254 MB text) through the whole generation
+     * phase, which is precisely when memory is tightest.
+     *
+     * That is not a theoretical cost. Measured on the API-34 emulator (4 GB) mid-query:
+     *   MemAvailable 495 MB, app TOTAL PSS 2.94 GB but RSS only 1.30 GB,
+     *   SWAP PSS 1.68 GB, majflt 19,507
+     * The process was faulting model weights back from swap on every generated token, so
+     * latency measured swap bandwidth rather than compute.
+     *
+     * Deliberately NOT symmetric with the VLM: getActiveEmbedder() must stay cheap to
+     * re-enter because ingestion calls it per frame. This is for the query path only,
+     * after the question vector exists. Reloading the towers next query costs ~2 s.
+     */
+    suspend fun releaseEmbedder() = lock.withLock {
+        embedder?.close()
+        embedder = null
+    }
+
     suspend fun releaseAll() = lock.withLock {
         embedder?.close()
         embedder = null

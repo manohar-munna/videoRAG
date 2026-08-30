@@ -492,6 +492,11 @@ class MainActivity : AppCompatActivity() {
         val sent = moments.sortedBy { it.timestamp }
         lastFramesSent = sent.map { it.timestamp }
 
+        // CLIP has done its one job for this query (embedText, above); retrieval since
+        // then was pure Kotlin. Drop ~400 MB of fp32 towers before the VLM starts
+        // generating, which is the memory-tightest phase of the whole app.
+        orchestrator.releaseEmbedder()
+
         val vlm = orchestrator.getActiveVLM()
         val text = vlm.answerFromRetrievedContext(
             query = question,
