@@ -358,16 +358,16 @@ $frameList
 $priorContext
 Question: $query
 
-Report by subject, not frame by frame. Identify each thing relevant to the question, then give every timestamp where that same thing appears, like this:
+Answer the question above about THESE frames. Report by subject: name a thing once, then list every timestamp it appears at, one subject per line, in this shape:
 
-A white van marked "MOTION PICTURE" is visible at 00:03:42, 00:07:20 and 00:10:54.
-A group of people stands beside it at 00:07:20 and 00:08:46.
+<what you see> is visible at <timestamps where it appears>.
+<another thing you see> is visible at <its timestamps>.
 
 Rules:
-- Group the timestamps of one subject onto one line; do not repeat a subject.
+- The shape above is a form to fill in, not content. Never repeat its wording.
+- Use only the timestamps listed above, and only for frames where you actually see the thing.
 - Quote any text, sign or marking you can read on a vehicle or building.
-- Say what changed between the times you list, if anything did.
-- If the subject of the question never appears, say so in one line.
+- Do not restate the question as your answer. If the thing asked about is not in any of these frames, write exactly: "Not visible in the retrieved frames." and then name what is there instead.
 - If this is a follow-up, use the earlier exchange to resolve what "it" or "they" refers to.<|im_end|>
 <|im_start|>assistant
 """
