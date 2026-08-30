@@ -55,10 +55,14 @@ class MemoryOrchestrator(
      * the previous swap-on-every-call behaviour was both slow and cache-defeating.
      */
     suspend fun getActiveVLM(): OnDeviceVLM = lock.withLock {
-        if (vlm == null) {
-            vlm = OnDeviceVLM(context, vlmModelPath)
-            vlm!!.loadVLM()
-        }
+        if (vlm == null) vlm = OnDeviceVLM(context, vlmModelPath)
+        // Load unconditionally, not just when the instance is new. getFrameDescriber()
+        // deliberately hands back an UNLOADED instance for ingestion, so by the time a
+        // query arrives `vlm` is usually non-null but has no native handle. Guarding the
+        // load behind `vlm == null` therefore skipped it entirely and every answer came
+        // back "On-device model not loaded" while the weights were present and readable.
+        // loadVLM() itself no-ops when the handle is already open, so this is idempotent.
+        vlm!!.loadVLM()
         return vlm!!
     }
     

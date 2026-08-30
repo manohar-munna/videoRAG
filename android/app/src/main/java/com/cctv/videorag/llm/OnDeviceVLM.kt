@@ -302,9 +302,8 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
 
         if (nativeHandle == 0L) {
             return "On-device model not loaded, so no visual analysis was performed. " +
-                   "Retrieved ${sorted.size} keyframes spanning [$startTs - $endTs]. " +
-                   "Place the GGUF model and mmproj in Download/qwen2_vl_2b, or pick the " +
-                   "folder with the Model Folder button, then search again."
+                   "Retrieved ${sorted.size} keyframes spanning [$startTs - $endTs].\n\n" +
+                   com.cctv.videorag.ModelPaths.instructions(context)
         }
         if (imagePaths.isEmpty()) {
             return "Retrieved ${sorted.size} keyframes for [$startTs - $endTs], but their " +
