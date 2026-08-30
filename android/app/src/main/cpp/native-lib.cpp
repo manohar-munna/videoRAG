@@ -140,18 +140,27 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(
         // detail - for roughly a 10% saving, since the frames were already under the
         // old cap. Upstream warns Qwen-VL prefers >=1024 tokens for grounding, so this
         // ceiling exists to bound pathological inputs, not to trim normal ones.
-        mp.image_max_tokens = 1536;
+        mp.image_max_tokens = 512;
 
-        // Floor, not just a ceiling. Upstream clip.cpp warns for every Qwen-VL model:
-        //   "Qwen-VL models require at minimum 1024 image tokens to function correctly
-        //    on grounding tasks ... try adding --image-min-tokens 1024"
-        //   (ggml-org/llama.cpp#16842)
-        // Grounding is exactly what this app asks for - which vehicle, what colour,
-        // which timestamp - and 640x360 keyframes arrive at only ~264 tokens, roughly a
-        // quarter of that floor. The old 512 ceiling therefore never even bound; the
-        // frames were starved of resolution long before it applied. Setting the minimum
-        // makes mtmd tokenise at the density the model was trained to ground at.
-        mp.image_min_tokens = 1024;
+        // NOT setting image_min_tokens, despite upstream clip.cpp warning that Qwen-VL
+        // "require[s] at minimum 1024 image tokens to function correctly on grounding
+        // tasks" (ggml-org/llama.cpp#16842). Measured on the API-34 emulator, raising
+        // frames from 299 to 1032 tokens cost:
+        //   encode  18.3 s -> 58 s per frame
+        //   decode   8.6 s -> 28 s per frame
+        //   generate  fast -> 461 s (every sampled token attends over 5,160 image
+        //                            tokens instead of 1,495)
+        //   total    ~3 min -> ~15 min for one question
+        // Encode scales linearly with tokens, but generation scales with the whole
+        // context, so the cost lands three times over.
+        //
+        // It bought nothing, because resolution was not the binding constraint. The
+        // retrieved frames were near-tied in CLIP score (0.222/0.219/0.212/0.210/0.209
+        // for "what vehicles are visible" - a 0.013 spread, i.e. noise), so the model
+        // was being handed arbitrary frames. Encoding the wrong frame more sharply does
+        // not make it the right frame. Fix retrieval first; revisit this afterwards,
+        // and if it comes back, pair it with a lower MAX_FRAMES_TO_ANALYSE so the
+        // frames x tokens product stays near today's 1,495.
 
         ctx->ctx_mtmd = mtmd_init_from_file(p_path.c_str(), model, mp);
         if (!ctx->ctx_mtmd) {

@@ -123,9 +123,45 @@ class OnDeviceEmbedder private constructor(
         }
     }
 
+    /**
+     * Turn a user question into the kind of text CLIP was actually trained on.
+     *
+     * CLIP's text tower learns from alt-text captions - "a photo of a white delivery
+     * van" - never from questions. Feeding it "what vehicles are visible" puts most of
+     * the sentence's weight on interrogative words that no image caption contains, and
+     * the resulting vector barely discriminates. Measured on the 13-minute clip, that
+     * query scored its top five frames 0.222 / 0.219 / 0.212 / 0.210 / 0.209: a spread
+     * of 0.013 across completely different scenes, so frame choice was effectively
+     * arbitrary and the VLM was asked about vehicles while looking at a dog.
+     *
+     * Stripping the interrogative frame and wrapping the remaining content words in the
+     * standard "a photo of ..." template puts the query back in caption space. This is
+     * the same prompt template OpenAI used for zero-shot CLIP classification.
+     */
+    private fun toCaption(query: String): String {
+        val stop = setOf(
+            "what", "which", "who", "whom", "whose", "where", "when", "why", "how",
+            "is", "are", "was", "were", "be", "been", "being", "am",
+            "do", "does", "did", "can", "could", "will", "would", "shall", "should",
+            "show", "me", "find", "any", "there", "here", "you", "see", "seen",
+            "visible", "appear", "appears", "appeared", "look", "looks", "please",
+            "tell", "about", "of", "in", "on", "at", "the", "a", "an", "i", "we"
+        )
+        val words = query.lowercase()
+            .replace(Regex("[^a-z0-9 ]"), " ")
+            .split(" ")
+            .filter { it.isNotBlank() && it !in stop }
+        // Everything was a stop word ("what is happening?") - fall back to the raw
+        // question rather than embedding an empty string.
+        if (words.isEmpty()) return query
+        return "a photo of " + words.joinToString(" ")
+    }
+
     /** Embed a natural-language query into the SAME 512-D space. */
     fun embedText(text: String): FloatArray {
-        val ids = tokenizer.tokenize(text)
+        val caption = toCaption(text)
+        if (caption != text) Log.i(TAG, "query \"$text\" -> \"$caption\"")
+        val ids = tokenizer.tokenize(caption)
         val longs = LongArray(ids.size) { ids[it].toLong() }   // towers expect int64
         val shape = longArrayOf(1, ids.size.toLong())
         OnnxTensor.createTensor(env, LongBuffer.wrap(longs), shape).use { t ->
