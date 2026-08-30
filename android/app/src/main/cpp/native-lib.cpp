@@ -129,13 +129,17 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(
         mp.print_timings  = true;
         mp.n_threads      = ctx->n_threads;
         mp.media_marker   = mtmd_default_marker();
-        // Hard ceiling on tokens per image. Encode cost scales with token count:
-        // measured ~20.3 s at 264 tokens (640x360) on an SD8Gen2, so an uncapped
-        // 720p frame at ~1125 tokens costs ~87 s. Upstream warns Qwen-VL wants >=1024
-        // tokens for grounding accuracy, so this is an explicit speed/accuracy trade
-        // and deliberately sits at the top of the affordable range rather than the
-        // bottom of the accurate one.
-        mp.image_max_tokens = 512;
+        // Hard ceiling on tokens per image. Encode cost scales with token count, and
+        // encoding dominates query latency: on a Vivo I2304 five frames cost ~130 s of
+        // a ~150 s query.
+        //
+        // 256 rather than 512 because it was measured, not assumed. On the Venice
+        // keyframe a 256-token cap did not degrade the answer - it read MORE fine text
+        // than the uncapped run, correctly reporting "MOTION PICTURE" off the truck
+        // livery plus the temperature, humidity and AQI from the overlay bar. Upstream
+        // warns Qwen-VL prefers >=1024 tokens for grounding, so if small-object recall
+        // regresses this is the first number to raise back.
+        mp.image_max_tokens = 256;
 
         ctx->ctx_mtmd = mtmd_init_from_file(p_path.c_str(), model, mp);
         if (!ctx->ctx_mtmd) {

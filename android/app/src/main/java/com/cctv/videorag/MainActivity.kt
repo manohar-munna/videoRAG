@@ -51,6 +51,8 @@ class MainActivity : AppCompatActivity() {
     private var droppedFramesCount = 0
     private val hashThreshold = MobileFrameFilter.DEFAULT_HAMMING_THRESHOLD
     private var currentVideoUri: Uri? = null
+    /** Stable key for the imported video, so its saved index can be found again. */
+    private var currentVideoKey: String = ""
     private var lastSelectedTimestampMs = 0
     private var isBusy = false
 
@@ -250,6 +252,7 @@ class MainActivity : AppCompatActivity() {
     private fun resetAllData() {
         vectorStore.clear()
         sqliteFts.clearAll()
+        sqliteFts.clearVectors()          // otherwise the saved index is restored again
         acceptedFramesCount = 0
         droppedFramesCount = 0
         lastFrameHash = null
@@ -270,9 +273,35 @@ class MainActivity : AppCompatActivity() {
 
     private fun processSelectedVideoUri(uri: Uri) {
         currentVideoUri = uri
+        currentVideoKey = uri.toString()
         val startedAt = System.currentTimeMillis()
 
         lifecycleScope.launch(Dispatchers.Default) {
+            // If this video was indexed before, load it back rather than spending ~7
+            // minutes re-encoding frames that have not changed.
+            val saved = sqliteFts.loadMoments(currentVideoKey)
+            if (saved.isNotEmpty()) {
+                vectorStore.clear()
+                saved.forEach { vectorStore.addMoment(it) }
+                val frames = saved.distinctBy { it.imagePath }.size
+                val onDisk = saved.count { File(it.imagePath).exists() }
+                acceptedFramesCount = frames
+                conversation.clear()
+                withContext(Dispatchers.Main) {
+                    ChatView.clear(chatContainer)
+                    tvIngestionInfo.text = "$frames keyframes · ${vectorStore.size} vectors (restored)"
+                    ChatView.addSystemNote(
+                        chatContainer,
+                        "Restored a saved index for this video: $frames keyframes. Ask a question below."
+                    )
+                    if (onDisk < saved.size) ChatView.addSystemNote(
+                        chatContainer,
+                        "Some keyframe images are missing from storage; tap Reset to re-index.",
+                        isError = true
+                    )
+                }
+                return@launch
+            }
             vectorStore.clear(); sqliteFts.clearAll()
             acceptedFramesCount = 0; droppedFramesCount = 0; lastFrameHash = null
             conversation.clear()
@@ -355,14 +384,14 @@ class MainActivity : AppCompatActivity() {
         val embedder = orchestrator.getActiveEmbedder()
         for (crop in SpatialCropper.generatePyramidCrops(bitmap)) {
             val v = embedder.embedImage(crop.bitmap)
-            vectorStore.addMoment(
-                IndexedMoment(
-                    id = "${camera}_${timestamp}_${crop.label}",
-                    camera = camera, timestamp = timestamp, epochTime = epochTime,
-                    vector = v, cropRegion = crop.label, imagePath = imagePath,
-                    description = frameDescription, jsonMetadata = frameJson.toString()
-                )
+            val moment = IndexedMoment(
+                id = "${camera}_${timestamp}_${crop.label}",
+                camera = camera, timestamp = timestamp, epochTime = epochTime,
+                vector = v, cropRegion = crop.label, imagePath = imagePath,
+                description = frameDescription, jsonMetadata = frameJson.toString()
             )
+            vectorStore.addMoment(moment)
+            sqliteFts.saveMoment(moment, currentVideoKey)   // survives restart
             if (crop.bitmap != bitmap) crop.bitmap.recycle()
         }
 
