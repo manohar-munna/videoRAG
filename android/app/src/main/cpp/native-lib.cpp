@@ -140,7 +140,18 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(
         // detail - for roughly a 10% saving, since the frames were already under the
         // old cap. Upstream warns Qwen-VL prefers >=1024 tokens for grounding, so this
         // ceiling exists to bound pathological inputs, not to trim normal ones.
-        mp.image_max_tokens = 512;
+        mp.image_max_tokens = 1536;
+
+        // Floor, not just a ceiling. Upstream clip.cpp warns for every Qwen-VL model:
+        //   "Qwen-VL models require at minimum 1024 image tokens to function correctly
+        //    on grounding tasks ... try adding --image-min-tokens 1024"
+        //   (ggml-org/llama.cpp#16842)
+        // Grounding is exactly what this app asks for - which vehicle, what colour,
+        // which timestamp - and 640x360 keyframes arrive at only ~264 tokens, roughly a
+        // quarter of that floor. The old 512 ceiling therefore never even bound; the
+        // frames were starved of resolution long before it applied. Setting the minimum
+        // makes mtmd tokenise at the density the model was trained to ground at.
+        mp.image_min_tokens = 1024;
 
         ctx->ctx_mtmd = mtmd_init_from_file(p_path.c_str(), model, mp);
         if (!ctx->ctx_mtmd) {
