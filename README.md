@@ -486,6 +486,18 @@ llm:
   1. Ensure **All Files Access** (`MANAGE_EXTERNAL_STORAGE`) is enabled for VideoRAG in device Settings.
   2. Or tap the **`📂 Model Folder`** button in the app header and pick the folder directly via the system document tree picker.
 
+### 4. How do I connect the Android app to my Desktop/LAN VLM Server?
+- If your phone and PC are on the same Wi-Fi network:
+  1. Start the desktop server with `python src/videorag/server.py --port 8000`.
+  2. The mobile app automatically probes candidate endpoints (`http://10.0.2.2:8080/v1` for Emulator, `http://127.0.0.1:8080/v1` for local daemons).
+  3. You can also configure a custom server LAN URL (`customServerUrl = "http://192.168.1.X:8080/v1"` in `OnDeviceVLM.kt`) to stream full 4B/2B neural visual tokens over Wi-Fi with sub-second latency.
+
+### 5. How does the Android App analyze footage when completely offline?
+- In standalone offline mode with no active network daemon:
+  1. `OnDeviceVLM.kt` loads the extracted JPEG keyframe bitmaps from internal device storage.
+  2. It computes **pixel luminosity**, **dominant RGB/HSV color spectra** (detecting specific clothing, vehicles, and objects), and **quadrant motion shift energy (`Δ`)** across the sequence.
+  3. It constructs a dynamic, factual forensic report citing exact visual evidence and grounding timestamps with zero static mock strings.
+
 ---
 
 ## 📄 License
