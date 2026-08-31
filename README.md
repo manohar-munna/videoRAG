@@ -197,14 +197,18 @@ adb push models/mobileclip_s2.onnx /sdcard/Download/
 
 ---
 
-### 🛡️ Strict 2.5GB Mobile RAM Orchestration
+### 🛡️ Mobile RAM Orchestration (6GB Budget ⇄ 12GB High-Performance Scaling)
 
-On mobile devices with 6GB–8GB RAM, Android OS + background processes consume ~3 GB, leaving **~2.5 GB active RAM headroom**.
+VideoRAG dynamically adapts its memory footprint based on device hardware:
 
-VideoRAG implements **Sequential Mutex RAM Management (`MemoryOrchestrator.kt`)**:
-- **Mutually Exclusive Model Lifecycle**: The ONNX Runtime embedder (NPU) and Qwen2-VL 2B (Vulkan GPU/CPU) **never run simultaneously in active memory**.
-- **Ingestion Mode**: Loads the lightweight MobileCLIP ONNX model to index frames. VLM is unloaded.
-- **Query Mode**: Unloads the embedder, invokes explicit garbage collection (`System.gc()`), and loads the VLM to perform multi-frame situational reasoning over the retrieved storyboard.
+- **6GB–8GB RAM Devices (Strict ~2.5 GB Active Headroom)**:
+  - Android OS and background services consume ~2.8–3.2 GB.
+  - Implements **Sequential Mutex RAM Management (`MemoryOrchestrator.kt`)**: The ONNX MobileCLIP embedder (NPU/NNAPI) and Qwen2-VL 2B (Vulkan GPU/CPU) **never run concurrently in active heap memory**.
+  - **Ingestion Mode**: Allocates the lightweight MobileCLIP ONNX model to embed spatial crops. VLM is held dormant.
+  - **Query Mode**: Closes the embedder session, triggers garbage collection (`System.gc()`), and allocates memory for multi-frame situational reasoning.
+- **12GB+ RAM Devices (High-Capacity Mode)**:
+  - Offers **~7.5–8.5 GB of usable active RAM headroom**.
+  - Retains the 512-D vector index and MobileCLIP ONNX session permanently in RAM while simultaneously executing 4-frame Qwen2-VL 2B or Qwen2.5-VL 3B multimodal reasoning with zero swapping latency.
 
 ---
 
