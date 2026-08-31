@@ -153,13 +153,28 @@ adb push models/mobileclip_s2.onnx /sdcard/Download/
 > [!TIP]
 > **No ADB?** You can copy the files via USB cable or download them directly in mobile Chrome to your phone's **`Internal Storage > Download > qwen2_vl_2b`** folder. Use the **`📂 Model Folder`** button inside the app to select the folder directly.
 
-#### Step 2: Build & Launch in Android Studio
-1. Open Android Studio, select **Open**, and choose the [`/android`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android) directory.
-2. Connect your physical Android phone (ensure **USB Debugging** and **All Files Access** permissions are granted).
-3. Click **Run ▶ (Shift + F10)** or assemble release APK:
+#### Step 2: Build & Launch in Android Studio (or Terminal CLI)
+1. **In Android Studio**:
+   - Open Android Studio, select **Open**, and select the [`/android`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android) directory.
+   - Connect your physical Android phone (ensure **USB Debugging** and **All Files Access** permissions are granted).
+   - Click **Run ▶ (Shift + F10)**.
+2. **Via Command Line (Gradle CLI)**:
    ```bash
    cd android
+   
+   # Compile Kotlin and native C++ JNI sources:
+   ./gradlew compileDebugKotlin
+   
+   # Assemble Debug APK:
+   ./gradlew assembleDebug
+   # -> Output APK: android/app/build/intermediates/apk/debug/app-debug.apk
+   
+   # Assemble Production Release APK:
    ./gradlew assembleRelease
+   ```
+3. **Install directly via ADB**:
+   ```bash
+   adb install -r app/build/intermediates/apk/debug/app-debug.apk
    ```
 
 #### Step 3: Ingest a Video
