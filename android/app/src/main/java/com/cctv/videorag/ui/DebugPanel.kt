@@ -39,6 +39,7 @@ object DebugPanel {
         /** Ranked retrieval hits: timestamp, region, score. */
         val lastHits: List<Triple<String, String, Float>>,
         val framesSentToModel: List<String>,
+        val droppedTimestamps: List<String>,
         val lastLatencyMs: Long?,
         val indexedJson: String?
     )
@@ -74,6 +75,8 @@ object DebugPanel {
             kv(ctx, root, "Question", s.lastQuery)
             s.lastLatencyMs?.let { kv(ctx, root, "Latency", "${it / 1000}s") }
             kv(ctx, root, "Frames sent", s.framesSentToModel.joinToString(", ").ifEmpty { "—" })
+            if (s.droppedTimestamps.isNotEmpty())
+                kv(ctx, root, "Dropped (not shown to model)", s.droppedTimestamps.joinToString(", "))
             mono(ctx, root, "Retrieval ranking (max-pooled per frame)")
             if (s.lastHits.isEmpty()) mono(ctx, root, "  (none)")
             for ((i, h) in s.lastHits.withIndex()) {
@@ -168,6 +171,7 @@ object DebugPanel {
         appendLine("Sampling ${s.sampleFps} FPS, gate ${if (s.gateEnabled) "on/${s.gateThreshold}" else "off"}")
         appendLine("Query: ${s.lastQuery ?: "-"}  latency ${s.lastLatencyMs ?: "-"}ms")
         appendLine("Sent: ${s.framesSentToModel.joinToString(", ")}")
+        appendLine("Dropped: ${s.droppedTimestamps.joinToString(", ").ifEmpty { "-" }}")
         for ((i, h) in s.lastHits.withIndex())
             appendLine("  %d. %s [%s] %.3f".format(i + 1, h.first, h.second, h.third))
     }

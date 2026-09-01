@@ -483,7 +483,17 @@ $firstStamp -"""
      * remove an unsupported claim, never introduce one - so it cannot make an answer
      * wrong, and a sentence stripped bare of every timestamp is dropped entirely.
      */
+    /**
+     * Timestamps the last answer claimed but was never shown. Surfaced in the debug panel
+     * because logcat is unavailable on some vendor builds - vivo's FuntouchOS drops this
+     * app's Log output entirely - and without it there is no way to tell a guard that is
+     * removing hallucinations from one that is eating valid content.
+     */
+    var lastDroppedTimestamps: List<String> = emptyList()
+        private set
+
     private fun dropUnsupportedTimestamps(text: String, allowed: Set<String>): String {
+        lastDroppedTimestamps = emptyList()
         val stampRe = Regex("""\b\d{2}:\d{2}:\d{2}\b""")
         if (stampRe.findAll(text).none { it.value !in allowed }) return text
 
@@ -505,6 +515,7 @@ $firstStamp -"""
             "$head $list."
         }
         Log.w("VideoRAG_VLM", "dropped unsupported timestamps: $removed")
+        lastDroppedTimestamps = removed.toList()
         val result = kept.joinToString("\n").trim()
         return if (result.isBlank())
             "The model did not report anything that matches the retrieved frames."
