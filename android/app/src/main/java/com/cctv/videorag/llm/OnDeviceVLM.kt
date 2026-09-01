@@ -256,7 +256,10 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             val cached = File(dirEarly, "${moment.id.replace(Regex("[^A-Za-z0-9_]"), "_")}.jpg")
             // The chat strip re-requests the same crops to show the user exactly what the
             // model was given, so serve the existing file rather than decoding twice.
-            if (cached.isFile && cached.length() > 0L) return cached.absolutePath
+            if (cached.isFile && cached.length() > 0L) {
+                Log.i("VideoRAG_VLM", "sent ${moment.timestamp}[${moment.cropRegion}] (cached)")
+                return cached.absolutePath
+            }
             val full = BitmapFactory.decodeFile(src) ?: return src
             val x = (full.width  * r[0]).toInt().coerceIn(0, full.width  - 1)
             val y = (full.height * r[1]).toInt().coerceIn(0, full.height - 1)

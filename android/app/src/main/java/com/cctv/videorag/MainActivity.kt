@@ -520,6 +520,14 @@ class MainActivity : AppCompatActivity() {
         // that exactly so the strip shows what was actually sent, not what was retrieved
         val sent = moments.sortedBy { it.timestamp }
         lastFramesSent = sent.map { it.timestamp }
+        // Log what is actually sent, not just the pre-dedup ranking above. dropNearDuplicates
+        // runs over the whole ranked list, so the frames the model sees can legitimately
+        // differ from the logged top-5 - which makes an answer's timestamps look invented
+        // when they are not. Every timestamp in an answer should be checkable against this.
+        Log.i("VideoRAG_Query", "frames sent to VLM: " +
+            sent.take(OnDeviceVLM.MAX_FRAMES_TO_ANALYSE).joinToString {
+                "${it.timestamp}[${it.cropRegion}]"
+            })
 
         // CLIP has done its one job for this query (embedText, above); retrieval since
         // then was pure Kotlin. Drop ~400 MB of fp32 towers before the VLM starts
