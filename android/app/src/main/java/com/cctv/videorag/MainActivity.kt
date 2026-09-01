@@ -151,6 +151,7 @@ class MainActivity : AppCompatActivity() {
         runTokenizerSelfTest()
         updateModelBadge()
         ChatView.addSystemNote(chatContainer, "Import a video, then ask questions about it.")
+        restoreLastIndexIfAny()
     }
 
     override fun onResume() {
@@ -280,6 +281,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── ingestion ─────────────────────────────────────────────────
+
+    /**
+     * Bring back the last index at launch, without waiting for a re-import.
+     *
+     * The vectors and the keyframe JPEGs both survive an app restart - and a reinstall,
+     * since app data is kept - but until now the index only loaded as a side effect of
+     * picking the video again, so every launch looked like an empty app sitting on top of
+     * a perfectly good index. That also made testing expensive: each reinstall cost a
+     * manual re-import before anything could be asked.
+     *
+     * Questions work immediately from this state. Only the inline player needs the
+     * content URI, which does not survive the process, so playVideoAt() falls back to
+     * "No video loaded" until the video is imported again - the note below says so.
+     */
+    private fun restoreLastIndexIfAny() {
+        lifecycleScope.launch(Dispatchers.Default) {
+            val key = sqliteFts.mostRecentVideoKey() ?: return@launch
+            val saved = sqliteFts.loadMoments(key)
+            if (saved.isEmpty()) return@launch
+            vectorStore.clear()
+            saved.forEach { vectorStore.addMoment(it) }
+            currentVideoKey = key
+            val frames = saved.distinctBy { it.imagePath }.size
+            acceptedFramesCount = frames
+            withContext(Dispatchers.Main) {
+                tvIngestionInfo.text = "$frames keyframes - ${vectorStore.size} vectors (restored)"
+                ChatView.addSystemNote(
+                    chatContainer,
+                    "Restored the last index: $frames keyframes. Ask a question now, " +
+                    "or import the video again to play clips from timestamps."
+                )
+            }
+        }
+    }
 
     private fun processSelectedVideoUri(uri: Uri) {
         currentVideoUri = uri

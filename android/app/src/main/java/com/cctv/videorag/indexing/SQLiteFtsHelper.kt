@@ -100,6 +100,16 @@ class SQLiteFtsHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         return out
     }
 
+    /** Key of the most recently indexed video, or null if nothing has been indexed. */
+    fun mostRecentVideoKey(): String? = try {
+        readableDatabase.rawQuery(
+            "SELECT video_key FROM $VECTOR_TABLE GROUP BY video_key ORDER BY MAX(rowid) DESC LIMIT 1",
+            null
+        ).use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    } catch (e: Exception) {
+        Log.e(TAG, "mostRecentVideoKey failed: ${e.message}"); null
+    }
+
     fun clearVectors(videoKey: String? = null) {
         try {
             if (videoKey == null) writableDatabase.execSQL("DELETE FROM $VECTOR_TABLE")
