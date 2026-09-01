@@ -224,6 +224,62 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
      * those inventions then fed both the search index and the answer text. It now
      * records only what a histogram can honestly support: colours and lighting.
      */
+    /**
+     * Normalised rect for a SpatialCropper region label, as (x, y, w, h) fractions.
+     *
+     * Mirrors SpatialCropper.generatePyramidCrops() exactly - it builds each crop at 60%
+     * of the frame in both axes and anchors it to a corner, the centre, or the whole
+     * frame. Kept as a pure function of the stored label so no re-ingest is needed; the
+     * geometry was always implied by crop_region, it simply was never used at query time.
+     */
+    private fun regionRect(label: String): FloatArray = when (label) {
+        "top_left"     -> floatArrayOf(0.0f, 0.0f, 0.6f, 0.6f)
+        "top_right"    -> floatArrayOf(0.4f, 0.0f, 0.6f, 0.6f)
+        "bottom_left"  -> floatArrayOf(0.0f, 0.4f, 0.6f, 0.6f)
+        "bottom_right" -> floatArrayOf(0.4f, 0.4f, 0.6f, 0.6f)
+        "center"       -> floatArrayOf(0.2f, 0.2f, 0.6f, 0.6f)
+        else           -> floatArrayOf(0.0f, 0.0f, 1.0f, 1.0f)   // "global"
+    }
+
+    /**
+     * Path to an image showing [moment]'s matched region at the frame's full size.
+     *
+     * Returns the original frame untouched for "global" hits and whenever anything fails
+     * to decode - a slightly worse framing is always preferable to dropping the evidence.
+     */
+    fun regionCropPath(moment: IndexedMoment): String {
+        val src = moment.imagePath
+        val r = regionRect(moment.cropRegion)
+        if (r[2] >= 1f && r[3] >= 1f) return src
+        return try {
+            val dirEarly = File(context.cacheDir, "query_crops")
+            val cached = File(dirEarly, "${moment.id.replace(Regex("[^A-Za-z0-9_]"), "_")}.jpg")
+            // The chat strip re-requests the same crops to show the user exactly what the
+            // model was given, so serve the existing file rather than decoding twice.
+            if (cached.isFile && cached.length() > 0L) return cached.absolutePath
+            val full = BitmapFactory.decodeFile(src) ?: return src
+            val x = (full.width  * r[0]).toInt().coerceIn(0, full.width  - 1)
+            val y = (full.height * r[1]).toInt().coerceIn(0, full.height - 1)
+            val w = (full.width  * r[2]).toInt().coerceAtLeast(1).coerceAtMost(full.width  - x)
+            val h = (full.height * r[3]).toInt().coerceAtLeast(1).coerceAtMost(full.height - y)
+            val crop = Bitmap.createBitmap(full, x, y, w, h)
+            // Back to the frame's own dimensions so the vision encoder is handed exactly
+            // as many pixels - and so exactly as many tokens - as it was before.
+            val scaled = Bitmap.createScaledBitmap(crop, full.width, full.height, true)
+            val dir = File(context.cacheDir, "query_crops").apply { mkdirs() }
+            val out = File(dir, "${moment.id.replace(Regex("[^A-Za-z0-9_]"), "_")}.jpg")
+            java.io.FileOutputStream(out).use { scaled.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+            if (crop != full) crop.recycle()
+            if (scaled != crop) scaled.recycle()
+            full.recycle()
+            Log.i("VideoRAG_VLM", "crop ${moment.timestamp}[${moment.cropRegion}] -> ${out.name}")
+            out.absolutePath
+        } catch (e: Throwable) {
+            Log.w("VideoRAG_VLM", "region crop failed for $src: ${e.message}")
+            src
+        }
+    }
+
     fun describeFrameAsJson(bitmap: Bitmap, timestamp: String, frameIndex: Int, imagePath: String): JSONObject {
         val stats = analyzeFramePixels(bitmap)
 
@@ -298,7 +354,26 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         val sorted = ranked.sortedBy { it.timestamp }
         val startTs = sorted.first().timestamp
         val endTs = sorted.last().timestamp
-        val imagePaths = sorted.map { it.imagePath }.filter { File(it).exists() }
+        // Send the region that actually matched, not the whole frame.
+        //
+        // Every frame is indexed as six spatial regions and retrieval reports which one
+        // won. Measured over this project's own index, the winner is a sub-region rather
+        // than `global` in 83% of hits, and the crop vectors are far from the frame's own
+        // vector - mean cosine 0.766, minimum 0.544 - so that choice carries real
+        // information about where the subject is. Passing imagePath threw it away and
+        // handed the model the entire scene every time.
+        //
+        // Cropping to the winning region and rescaling back to the frame's own size keeps
+        // the token count identical, because token count follows pixel dimensions. What
+        // changes is how much of that budget lands on the subject: a 60%x60% region is 36%
+        // of the frame's area, so the subject occupies ~2.8x the pixels it did before.
+        // On a 299-token frame that is roughly 9 tokens of subject becoming ~25.
+        //
+        // This is the grounding problem that image_min_tokens=1024 was meant to solve, at
+        // no latency cost - that route measured 3 min -> 15 min per question and was
+        // reverted in ca58db1.
+        val imagePaths = sorted.filter { File(it.imagePath).exists() }
+                               .map { regionCropPath(it) }
 
         if (nativeHandle == 0L) {
             return "On-device model not loaded, so no visual analysis was performed. " +

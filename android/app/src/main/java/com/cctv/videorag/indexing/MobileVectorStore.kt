@@ -72,6 +72,36 @@ class MobileVectorStore {
         return scoredMatches.sortedByDescending { it.second }.take(topK)
     }
 
+    /**
+     * Rank against several query phrasings at once, scoring each moment by its best match.
+     *
+     * A single caption can land badly in CLIP space - "what is written on the van" reduces
+     * to "a photo of written van", where the only word the tower can use is diluted by one
+     * it cannot. Taking the maximum over variants means a bad phrasing can only ever be
+     * ignored, never drag a good one down.
+     */
+    fun searchMulti(
+        queryVectors: List<FloatArray>,
+        topK: Int = 10,
+        cameraFilter: String? = null
+    ): List<Pair<IndexedMoment, Float>> {
+        if (queryVectors.isEmpty()) return emptyList()
+        if (queryVectors.size == 1) return search(queryVectors[0], topK, cameraFilter)
+        val scored = ArrayList<Pair<IndexedMoment, Float>>()
+        synchronized(registry) {
+            for (moment in registry) {
+                if (cameraFilter != null && cameraFilter.isNotEmpty() && moment.camera != cameraFilter) continue
+                var best = -1f
+                for (q in queryVectors) {
+                    val s = cosineSimilarity(q, moment.vector)
+                    if (s > best) best = s
+                }
+                scored.add(Pair(moment, best))
+            }
+        }
+        return scored.sortedByDescending { it.second }.take(topK)
+    }
+
     private fun cosineSimilarity(v1: FloatArray, v2: FloatArray): Float {
         var dot = 0.0f
         var normA = 0.0f

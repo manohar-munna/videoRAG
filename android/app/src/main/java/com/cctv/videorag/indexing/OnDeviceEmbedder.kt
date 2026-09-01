@@ -157,10 +157,41 @@ class OnDeviceEmbedder private constructor(
         return "a photo of " + words.joinToString(" ")
     }
 
-    /** Embed a natural-language query into the SAME 512-D space. */
-    fun embedText(text: String): FloatArray {
+    /**
+     * Caption variants to search with, best-of. Cheap insurance against one phrasing
+     * landing badly in CLIP space.
+     *
+     * toCaption() keeps every content word, which is right when they all describe
+     * something visible ("people wearing pink costumes" scored 0.229) and wrong when the
+     * question asks about an attribute the tower cannot read. "what is written on the
+     * van" became "a photo of written van": "written" contributes nothing CLIP can match
+     * and dilutes the one word that matters. It scored 0.184 and was rejected as absent,
+     * even though the van is plainly in the footage.
+     *
+     * Searching the bare subject as well and keeping the better score fixes that without
+     * having to guess which words are the useful ones. Two text embeddings cost about
+     * 10 ms in total, against a query that spends minutes in the vision model.
+     */
+    fun embedTextVariants(text: String): List<FloatArray> {
         val caption = toCaption(text)
-        if (caption != text) Log.i(TAG, "query \"$text\" -> \"$caption\"")
+        val out = mutableListOf(embedCaption(caption))
+        // Head-noun heuristic: English puts it last in these phrasings ("... on the VAN",
+        // "... wearing pink COSTUMES"), so the trailing content word is the subject often
+        // enough to be worth one extra embedding.
+        val head = caption.removePrefix("a photo of ").trim().split(" ").lastOrNull()
+        if (!head.isNullOrBlank() && head != caption.removePrefix("a photo of ").trim()) {
+            out.add(embedCaption("a photo of a $head"))
+            Log.i(TAG, "query \"$text\" -> \"$caption\" | \"a photo of a $head\"")
+        } else {
+            Log.i(TAG, "query \"$text\" -> \"$caption\"")
+        }
+        return out
+    }
+
+    /** Embed a natural-language query into the SAME 512-D space. */
+    fun embedText(text: String): FloatArray = embedCaption(toCaption(text))
+
+    private fun embedCaption(caption: String): FloatArray {
         val ids = tokenizer.tokenize(caption)
         val longs = LongArray(ids.size) { ids[it].toLong() }   // towers expect int64
         val shape = longArrayOf(1, ids.size.toLong())

@@ -467,8 +467,8 @@ class MainActivity : AppCompatActivity() {
         // Each frame is indexed as 6 regions; collapse to the best region per frame so a
         // small object competes on its strongest crop rather than the whole scene.
         val bestPerFrame = HashMap<String, Pair<IndexedMoment, Float>>()
-        val queryVector = embedder.embedText(question)
-        for ((moment, score) in vectorStore.search(queryVector, topK = 60)) {
+        val queryVectors = embedder.embedTextVariants(question)
+        for ((moment, score) in vectorStore.searchMulti(queryVectors, topK = 60)) {
             val prev = bestPerFrame[moment.imagePath]
             if (prev == null || score > prev.second) bestPerFrame[moment.imagePath] = moment to score
         }
@@ -532,8 +532,12 @@ class MainActivity : AppCompatActivity() {
             top5Moments = moments,
             history = conversation.takeLast(3)
         )
+        // Show the strip what the model was actually shown. Since the VLM now receives the
+        // matched region rather than the whole frame, displaying imagePath here would put
+        // a different picture under the answer than the one it was reasoning about, which
+        // defeats the point of the strip as a way to check the answer.
         return Answer(text, sent.map {
-            ChatView.FrameRef(it.imagePath, it.timestamp, parseTimestampSeconds(it.timestamp))
+            ChatView.FrameRef(vlm.regionCropPath(it), it.timestamp, parseTimestampSeconds(it.timestamp))
         })
     }
 
