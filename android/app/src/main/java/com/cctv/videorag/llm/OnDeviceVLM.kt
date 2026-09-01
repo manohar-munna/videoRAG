@@ -459,8 +459,58 @@ $firstStamp -"""
                      "using ${activeModelFileName ?: "the on-device model"}."
         // the prefilled "HH:MM:SS -" is part of the answer, so put it back on the front
         val full = "$firstStamp -" + answer.trimEnd()
-        return groupBySubject(humanise(full)) + "\n\n---\n" + footer
+        val grouped = dropUnsupportedTimestamps(
+            groupBySubject(humanise(full)),
+            shown.map { it.timestamp }.toSet()
+        )
+        return grouped + "\n\n---\n" + footer
     }
+    /**
+     * Remove any timestamp the model was not actually shown.
+     *
+     * A timestamp is the evidence pointer in this app - it is what the user taps to jump
+     * to the moment in the video - so one the model invented is worse than no answer at
+     * all. And it does invent them. Asked about pink costumes over frames
+     *   00:00:03, 00:07:10, 00:08:46, 00:10:43, 00:12:24
+     * the model answered "at 00:00:03, 00:00:07, 00:00:10, 00:00:12 and 00:00:15": it took
+     * the prefilled first stamp and continued it as an arithmetic sequence, inventing four
+     * of the five. The Vivo happened not to trigger this because its first stamp was
+     * 00:03:42 rather than a value that looks like the start of a count, so prompt wording
+     * alone cannot be relied on to prevent it.
+     *
+     * This is a hard guarantee rather than a nudge: nothing reaches the user that is not
+     * backed by a frame the model was given. Subtractive by design - it can only ever
+     * remove an unsupported claim, never introduce one - so it cannot make an answer
+     * wrong, and a sentence stripped bare of every timestamp is dropped entirely.
+     */
+    private fun dropUnsupportedTimestamps(text: String, allowed: Set<String>): String {
+        val stampRe = Regex("""\b\d{2}:\d{2}:\d{2}\b""")
+        if (stampRe.findAll(text).none { it.value !in allowed }) return text
+
+        val removed = sortedSetOf<String>()
+        val kept = text.lines().mapNotNull { line ->
+            val stamps = stampRe.findAll(line).map { it.value }.toList()
+            if (stamps.isEmpty()) return@mapNotNull line
+            val bad = stamps.filter { it !in allowed }
+            if (bad.isEmpty()) return@mapNotNull line
+            removed += bad
+            val good = stamps.filter { it in allowed }
+            // Nothing on this line was actually observed, so the claim has no evidence.
+            if (good.isEmpty()) return@mapNotNull null
+            // Otherwise rebuild the sentence around only the supported timestamps, rather
+            // than trying to patch the punctuation the removals leave behind.
+            val head = line.substring(0, line.indexOf(stamps.first())).trimEnd().trimEnd(',')
+            val list = if (good.size == 1) good[0]
+                       else good.dropLast(1).joinToString(", ") + " and " + good.last()
+            "$head $list."
+        }
+        Log.w("VideoRAG_VLM", "dropped unsupported timestamps: $removed")
+        val result = kept.joinToString("\n").trim()
+        return if (result.isBlank())
+            "The model did not report anything that matches the retrieved frames."
+        else result
+    }
+
     /**
      * Collapse repeated per-frame descriptions into one line per subject.
      *
