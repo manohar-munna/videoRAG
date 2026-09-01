@@ -76,6 +76,7 @@ class MainActivity : AppCompatActivity() {
     private var lastHits: List<Triple<String, String, Float>> = emptyList()
     private var lastFramesSent: List<String> = emptyList()
     private var lastDroppedTimestamps: List<String> = emptyList()
+    private var lastGenStats: String = ""
     private var lastLatencyMs: Long? = null
     private var tokenizerStatus: String = "not run"
     private var modelHintShown = false
@@ -577,6 +578,7 @@ class MainActivity : AppCompatActivity() {
             history = conversation.takeLast(3)
         )
         lastDroppedTimestamps = vlm.lastDroppedTimestamps
+        lastGenStats = vlm.lastGenStats
         // Show the strip what the model was actually shown. Since the VLM now receives the
         // matched region rather than the whole frame, displaying imagePath here would put
         // a different picture under the answer than the one it was reasoning about, which
@@ -675,6 +677,7 @@ class MainActivity : AppCompatActivity() {
                 lastHits = lastHits,
                 framesSentToModel = lastFramesSent,
                 droppedTimestamps = lastDroppedTimestamps,
+                genStats = lastGenStats,
                 lastLatencyMs = lastLatencyMs,
                 indexedJson = json
             )

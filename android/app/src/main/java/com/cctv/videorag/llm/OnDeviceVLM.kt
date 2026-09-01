@@ -25,6 +25,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     private external fun nativeInit(modelDir: String, layersToOffload: Int): Long
     private external fun nativeGenerate(handle: Long, prompt: String, imagePaths: Array<String>): String
     private external fun nativeGetModelInfo(handle: Long): String
+    private external fun nativeGetLastGenStats(handle: Long): String
     private external fun nativeClose(handle: Long)
 
     private var nativeHandle: Long = 0
@@ -455,6 +456,9 @@ $firstStamp -"""
             return "The on-device model returned no usable output. $answer".trim()
         }
 
+        lastGenStats = try { nativeGetLastGenStats(nativeHandle) } catch (_: Throwable) { "" }
+        Log.i("VideoRAG_VLM", "gen stats: $lastGenStats")
+
         val footer = "Analysed ${imagePaths.size} keyframes spanning [$startTs - $endTs] " +
                      "using ${activeModelFileName ?: "the on-device model"}."
         // the prefilled "HH:MM:SS -" is part of the answer, so put it back on the front
@@ -490,6 +494,10 @@ $firstStamp -"""
      * removing hallucinations from one that is eating valid content.
      */
     var lastDroppedTimestamps: List<String> = emptyList()
+        private set
+
+    /** "gen_tokens=.. gen_ms=.. tok_per_s=.. cap_hit=.. prefill_ms=.." from the last answer. */
+    var lastGenStats: String = ""
         private set
 
     private fun dropUnsupportedTimestamps(text: String, allowed: Set<String>): String {

@@ -40,6 +40,7 @@ object DebugPanel {
         val lastHits: List<Triple<String, String, Float>>,
         val framesSentToModel: List<String>,
         val droppedTimestamps: List<String>,
+        val genStats: String,
         val lastLatencyMs: Long?,
         val indexedJson: String?
     )
@@ -74,6 +75,11 @@ object DebugPanel {
         } else {
             kv(ctx, root, "Question", s.lastQuery)
             s.lastLatencyMs?.let { kv(ctx, root, "Latency", "${it / 1000}s") }
+            if (s.genStats.isNotBlank())
+                for (part in s.genStats.split(" ")) {
+                    val kvp = part.split("=")
+                    if (kvp.size == 2) kv(ctx, root, kvp[0], kvp[1])
+                }
             kv(ctx, root, "Frames sent", s.framesSentToModel.joinToString(", ").ifEmpty { "—" })
             if (s.droppedTimestamps.isNotEmpty())
                 kv(ctx, root, "Dropped (not shown to model)", s.droppedTimestamps.joinToString(", "))

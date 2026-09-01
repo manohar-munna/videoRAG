@@ -17,6 +17,7 @@
 #include <vector>
 #include <sstream>
 #include <unistd.h>
+#include <ctime>
 #include <android/log.h>
 
 #include "llama.h"
@@ -47,7 +48,23 @@ struct NativeVLMContext {
     // path, so an identical frame reached by a different route still hits.
     std::map<std::string, std::vector<float>> embd_cache;
     size_t embd_cache_bytes = 0;
+
+    // Last generate() breakdown, read back by nativeGetLastGenStats(). Generation is the
+    // largest phase of a query and there is no other way to see inside it on devices
+    // whose ROM discards this app's logcat - vivo FuntouchOS does exactly that.
+    int  last_gen_tokens    = 0;
+    long last_prefill_ms    = 0;
+    long last_gen_ms        = 0;
+    bool last_hit_token_cap = false;
+    int  last_cache_hits    = 0;
+    int  last_cache_misses  = 0;
 };
+
+static long now_ms() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
+}
 
 // Roughly 1.8 MB per 640x360 keyframe (299 tokens x 1536 dims x 4 bytes). 192 MB holds
 // a hundred or so frames, which is far more than one conversation revisits.
@@ -255,6 +272,7 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     text.add_special   = false;  // caller supplies the full chat template
     text.parse_special = true;
 
+    const long t_prefill_start = now_ms();
     mtmd_input_chunks * chunks = mtmd_input_chunks_init();
     const int32_t rc = mtmd_tokenize(ctx->ctx_mtmd, chunks, &text,
                                      (const mtmd_bitmap **) bitmaps.data(), bitmaps.size());
@@ -327,6 +345,9 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     }
     mtmd_input_chunks_free(chunks);
 
+    ctx->last_prefill_ms   = now_ms() - t_prefill_start;
+    ctx->last_cache_hits   = cache_hits;
+    ctx->last_cache_misses = cache_misses;
     LOGI("image encode cache: %d hit, %d miss (%zu entries, %.1f MB)",
          cache_hits, cache_misses, ctx->embd_cache.size(),
          ctx->embd_cache_bytes / 1e6);
@@ -342,11 +363,15 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     // than a single verdict sentence
     const int max_new_tokens = 400;
 
+    const long t_gen_start = now_ms();
+    long t_bucket = t_gen_start;
+    int  generated = 0;
+    bool hit_cap   = true;          // cleared by the end-of-generation break below
     for (int i = 0; i < max_new_tokens; ++i) {
         const llama_token tok = llama_sampler_sample(ctx->sampler, ctx->ctx_llama, -1);
         llama_sampler_accept(ctx->sampler, tok);
 
-        if (llama_vocab_is_eog(vocab, tok)) break;
+        if (llama_vocab_is_eog(vocab, tok)) { hit_cap = false; break; }
 
         char piece[256];
         const int n = llama_token_to_piece(vocab, tok, piece, sizeof(piece), 0, true);
@@ -358,11 +383,56 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
             break;
         }
         n_past++;
+        generated++;
+        // Per-token cost must stay flat. If it climbs with position the KV cache is not
+        // being reused and every token is re-reading the whole context - which is what a
+        // 10x-too-slow sampler would look like from outside.
+        if (generated % 10 == 0) {
+            const long now = now_ms();
+            LOGI("gen tokens %d-%d: %ld ms (%.1f ms/tok, n_past=%d)",
+                 generated - 10, generated, now - t_bucket, (now - t_bucket) / 10.0, n_past);
+            t_bucket = now;
+        }
     }
+
+    ctx->last_gen_tokens    = generated;
+    ctx->last_gen_ms        = now_ms() - t_gen_start;
+    ctx->last_hit_token_cap = hit_cap;
+    LOGI("generation: %d tokens in %ld ms (%.2f tok/s), cap_hit=%d, prefill %ld ms",
+         generated, ctx->last_gen_ms,
+         ctx->last_gen_ms > 0 ? 1000.0 * generated / ctx->last_gen_ms : 0.0,
+         (int) hit_cap, ctx->last_prefill_ms);
 
     std::string out = oss.str();
     if (out.empty()) out = "Error: model produced no output.";
     return env->NewStringUTF(out.c_str());
+}
+
+/**
+ * Breakdown of the most recent generate(), as "key=value" pairs.
+ *
+ * Query latency is dominated by generation - about 58 s of a 117 s query on an SD8Gen2 -
+ * yet a 2B model at Q4 should sample far faster than the ~1.2 tok/s that implies. Without
+ * a token count and a rate there is no way to tell a slow sampler from a model quietly
+ * emitting 400 tokens and having most of them trimmed. Exposed through JNI rather than a
+ * log line because vivo's ROM discards this app's logcat entirely.
+ */
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGetLastGenStats(
+        JNIEnv * env, jobject /*thiz*/, jlong handle) {
+
+    auto * ctx = reinterpret_cast<NativeVLMContext *>(handle);
+    if (!ctx) return env->NewStringUTF("");
+
+    char buf[320];
+    snprintf(buf, sizeof(buf),
+             "gen_tokens=%d gen_ms=%ld tok_per_s=%.2f cap_hit=%d prefill_ms=%ld "
+             "cache_hits=%d cache_misses=%d",
+             ctx->last_gen_tokens, ctx->last_gen_ms,
+             ctx->last_gen_ms > 0 ? 1000.0 * ctx->last_gen_tokens / ctx->last_gen_ms : 0.0,
+             (int) ctx->last_hit_token_cap, ctx->last_prefill_ms,
+             ctx->last_cache_hits, ctx->last_cache_misses);
+    return env->NewStringUTF(buf);
 }
 
 extern "C" JNIEXPORT jstring JNICALL
