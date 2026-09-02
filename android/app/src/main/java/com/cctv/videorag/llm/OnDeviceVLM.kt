@@ -26,6 +26,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     private external fun nativeGenerate(handle: Long, prompt: String, imagePaths: Array<String>): String
     private external fun nativeGetModelInfo(handle: Long): String
     private external fun nativeGetLastGenStats(handle: Long): String
+    private external fun nativeSetCacheDir(handle: Long, dir: String)
     private external fun nativeClose(handle: Long)
 
     private var nativeHandle: Long = 0
@@ -194,6 +195,12 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
                     }
                     if (nativeHandle != 0L) {
                         Log.i("VideoRAG_VLM", "Native VLM successfully loaded! handle=$nativeHandle")
+                        // Persist vision encodes across processes. Prefill is 90% of a
+                        // query (115.8 s of 128 s measured on the Vivo) and nearly all
+                        // of it is re-encoding frames an earlier run already encoded.
+                        try {
+                            nativeSetCacheDir(nativeHandle, File(context.cacheDir, "embd").absolutePath)
+                        } catch (_: Throwable) {}
                     } else {
                         Log.e("VideoRAG_VLM", "Native VLM returned handle 0L.")
                     }

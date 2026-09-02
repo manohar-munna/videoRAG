@@ -18,6 +18,11 @@
 #include <sstream>
 #include <unistd.h>
 #include <ctime>
+#include <cctype>
+#include <cstdio>
+#include <algorithm>
+#include <sys/stat.h>
+#include <dirent.h>
 #include <android/log.h>
 
 #include "llama.h"
@@ -58,12 +63,99 @@ struct NativeVLMContext {
     bool last_hit_token_cap = false;
     int  last_cache_hits    = 0;
     int  last_cache_misses  = 0;
+    int  last_disk_hits     = 0;
+
+    // Disk tier for embd_cache, set via nativeSetCacheDir(). Empty = disabled.
+    std::string cache_dir;
+    // Basename of the loaded projector; namespaces the disk cache, because the cache key
+    // is a hash of the PIXELS - swap the projector (2B -> 3B, Q8 -> Q4) and the same key
+    // must not resolve to the other model's embeddings.
+    std::string proj_name;
 };
 
 static long now_ms() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
+}
+
+// ── disk tier for the vision-encode cache ────────────────────────────────────
+//
+// Measured on a Vivo I2304: prefill is 115.8 s of a 128 s query (90%), nearly all of it
+// clip_encode at ~17-19 s per frame, while generation runs at 18.8 tok/s and costs ~5 s.
+// The in-memory cache already skips re-encodes within a process, but the process does not
+// live long on a phone, and losing it throws away ~98 s of work per five frames. Raw
+// float dumps on disk keyed by mtmd's pixel hash survive restarts; loading one back costs
+// ~10 ms against the ~18 s it saves.
+
+// ~210 entries at 1.8 MB per 299-token frame; enough for every keyframe of a 13-minute
+// video plus the query crops, with room to spare. Oldest-by-mtime beyond that.
+static const size_t EMBD_DISK_MAX_BYTES = 384ull * 1024 * 1024;
+
+// mtmd ids are hex hashes; anything else stays out of filesystem paths.
+static bool embd_key_safe(const std::string & k) {
+    if (k.empty() || k.size() > 120) return false;
+    for (char c : k) if (!isalnum((unsigned char) c) && c != '_' && c != '-') return false;
+    return true;
+}
+
+static bool load_embd_file(const std::string & dir, const std::string & key,
+                           size_t need_floats, std::vector<float> & out) {
+    const std::string path = dir + "/" + key + ".bin";
+    FILE * f = fopen(path.c_str(), "rb");
+    if (!f) return false;
+    fseek(f, 0, SEEK_END);
+    const long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz != (long) (need_floats * sizeof(float))) {
+        // Wrong shape for this projector/prompt - stale beyond use, so reclaim it.
+        fclose(f);
+        remove(path.c_str());
+        return false;
+    }
+    out.resize(need_floats);
+    const bool ok = fread(out.data(), sizeof(float), need_floats, f) == need_floats;
+    fclose(f);
+    return ok;
+}
+
+static void evict_embd_dir(const std::string & dir, size_t max_bytes) {
+    DIR * d = opendir(dir.c_str());
+    if (!d) return;
+    struct Ent { time_t mt; size_t sz; std::string path; };
+    std::vector<Ent> ents;
+    size_t total = 0;
+    while (dirent * e = readdir(d)) {
+        if (e->d_name[0] == '.') continue;
+        const std::string path = dir + "/" + e->d_name;
+        struct stat st{};
+        if (stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+            ents.push_back({st.st_mtime, (size_t) st.st_size, path});
+            total += (size_t) st.st_size;
+        }
+    }
+    closedir(d);
+    if (total <= max_bytes) return;
+    std::sort(ents.begin(), ents.end(),
+              [](const Ent & a, const Ent & b) { return a.mt < b.mt; });
+    for (const auto & en : ents) {
+        if (total <= max_bytes) break;
+        if (remove(en.path.c_str()) == 0) total -= en.sz;
+    }
+}
+
+static void save_embd_file(const std::string & dir, const std::string & key,
+                           const float * data, size_t need_floats) {
+    // tmp + rename, so a crash mid-write can never leave a half file that later loads.
+    const std::string tmp = dir + "/." + key + ".tmp";
+    const std::string fin = dir + "/" + key + ".bin";
+    FILE * f = fopen(tmp.c_str(), "wb");
+    if (!f) return;
+    const bool ok = fwrite(data, sizeof(float), need_floats, f) == need_floats;
+    fclose(f);
+    if (ok) rename(tmp.c_str(), fin.c_str());
+    else    remove(tmp.c_str());
+    evict_embd_dir(dir, EMBD_DISK_MAX_BYTES);
 }
 
 // Roughly 1.8 MB per 640x360 keyframe (299 tokens x 1536 dims x 4 bytes). 192 MB holds
@@ -141,6 +233,8 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(
 
     if (!p_path.empty() && access(p_path.c_str(), R_OK) == 0) {
         LOGI("Loading multimodal projector: %s", p_path.c_str());
+        const size_t psl = p_path.find_last_of('/');
+        ctx->proj_name = (psl == std::string::npos) ? p_path : p_path.substr(psl + 1);
         mtmd_context_params mp = mtmd_context_params_default();
         mp.use_gpu        = (layersToOffload > 0);
         mp.print_timings  = true;
@@ -291,7 +385,7 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     const size_t n_chunks = mtmd_input_chunks_size(chunks);
     const int32_t n_embd  = llama_model_n_embd(ctx->model);
     int32_t eval_rc = 0;
-    int cache_hits = 0, cache_misses = 0;
+    int cache_hits = 0, cache_misses = 0, disk_hits = 0;
 
     for (size_t i = 0; i < n_chunks; ++i) {
         const mtmd_input_chunk * chunk = mtmd_input_chunks_get(chunks, i);
@@ -311,6 +405,27 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
         const std::string key = id ? id : "";
 
         auto it = key.empty() ? ctx->embd_cache.end() : ctx->embd_cache.find(key);
+        if (it != ctx->embd_cache.end()) {
+            cache_hits++;
+        } else if (!ctx->cache_dir.empty() && embd_key_safe(key)) {
+            // Second tier: an encode a previous process already paid for. Loading one
+            // back costs ~10 ms against the ~18 s it took to compute.
+            std::vector<float> from_disk;
+            if (load_embd_file(ctx->cache_dir, key, need, from_disk)) {
+                disk_hits++;
+                if (ctx->embd_cache_bytes + need * sizeof(float) <= EMBD_CACHE_MAX_BYTES) {
+                    it = ctx->embd_cache.emplace(key, std::move(from_disk)).first;
+                    ctx->embd_cache_bytes += need * sizeof(float);
+                } else {
+                    eval_rc = mtmd_helper_decode_image_chunk(
+                        ctx->ctx_mtmd, ctx->ctx_llama, chunk,
+                        from_disk.data(), n_past, /*seq_id*/ 0, /*n_batch*/ 2048,
+                        &n_past, nullptr, nullptr);
+                    if (eval_rc != 0) break;
+                    continue;
+                }
+            }
+        }
         if (it == ctx->embd_cache.end()) {
             cache_misses++;
             if (mtmd_encode_chunk(ctx->ctx_mtmd, chunk) != 0) {
@@ -319,6 +434,12 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
             }
             const float * out = mtmd_get_output_embd(ctx->ctx_mtmd);
             if (!out) { LOGE("no output embeddings"); eval_rc = 1; break; }
+
+            // Persist immediately: this file is what turns the next process's ~116 s
+            // prefill into ~20 s.
+            if (!ctx->cache_dir.empty() && embd_key_safe(key)) {
+                save_embd_file(ctx->cache_dir, key, out, need);
+            }
 
             if (!key.empty() && ctx->embd_cache_bytes + need * sizeof(float) <= EMBD_CACHE_MAX_BYTES) {
                 ctx->embd_cache.emplace(key, std::vector<float>(out, out + need));
@@ -333,8 +454,6 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
                 if (eval_rc != 0) break;
                 continue;
             }
-        } else {
-            cache_hits++;
         }
 
         eval_rc = mtmd_helper_decode_image_chunk(
@@ -348,8 +467,9 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     ctx->last_prefill_ms   = now_ms() - t_prefill_start;
     ctx->last_cache_hits   = cache_hits;
     ctx->last_cache_misses = cache_misses;
-    LOGI("image encode cache: %d hit, %d miss (%zu entries, %.1f MB)",
-         cache_hits, cache_misses, ctx->embd_cache.size(),
+    ctx->last_disk_hits    = disk_hits;
+    LOGI("image encode cache: %d mem hit, %d disk hit, %d miss (%zu entries, %.1f MB)",
+         cache_hits, disk_hits, cache_misses, ctx->embd_cache.size(),
          ctx->embd_cache_bytes / 1e6);
 
     if (eval_rc != 0) {
@@ -409,6 +529,33 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
 }
 
 /**
+ * Point the vision-encode cache at a persistent directory.
+ *
+ * Kotlin passes the app's cacheDir - private, permission-free, and cleaned by the OS
+ * under storage pressure, which is the right lifecycle for a pure performance artifact.
+ * The projector's basename becomes a subdirectory, so weights can be swapped without
+ * ever replaying another model's embeddings.
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeSetCacheDir(
+        JNIEnv * env, jobject /*thiz*/, jlong handle, jstring dir) {
+
+    auto * ctx = reinterpret_cast<NativeVLMContext *>(handle);
+    if (!ctx) return;
+    const std::string base = jstring_to_std(env, dir);
+    if (base.empty()) return;
+    mkdir(base.c_str(), 0700);
+
+    std::string tag = ctx->proj_name.empty() ? "textonly" : ctx->proj_name;
+    for (auto & c : tag) {
+        if (!isalnum((unsigned char) c) && c != '_' && c != '-') c = '_';
+    }
+    ctx->cache_dir = base + "/" + tag;
+    mkdir(ctx->cache_dir.c_str(), 0700);
+    LOGI("embd disk cache: %s", ctx->cache_dir.c_str());
+}
+
+/**
  * Breakdown of the most recent generate(), as "key=value" pairs.
  *
  * Query latency is dominated by generation - about 58 s of a 117 s query on an SD8Gen2 -
@@ -427,11 +574,11 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGetLastGenStats(
     char buf[320];
     snprintf(buf, sizeof(buf),
              "gen_tokens=%d gen_ms=%ld tok_per_s=%.2f cap_hit=%d prefill_ms=%ld "
-             "cache_hits=%d cache_misses=%d",
+             "cache_hits=%d disk_hits=%d cache_misses=%d",
              ctx->last_gen_tokens, ctx->last_gen_ms,
              ctx->last_gen_ms > 0 ? 1000.0 * ctx->last_gen_tokens / ctx->last_gen_ms : 0.0,
              (int) ctx->last_hit_token_cap, ctx->last_prefill_ms,
-             ctx->last_cache_hits, ctx->last_cache_misses);
+             ctx->last_cache_hits, ctx->last_disk_hits, ctx->last_cache_misses);
     return env->NewStringUTF(buf);
 }
 

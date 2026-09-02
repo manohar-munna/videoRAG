@@ -532,7 +532,20 @@ class MainActivity : AppCompatActivity() {
         // separates them with margin on both sides. Deliberately set low: a false
         // "not found" is worse than a slow answer, because the user cannot tell whether
         // the footage lacks the subject or the search failed.
-        val topScore = ranked.first().second
+        // Judge presence on the FULL caption, not the max-pooled score.
+        //
+        // embedTextVariants() also searches the bare head noun to protect recall, and
+        // searchMulti() keeps whichever scores higher. That is right for ranking and wrong
+        // for deciding whether the subject is in the video at all: "a red double decker bus
+        // in the snow" reduces to a head-noun variant of "a photo of a snow", which scores
+        // above 0.19 against ordinary daylight frames even though nothing in the clip
+        // resembles the question. The app then answered "White truck with a black fence on
+        // the back at 00:02:41 ..." to a query about a bus in snow.
+        //
+        // The full caption is what the user actually asked, so it is what absence is
+        // measured against. One extra scan over the vectors already in memory.
+        val topScore = vectorStore.search(queryVectors.first(), topK = 1)
+            .firstOrNull()?.second ?: 0f
         if (topScore < MIN_RELEVANCE) {
             Log.i("VideoRAG_Query", "top score %.3f < %.2f - answering absent"
                 .format(topScore, MIN_RELEVANCE))
