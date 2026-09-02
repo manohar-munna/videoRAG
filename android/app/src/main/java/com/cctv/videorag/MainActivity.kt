@@ -65,8 +65,28 @@ class MainActivity : AppCompatActivity() {
      */
     private val MAX_KEEP_SIMILARITY = 0.92f
 
-    /** Below this CLIP score the subject is treated as absent - see answerQuestion(). */
-    private val MIN_RELEVANCE = 0.19f
+    /**
+     * Below this CLIP score the subject is treated as absent - see answerQuestion().
+     *
+     * Calibrated against the measured distribution over the 463-keyframe index, using
+     * the full-caption score (not the max-pooled one):
+     *
+     *   white truck                        top 0.236   present
+     *   what is written on the truck       top 0.235   present
+     *   people wearing pink costumes       top 0.225   present
+     *   an elephant wearing a hat          top 0.196   absent
+     *   a red double decker bus in the snow top 0.163  absent
+     *
+     * Present and absent separate at 0.225 / 0.196, so 0.21 sits between them with room
+     * either side. The previous 0.19 was set on a sparser index and fell just below the
+     * elephant case, which would have been answered as though it were there.
+     *
+     * Note a relative rule - top score against the index's own median - was measured and
+     * is WORSE, not better: absent queries score low across the board, so their
+     * top-minus-median margin (0.082, 0.094) is LARGER than a present query's (0.053 to
+     * 0.063). The absolute score is what carries the signal.
+     */
+    private val MIN_RELEVANCE = 0.21f
 
     /**
      * Cap on the extra "also matched" timestamps listed under an answer. Enough to restore
@@ -558,8 +578,15 @@ class MainActivity : AppCompatActivity() {
         //
         // The full caption is what the user actually asked, so it is what absence is
         // measured against. One extra scan over the vectors already in memory.
-        val topScore = vectorStore.search(queryVectors.first(), topK = 1)
-            .firstOrNull()?.second ?: 0f
+        val primary = vectorStore.search(queryVectors.first(), topK = 400)
+        val topScore = primary.firstOrNull()?.second ?: 0f
+        val primaryScores = primary.map { it.second }.sortedDescending()
+        val median = if (primaryScores.isEmpty()) 0f
+                     else primaryScores[primaryScores.size / 2]
+        val p90 = if (primaryScores.isEmpty()) 0f
+                  else primaryScores[(primaryScores.size * 10) / 100]
+        Log.i("VideoRAG_Query", "scores: n=%d top=%.3f p90=%.3f median=%.3f margin=%.3f"
+            .format(primaryScores.size, topScore, p90, median, topScore - median))
         if (topScore < MIN_RELEVANCE) {
             Log.i("VideoRAG_Query", "top score %.3f < %.2f - answering absent"
                 .format(topScore, MIN_RELEVANCE))
@@ -625,11 +652,21 @@ class MainActivity : AppCompatActivity() {
         // would cap the list to the EARLIEST matches rather than the strongest. That is
         // what it did initially - "white truck" listed 00:02:54 through 00:06:38 and
         // dropped 00:10:54, a frame the model had itself described as showing the truck.
-        val candidates = ranked
-            .filter { it.second >= MIN_RELEVANCE }
-            .map { it.first.timestamp }
-            .distinct()
-            .filter { it !in analysed }
+        // Same spacing rule as the frames themselves. At 1 fps the above-threshold hits
+        // are dominated by consecutive seconds of one shot, so an unfiltered list read
+        // "00:03:40, 00:03:42, 00:05:27, 00:07:21, 00:07:23, 00:07:25" - six entries
+        // covering three moments. Keep the strongest of each cluster.
+        val spread = mutableListOf<String>()
+        for ((m, sc) in ranked) {
+            if (sc < MIN_RELEVANCE) continue
+            val ts = m.timestamp
+            if (ts in analysed) continue
+            val secs = parseTimestampSeconds(ts)
+            if (spread.any { kotlin.math.abs(parseTimestampSeconds(it) - secs) < MIN_SECONDS_APART }) continue
+            if (analysed.any { kotlin.math.abs(parseTimestampSeconds(it) - secs) < MIN_SECONDS_APART }) continue
+            spread += ts
+        }
+        val candidates = spread
         val alsoMatched = candidates.take(MAX_ALSO_MATCHED).sorted()
         val more = candidates.size - alsoMatched.size
         val fullText = if (alsoMatched.isEmpty()) text
