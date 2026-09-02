@@ -47,13 +47,21 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         /**
          * How many retrieved keyframes go to the model per query.
          *
-         * Each frame costs ~17 s (13.4 s encode + 3.7 s decode) at ~299 tokens on an
-         * SD8Gen2, so this trades latency for recall. At 2 a query answered "no yellow
-         * bus" because ranks 1-2 were 00:00:00 and 00:00:13 while the bus was at
-         * 00:00:29 - correct for the frames it saw, wrong for the video. 5 gives
-         * retrieval room to be imperfect without the answer being wrong.
+         * This is the dominant latency term. Prefill is ~86% of a cold query (96.7 s of
+         * 113 s on an SD8Gen2) and is almost entirely per-frame vision encode at ~18 s
+         * each, so the count multiplies straight through to wall time.
+         *
+         * Held at 5 for a long time because 2 was measurably too few: a query answered
+         * "no yellow bus" when ranks 1-2 were 00:00:00 and 00:00:13 and the bus was at
+         * 00:00:29 - correct for the frames it saw, wrong for the video.
+         *
+         * 3 is the middle ground, and it is not the same 3 that failed before. Since
+         * d78bfa4 each frame is the crop retrieval actually matched, rescaled to full
+         * size, so the subject occupies ~2.8x the pixels it used to; and
+         * dropNearDuplicates() spends the budget on distinct shots rather than three
+         * views of one moment. Fewer, better-framed frames rather than fewer, worse ones.
          */
-        const val MAX_FRAMES_TO_ANALYSE = 5
+        const val MAX_FRAMES_TO_ANALYSE = 3
 
         init {
             try {
