@@ -68,6 +68,13 @@ class MainActivity : AppCompatActivity() {
     /** Below this CLIP score the subject is treated as absent - see answerQuestion(). */
     private val MIN_RELEVANCE = 0.19f
 
+    /**
+     * Cap on the extra "also matched" timestamps listed under an answer. Enough to restore
+     * the coverage lost by analysing 3 frames instead of 5, without turning the footer into
+     * a wall of weak hits.
+     */
+    private val MAX_ALSO_MATCHED = 6
+
     /** Prior turns, oldest first, fed back to the model so follow-ups have context. */
     private val conversation = mutableListOf<ConversationTurn>()
 
@@ -592,11 +599,41 @@ class MainActivity : AppCompatActivity() {
         )
         lastDroppedTimestamps = vlm.lastDroppedTimestamps
         lastGenStats = vlm.lastGenStats
+
+        // Report the matches the model did not get to look at.
+        //
+        // Only MAX_FRAMES_TO_ANALYSE frames are encoded, because each costs ~18 s, but
+        // retrieval has already scored every frame in the index for free. Cutting 5 to 3
+        // therefore made answers cite three occurrences where they used to cite five - the
+        // timestamps stayed true, the list stopped being complete, and "when does the truck
+        // appear" quietly under-reports. That is the wrong failure for a forensic tool.
+        //
+        // Deliberately worded as matching the SEARCH, not as containing the subject: these
+        // frames cleared the same relevance bar as the analysed ones, but no model looked
+        // at them, so claiming the subject is present would be inventing evidence - the
+        // thing dropUnsupportedTimestamps() exists to prevent. They are still tappable, so
+        // the user can check them directly.
+        val analysed = sent.take(OnDeviceVLM.MAX_FRAMES_TO_ANALYSE).map { it.timestamp }.toSet()
+        // take() before sorted(), not after: `ranked` is in score order, so sorting first
+        // would cap the list to the EARLIEST matches rather than the strongest. That is
+        // what it did initially - "white truck" listed 00:02:54 through 00:06:38 and
+        // dropped 00:10:54, a frame the model had itself described as showing the truck.
+        val candidates = ranked
+            .filter { it.second >= MIN_RELEVANCE }
+            .map { it.first.timestamp }
+            .distinct()
+            .filter { it !in analysed }
+        val alsoMatched = candidates.take(MAX_ALSO_MATCHED).sorted()
+        val more = candidates.size - alsoMatched.size
+        val fullText = if (alsoMatched.isEmpty()) text
+                       else text + "\nAlso matched this search, not analysed: " +
+                            alsoMatched.joinToString(", ") +
+                            (if (more > 0) " (+$more more)" else "")
         // Show the strip what the model was actually shown. Since the VLM now receives the
         // matched region rather than the whole frame, displaying imagePath here would put
         // a different picture under the answer than the one it was reasoning about, which
         // defeats the point of the strip as a way to check the answer.
-        return Answer(text, sent.map {
+        return Answer(fullText, sent.map {
             ChatView.FrameRef(vlm.regionCropPath(it), it.timestamp, parseTimestampSeconds(it.timestamp))
         })
     }
