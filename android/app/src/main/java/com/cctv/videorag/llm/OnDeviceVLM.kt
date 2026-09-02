@@ -282,9 +282,21 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             val w = (full.width  * r[2]).toInt().coerceAtLeast(1).coerceAtMost(full.width  - x)
             val h = (full.height * r[3]).toInt().coerceAtLeast(1).coerceAtMost(full.height - y)
             val crop = Bitmap.createBitmap(full, x, y, w, h)
-            // Back to the frame's own dimensions so the vision encoder is handed exactly
-            // as many pixels - and so exactly as many tokens - as it was before.
-            val scaled = Bitmap.createScaledBitmap(crop, full.width, full.height, true)
+            // Send the crop at its NATIVE size rather than upscaling it back to the full
+            // frame's dimensions.
+            //
+            // The upscale was there to keep the token count identical to the pre-crop
+            // path, but it adds no information - a 384x216 region resampled to 640x360 is
+            // the same pixels spread over more tokens. Vision encode is ~86% of a cold
+            // query and scales with token count, so those tokens are the single most
+            // expensive thing in the app: 640x360 is ~299 tokens, 384x216 is ~106.
+            //
+            // What is genuinely given up is attention budget: Qwen-VL grounds better with
+            // more tokens per image (ggml-org/llama.cpp#16842), so this is only tenable
+            // because the crop already concentrates the subject ~2.8x. Gated on the
+            // livery-reading query, which is the first thing to fail when visual detail
+            // is cut.
+            val scaled = crop
             val dir = File(context.cacheDir, "query_crops").apply { mkdirs() }
             val out = File(dir, "${moment.id.replace(Regex("[^A-Za-z0-9_]"), "_")}.jpg")
             java.io.FileOutputStream(out).use { scaled.compress(Bitmap.CompressFormat.JPEG, 90, it) }
