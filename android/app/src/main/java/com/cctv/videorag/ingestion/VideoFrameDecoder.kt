@@ -68,7 +68,26 @@ class VideoFrameDecoder(private val context: Context) {
             var frameIdx = 0
             while (curTimeMs < durationMs) {
                 val timeUs = curTimeMs * 1000L
-                val rawFrame = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                // OPTION_CLOSEST, not OPTION_CLOSEST_SYNC.
+                //
+                // CLOSEST_SYNC snaps to the nearest codec sync frame rather than the
+                // requested time, so on a clip with a multi-second GOP a 1 fps sweep
+                // returns the same decoded I-frame over and over. Measured on the
+                // 13-minute sample: 812 requests produced 156 distinct images, 80.8%
+                // byte-identical, an effective rate of one frame every 5.2 s.
+                //
+                // The wasted work was never the point. Anything visible only between two
+                // sync frames was not deduplicated, it was never decoded - so a vehicle
+                // that passes through in three seconds could not be found at all. For a
+                // tool whose whole purpose is "when did X appear", that is a correctness
+                // bug, and it also made the dHash gate's statistics meaningless: of 680
+                // frames it reported dropping, 656 were exact re-decodes.
+                //
+                // CLOSEST decodes forward from the preceding sync frame to the requested
+                // timestamp, which costs more per call. If that proves too slow the fix
+                // is a sequential MediaCodec/MediaExtractor pass rather than going back
+                // to sampling the same picture repeatedly.
+                val rawFrame = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
                 val frameBitmap = rawFrame?.let { downscale(it, MAX_KEYFRAME_DIM) }
                 if (frameBitmap != null) {
                     val secondsTotal = curTimeMs / 1000

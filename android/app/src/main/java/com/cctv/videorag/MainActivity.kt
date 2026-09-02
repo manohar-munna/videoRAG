@@ -75,6 +75,13 @@ class MainActivity : AppCompatActivity() {
      */
     private val MAX_ALSO_MATCHED = 6
 
+    /**
+     * Minimum gap between two frames sent to the model, in seconds. See
+     * dropNearDuplicates(). Small enough that two genuinely different events seconds
+     * apart both survive; large enough that consecutive samples of one shot do not.
+     */
+    private val MIN_SECONDS_APART = 5
+
     /** Prior turns, oldest first, fed back to the model so follow-ups have context. */
     private val conversation = mutableListOf<ConversationTurn>()
 
@@ -653,7 +660,22 @@ class MainActivity : AppCompatActivity() {
         val kept = mutableListOf<IndexedMoment>()
         for ((moment, _) in ranked) {
             val tooSimilar = kept.any { cosine(it.vector, moment.vector) > maxSimilarity }
-            if (!tooSimilar) kept.add(moment)
+            // Cosine alone is not enough now that sampling is genuinely 1 fps. Adjacent
+            // seconds of the same shot score below 0.92 - CLIP notices small movement -
+            // so they survive the similarity filter and the ranking clusters on one
+            // moment. Asked "what is written on the truck" the top five were 00:07:22,
+            // 00:03:41, 00:07:21, 00:07:23, 00:03:40, and two of the three frames sent
+            // were one second apart: a third of the budget spent twice on one instant.
+            //
+            // For a question like "when does this appear", three moments spread across
+            // the recording are worth more than three views of one, so require a minimum
+            // separation in time as well. Frames rejected here are not lost - they are
+            // still listed under "also matched".
+            val tooClose = kept.any {
+                kotlin.math.abs(parseTimestampSeconds(it.timestamp) -
+                                parseTimestampSeconds(moment.timestamp)) < MIN_SECONDS_APART
+            }
+            if (!tooSimilar && !tooClose) kept.add(moment)
             if (kept.size >= OnDeviceVLM.MAX_FRAMES_TO_ANALYSE) break
         }
         val dropped = ranked.size.coerceAtMost(20) - kept.size
