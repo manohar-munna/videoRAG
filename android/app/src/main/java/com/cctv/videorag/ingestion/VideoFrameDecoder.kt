@@ -6,6 +6,11 @@ import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.YuvImage
+import android.media.Image
+import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
@@ -55,6 +60,22 @@ class VideoFrameDecoder(private val context: Context) {
         onProgress: (currentSec: Long, totalSec: Long, frameIndex: Int) -> Unit,
         onKeyframeDecoded: suspend (Bitmap, String, Long, String) -> Unit
     ) = withContext(Dispatchers.IO) {
+        // Sequential decode first; the seek-per-frame path below is the fallback.
+        //
+        // getFrameAtTime(OPTION_CLOSEST) has to decode forward from the preceding sync
+        // frame on EVERY call, so sampling 812 times over a 13-minute clip re-decodes
+        // most of the file once per sample. Measured on a Vivo I2304: 1109 s to ingest.
+        // Decoding the stream once and keeping every Nth frame does the same work in one
+        // pass. Any failure - odd codec, DRM, unusual colour format - falls through to
+        // the original path, which is slow but known to work everywhere.
+        try {
+            decodeVideoSequential(videoUri, cameraName, sampleFps, onProgress, onKeyframeDecoded)
+            return@withContext
+        } catch (e: Throwable) {
+            Log.w("VideoFrameDecoder", "sequential decode failed (${e.message}); " +
+                  "falling back to per-frame seeking")
+        }
+
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, videoUri)
@@ -116,6 +137,179 @@ class VideoFrameDecoder(private val context: Context) {
                 retriever.release()
             } catch (_: Exception) {}
         }
+    }
+
+
+    /**
+     * Decode the video once, linearly, keeping one frame per sampling interval.
+     *
+     * MediaExtractor feeds encoded samples to a MediaCodec decoder in ByteBuffer mode;
+     * getOutputImage() hands back a YUV_420_888 Image for each decoded frame, and frames
+     * are kept only when the presentation timestamp crosses the next sampling boundary.
+     * Every frame is still decoded - that is unavoidable - but each is decoded exactly
+     * once, instead of once per seek that happens to span it.
+     */
+    private suspend fun decodeVideoSequential(
+        videoUri: Uri,
+        cameraName: String,
+        sampleFps: Double,
+        onProgress: (currentSec: Long, totalSec: Long, frameIndex: Int) -> Unit,
+        onKeyframeDecoded: suspend (Bitmap, String, Long, String) -> Unit
+    ) {
+        val extractor = MediaExtractor()
+        var codec: MediaCodec? = null
+        try {
+            extractor.setDataSource(context, videoUri, null)
+
+            var track = -1
+            for (i in 0 until extractor.trackCount) {
+                val mime = extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: continue
+                if (mime.startsWith("video/")) { track = i; break }
+            }
+            require(track >= 0) { "no video track" }
+            extractor.selectTrack(track)
+
+            val format = extractor.getTrackFormat(track)
+            val mime = format.getString(MediaFormat.KEY_MIME)!!
+            val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION))
+                format.getLong(MediaFormat.KEY_DURATION) else 0L
+            val totalSec = durationUs / 1_000_000L
+
+            // Ask for a layout getOutputImage() can describe. Decoders that ignore this
+            // still work: the Image API reports whatever planes they actually produced.
+            format.setInteger(
+                MediaFormat.KEY_COLOR_FORMAT,
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
+            )
+
+            codec = MediaCodec.createDecoderByType(mime)
+            codec.configure(format, null, null, 0)   // null surface = ByteBuffer mode
+            codec.start()
+
+            val frameOutputDir = File(context.filesDir, "extracted_frames/$cameraName").apply { mkdirs() }
+            val intervalUs = (1_000_000.0 / sampleFps).toLong().coerceAtLeast(1L)
+            var nextEmitUs = 0L
+            var frameIdx = 0
+            var sawInputEos = false
+            var sawOutputEos = false
+            val info = MediaCodec.BufferInfo()
+
+            while (!sawOutputEos) {
+                if (!sawInputEos) {
+                    val inIndex = codec.dequeueInputBuffer(10_000)
+                    if (inIndex >= 0) {
+                        val buf = codec.getInputBuffer(inIndex)!!
+                        val size = extractor.readSampleData(buf, 0)
+                        if (size < 0) {
+                            codec.queueInputBuffer(
+                                inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            sawInputEos = true
+                        } else {
+                            codec.queueInputBuffer(inIndex, 0, size, extractor.sampleTime, 0)
+                            extractor.advance()
+                        }
+                    }
+                }
+
+                val outIndex = codec.dequeueOutputBuffer(info, 10_000)
+                if (outIndex < 0) {
+                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawOutputEos = true
+                    continue
+                }
+                if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawOutputEos = true
+
+                val wanted = info.size > 0 && info.presentationTimeUs >= nextEmitUs
+                if (wanted) {
+                    // Skip whole intervals rather than emitting a burst, in case the
+                    // stream has a gap longer than one sampling period.
+                    while (nextEmitUs <= info.presentationTimeUs) nextEmitUs += intervalUs
+
+                    val bmp = try {
+                        codec.getOutputImage(outIndex)?.use { imageToBitmap(it) }
+                    } catch (e: Throwable) {
+                        Log.w("VideoFrameDecoder", "frame convert failed: ${e.message}"); null
+                    }
+                    if (bmp != null) {
+                        val frameBitmap = downscale(bmp, MAX_KEYFRAME_DIM)
+                        val secondsTotal = info.presentationTimeUs / 1_000_000L
+                        val hh = secondsTotal / 3600
+                        val mm = (secondsTotal % 3600) / 60
+                        val ss = secondsTotal % 60
+                        val ts = String.format(Locale.US, "%02d:%02d:%02d", hh, mm, ss)
+                        val filename = String.format(
+                            Locale.US, "%s_%02d_%02d_%02d_%05d.jpg", cameraName, hh, mm, ss, frameIdx)
+                        val outFile = File(frameOutputDir, filename)
+                        FileOutputStream(outFile).use { fos ->
+                            frameBitmap.compress(Bitmap.CompressFormat.JPEG, 85, fos)
+                        }
+                        onProgress(secondsTotal, totalSec, frameIdx)
+                        onKeyframeDecoded(
+                            frameBitmap, ts,
+                            System.currentTimeMillis() - (durationUs / 1000 - secondsTotal * 1000),
+                            outFile.absolutePath
+                        )
+                        frameIdx++
+                    }
+                }
+                codec.releaseOutputBuffer(outIndex, false)
+            }
+            Log.i("VideoFrameDecoder", "sequential decode: emitted $frameIdx frames")
+        } finally {
+            try { codec?.stop() } catch (_: Throwable) {}
+            try { codec?.release() } catch (_: Throwable) {}
+            try { extractor.release() } catch (_: Throwable) {}
+        }
+    }
+
+    /**
+     * YUV_420_888 Image to Bitmap, via NV21 and the platform JPEG encoder.
+     *
+     * Row and pixel strides are honoured rather than assumed: decoders pad rows to
+     * hardware alignments, and some emit semi-planar chroma where U and V interleave in
+     * one buffer, so copying the planes wholesale produces skewed or false-colour frames.
+     */
+    private fun imageToBitmap(image: Image): Bitmap {
+        val w = image.width
+        val h = image.height
+        val nv21 = ByteArray(w * h * 3 / 2)
+
+        val yPlane = image.planes[0]
+        val yBuf = yPlane.buffer
+        var pos = 0
+        if (yPlane.rowStride == w && yPlane.pixelStride == 1) {
+            yBuf.get(nv21, 0, w * h)
+            pos = w * h
+        } else {
+            for (row in 0 until h) {
+                yBuf.position(row * yPlane.rowStride)
+                if (yPlane.pixelStride == 1) {
+                    yBuf.get(nv21, pos, w); pos += w
+                } else {
+                    for (col in 0 until w) {
+                        nv21[pos++] = yBuf.get(row * yPlane.rowStride + col * yPlane.pixelStride)
+                    }
+                }
+            }
+        }
+
+        // NV21 expects V then U, interleaved, at half resolution.
+        val uPlane = image.planes[1]
+        val vPlane = image.planes[2]
+        val uBuf = uPlane.buffer
+        val vBuf = vPlane.buffer
+        for (row in 0 until h / 2) {
+            for (col in 0 until w / 2) {
+                nv21[pos++] = vBuf.get(row * vPlane.rowStride + col * vPlane.pixelStride)
+                nv21[pos++] = uBuf.get(row * uPlane.rowStride + col * uPlane.pixelStride)
+            }
+        }
+
+        val out = ByteArrayOutputStream()
+        YuvImage(nv21, ImageFormat.NV21, w, h, null)
+            .compressToJpeg(Rect(0, 0, w, h), 90, out)
+        val bytes = out.toByteArray()
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            ?: throw IllegalStateException("JPEG decode of converted frame failed")
     }
 
     /**
