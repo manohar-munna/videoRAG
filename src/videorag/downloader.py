@@ -85,6 +85,23 @@ def _present(entry: dict) -> bool:
     return p.is_file() and p.stat().st_size == entry["bytes"]
 
 
+def _substitute(entry: dict) -> bool:
+    """A weight already sitting at this path, but not the build the manifest names.
+
+    Not the same thing as a broken download. A partial transfer lives in a `.part`
+    file and is only renamed into place after its SHA-256 matches, so a full-sized
+    file at the destination with the wrong length is something the user put there -
+    a local quantisation, or an upstream build that has since been re-uploaded.
+
+    Treating that as "missing" would re-download gigabytes and overwrite weights the
+    user's setup was actually validated against, which is how a working install
+    quietly turns into an unverified one. So it counts as usable, and is reported
+    separately rather than replaced.
+    """
+    p = _PROJECT_ROOT / entry["dest"]
+    return p.is_file() and p.stat().st_size not in (0, entry["bytes"])
+
+
 def status(profile: str, url: Optional[str] = None) -> dict:
     """Which of the active profile's weights are present vs missing."""
     try:
@@ -93,11 +110,13 @@ def status(profile: str, url: Optional[str] = None) -> dict:
         return {"configured": False, "error": str(exc),
                 "present": [], "missing": [], "ready": False}
     present = [e for e in entries if _present(e)]
-    missing = [e for e in entries if not _present(e)]
+    subs = [e for e in entries if not _present(e) and _substitute(e)]
+    missing = [e for e in entries if not _present(e) and not _substitute(e)]
     return {
         "configured": True,
         "ready": len(missing) == 0,
         "present": [e["dest"] for e in present],
+        "substitutes": [e["dest"] for e in subs],
         "missing": [{"dest": e["dest"], "bytes": e["bytes"]} for e in missing],
         "missing_bytes": sum(e["bytes"] for e in missing),
     }
@@ -162,11 +181,17 @@ def get_state() -> dict:
 
 
 def download_profile(profile: str, url: Optional[str] = None,
-                     on_progress: Optional[Callable[[dict], None]] = None) -> None:
-    """Download every missing weight for [profile]; updates module progress state."""
+                     on_progress: Optional[Callable[[dict], None]] = None,
+                     force: bool = False) -> None:
+    """Download every missing weight for [profile]; updates module progress state.
+
+    Weights already on disk under a different build are left alone unless [force],
+    so running this never silently swaps out a model the setup was validated with.
+    """
     root = base_url(url)
     entries = profile_entries(profile, url)
-    missing = [e for e in entries if not _present(e)]
+    missing = [e for e in entries
+               if not _present(e) and (force or not _substitute(e))]
 
     with _LOCK:
         _STATE.update(running=True, profile=profile, total=len(missing), index=0,
