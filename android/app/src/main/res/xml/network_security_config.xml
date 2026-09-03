@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Allow plain-HTTP downloads of the model weights.
+
+  Android 9 (API 28) blocks cleartext HTTP by default, so a model server reached over
+  http:// fails with "Cleartext HTTP traffic to <host> not permitted" before a single
+  byte is transferred. That is the likely deployment: the weights are hosted from a
+  Docker container on a LAN address or a bare IP, where issuing a trusted certificate is
+  awkward.
+
+  The weights are integrity-checked independently of the transport - every file is
+  verified against its manifest SHA-256 before it is used - so a tampered or corrupted
+  download is rejected regardless of whether TLS protected it. Cleartext costs
+  confidentiality of a public model file, not integrity of what gets loaded.
+
+  If you serve the models over HTTPS, tighten this: replace the permissive base-config
+  with a domain-config naming your host, e.g.
+
+      <domain-config cleartextTrafficPermitted="false">
+          <domain includeSubdomains="true">models.example.com</domain>
+      </domain-config>
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

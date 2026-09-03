@@ -1,58 +1,103 @@
 #!/usr/bin/env python3
-"""Generate models/manifest.json + the exact upload layout for the model server.
+"""Generate the model manifest both apps ship with.
 
-The apps download their weights from a static file server (any HTTP host / Docker
-container serving a directory). This script hashes the local weights, writes a
-manifest the clients read, and stages a `dist/models/` tree laid out exactly as it
-must appear on the server. Point the apps' MODEL_BASE_URL at wherever that tree is
-served and each install pulls only the files its platform/profile needs.
+Most weights are public GGUFs on HuggingFace, so the manifest points straight at them:
+nothing to host, and size + SHA-256 come from the HF API without downloading anything.
+URLs are pinned to the repo's current commit so a re-upload upstream cannot silently
+change what a client fetches.
 
-Run from the repo root:  python scripts/gen_model_manifest.py
+The two MobileCLIP ONNX towers are the exception. They are produced locally by
+scripts/export_mobileclip_onnx.py + patch_clip_text_argmax.py (the ArgMax int32 patch
+that onnxruntime-android needs), so they exist nowhere public and must be hosted. Point
+--onnx-base at wherever you put them - a free HuggingFace model repo of your own is the
+easiest option:
+
+    huggingface-cli repo create videorag-mobileclip --type model
+    huggingface-cli upload <you>/videorag-mobileclip \\
+        models/mobileclip_onnx/mobileclip_image.onnx mobileclip_image.onnx
+    huggingface-cli upload <you>/videorag-mobileclip \\
+        models/mobileclip_onnx/mobileclip_text.onnx  mobileclip_text.onnx
+
+    python scripts/gen_model_manifest.py \\
+        --onnx-base https://huggingface.co/<you>/videorag-mobileclip/resolve/main
+
+Writes the manifest to both places the apps read it from:
+  android/app/src/main/assets/model_manifest.json
+  config/model_manifest.json
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
-import shutil
+import sys
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DIST = ROOT / "dist" / "models"
 
-# (source path on disk, server-relative path, on-device destination relative to the
-#  app's models root). dest is what the client writes locally.
-ANDROID = [
-    ("models/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
-     "android/Qwen2-VL-2B-Instruct-Q4_K_M.gguf", "Qwen2-VL-2B-Instruct-Q4_K_M.gguf"),
-    ("models/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf",
-     "android/mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf", "mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf"),
-    ("models/mobileclip_onnx/mobileclip_image.onnx",
-     "android/mobileclip_image.onnx", "mobileclip_image.onnx"),
-    ("models/mobileclip_onnx/mobileclip_text.onnx",
-     "android/mobileclip_text.onnx", "mobileclip_text.onnx"),
-]
-
-# Windows CLIP is fetched by open_clip from HuggingFace on first use, so only the
-# GGUF weights need hosting. Two selectable runtime profiles (see RUNTIME_PROFILES
-# in vlm_process_manager.py); a desktop install downloads only its active profile.
-WINDOWS = {
-    "desktop": [
-        ("models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
-         "windows/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+# GGUF weights that live on HuggingFace: (repo, remote filename, local destination)
+#
+# Repo choice is not arbitrary - it is pinned to builds verified on-device. ggml-org's
+# Qwen2-VL-2B Q4_K_M looks equivalent (same arch, same tensor count, correct sha256) but
+# makes this app's vendored llama.cpp emit EOS after 2 tokens: "White truck at 00:02:42."
+# instead of a description. bartowski's Q4_K_M is byte-identical to the build every
+# quality result in this project was measured against (986047232 bytes, sha256
+# 4ef095263343fc12), so that is the one to ship. Same for the f16 projector.
+# The Q8_0 projector only exists in ggml-org's repo, and that file IS byte-identical to
+# our validated copy (a0ad91f00a7a80dc), so it is safe to take from there.
+HF_GGUF = {
+    "android": [
+        ("bartowski/Qwen2-VL-2B-Instruct-GGUF", "Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
+         "Qwen2-VL-2B-Instruct-Q4_K_M.gguf"),
+        ("ggml-org/Qwen2-VL-2B-Instruct-GGUF", "mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf",
+         "mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf"),
+    ],
+    "windows.desktop": [
+        ("unsloth/Qwen3-VL-4B-Instruct-GGUF", "Qwen3-VL-4B-Instruct-Q4_K_M.gguf",
          "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"),
-        ("models/qwen3_vl/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
-         "windows/qwen3_vl/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+        ("unsloth/Qwen3-VL-4B-Instruct-GGUF", "mmproj-F16.gguf",
          "models/qwen3_vl/mmproj-Qwen3VL-4B-Instruct-F16.gguf"),
     ],
-    "mobile": [
-        ("models/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
-         "windows/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
+    "windows.mobile": [
+        ("bartowski/Qwen2-VL-2B-Instruct-GGUF", "Qwen2-VL-2B-Instruct-Q4_K_M.gguf",
          "models/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf"),
-        ("models/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-f16.gguf",
-         "windows/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-f16.gguf",
+        ("bartowski/Qwen2-VL-2B-Instruct-GGUF", "mmproj-Qwen2-VL-2B-Instruct-f16.gguf",
          "models/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-f16.gguf"),
     ],
 }
+
+# Locally-built ONNX towers that must be hosted (Android only; the desktop embedder
+# pulls MobileCLIP from HuggingFace itself via open_clip).
+LOCAL_ONNX = [
+    ("models/mobileclip_onnx/mobileclip_image.onnx", "mobileclip_image.onnx"),
+    ("models/mobileclip_onnx/mobileclip_text.onnx", "mobileclip_text.onnx"),
+]
+
+_repo_cache: dict = {}
+
+
+def hf_repo(repo: str) -> dict:
+    if repo not in _repo_cache:
+        url = f"https://huggingface.co/api/models/{repo}?blobs=true"
+        with urllib.request.urlopen(url, timeout=30) as r:
+            _repo_cache[repo] = json.loads(r.read().decode())
+    return _repo_cache[repo]
+
+
+def hf_entry(repo: str, filename: str, dest: str) -> dict:
+    info = hf_repo(repo)
+    sha_rev = info.get("sha")
+    for sib in info.get("siblings", []):
+        if sib.get("rfilename") == filename:
+            lfs = sib.get("lfs") or {}
+            size, digest = lfs.get("size"), (lfs.get("sha256") or lfs.get("oid"))
+            if not size or not digest:
+                raise SystemExit(f"{repo}/{filename}: no LFS size/sha256 in the HF API")
+            # pin to the commit so upstream re-uploads cannot change what clients get
+            return {"url": f"https://huggingface.co/{repo}/resolve/{sha_rev}/{filename}",
+                    "dest": dest, "bytes": size, "sha256": digest}
+    raise SystemExit(f"{filename} not found in {repo}")
 
 
 def sha256(path: Path) -> str:
@@ -63,54 +108,60 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def entry(src: str, url_path: str, dest: str, stage: bool) -> dict:
+def local_entry(src: str, remote_name: str, onnx_base: str) -> dict:
     p = ROOT / src
     if not p.exists():
-        raise SystemExit(f"missing source weight: {src}")
-    size = p.stat().st_size
-    print(f"  hashing {src} ({size/1e6:.0f} MB) ...", flush=True)
-    digest = sha256(p)
-    if stage:
-        out = DIST / url_path
+        raise SystemExit(f"missing locally-built weight: {src}")
+    print(f"  hashing {src} ...", flush=True)
+    return {"url": f"{onnx_base.rstrip('/')}/{remote_name}", "dest": remote_name,
+            "bytes": p.stat().st_size, "sha256": sha256(p)}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--onnx-base", default="",
+                    help="base URL hosting mobileclip_image.onnx / mobileclip_text.onnx")
+    args = ap.parse_args()
+
+    print("Resolving GGUF weights from HuggingFace (no download)...")
+    android = [hf_entry(*t) for t in HF_GGUF["android"]]
+    windows = {
+        "desktop": [hf_entry(*t) for t in HF_GGUF["windows.desktop"]],
+        "mobile": [hf_entry(*t) for t in HF_GGUF["windows.mobile"]],
+    }
+    for e in android + windows["desktop"] + windows["mobile"]:
+        print(f"  {e['dest']:<52} {e['bytes'] / 1e6:8.0f} MB")
+
+    if args.onnx_base:
+        print("Hashing locally-built ONNX towers...")
+        android += [local_entry(src, name, args.onnx_base) for src, name in LOCAL_ONNX]
+    else:
+        print("\n!! --onnx-base not given: the manifest will have NO CLIP towers, so the\n"
+              "   Android app cannot search. Host the two files and re-run (see --help).",
+              file=sys.stderr)
+
+    manifest = {"version": 2, "android": android, "windows": windows}
+    text = json.dumps(manifest, indent=2)
+    for out in (ROOT / "android/app/src/main/assets/model_manifest.json",
+                ROOT / "config/model_manifest.json"):
         out.parent.mkdir(parents=True, exist_ok=True)
-        if not out.exists() or out.stat().st_size != size:
-            shutil.copy2(p, out)
-    return {"path": url_path, "dest": dest, "bytes": size, "sha256": digest}
+        out.write_text(text)
+        print(f"wrote {out.relative_to(ROOT)}")
 
-
-def main() -> None:
-    import sys
-    stage = "--stage" in sys.argv  # copy files into dist/models/ ready to upload
-    print("Android weights:")
-    android = [entry(s, u, d, stage) for (s, u, d) in ANDROID]
-    print("Windows weights:")
-    windows = {prof: [entry(s, u, d, stage) for (s, u, d) in items]
-               for prof, items in WINDOWS.items()}
-
-    manifest = {"version": 1, "android": android, "windows": windows}
-    out_manifest = (DIST / "manifest.json") if stage else (ROOT / "dist" / "manifest.json")
-    out_manifest.parent.mkdir(parents=True, exist_ok=True)
-    out_manifest.write_text(json.dumps(manifest, indent=2))
-
-    def total(items):
+    def gb(items):
         return sum(e["bytes"] for e in items) / 1e9
 
-    print("\n==== upload layout (dist/models/) ====")
-    print(f"  manifest.json")
-    for e in android:
-        print(f"  {e['path']:<52} {e['bytes']/1e6:8.0f} MB")
-    for prof, items in windows.items():
-        for e in items:
-            print(f"  {e['path']:<52} {e['bytes']/1e6:8.0f} MB")
-    print("\n==== per-install download size ====")
-    print(f"  Android            {total(android):.2f} GB")
-    print(f"  Windows desktop 4B {total(windows['desktop']):.2f} GB")
-    print(f"  Windows mobile 2B  {total(windows['mobile']):.2f} GB")
-    print(f"\nmanifest written to {out_manifest}")
-    if not stage:
-        print("(re-run with --stage to also copy the weights into dist/models/ "
-              "in this exact layout, ready to upload)")
+    print("\n==== per-install download ====")
+    print(f"  Android            {gb(android):.2f} GB"
+          f"{'  (CLIP towers MISSING)' if not args.onnx_base else ''}")
+    print(f"  Windows desktop 4B {gb(windows['desktop']):.2f} GB")
+    print(f"  Windows mobile 2B  {gb(windows['mobile']):.2f} GB")
+    print("\nYou host: " + ("nothing — every file comes from HuggingFace"
+                            if not LOCAL_ONNX else
+                            "only mobileclip_image.onnx + mobileclip_text.onnx (398 MB)"))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

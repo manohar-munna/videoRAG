@@ -46,14 +46,30 @@ def base_url(explicit: Optional[str] = None) -> str:
 
 
 def fetch_manifest(url: Optional[str] = None) -> dict:
+    """The manifest shipped in config/, or a remote copy if a base URL is configured.
+
+    Most entries point straight at HuggingFace, so shipping the manifest means there is
+    nothing to host for those weights at all. A base URL is only needed to repoint an
+    installed copy without regenerating it.
+    """
     root = base_url(url)
-    if not root:
+    if root:
+        with urllib.request.urlopen(f"{root}/manifest.json", timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
+    local = _PROJECT_ROOT / "config" / "model_manifest.json"
+    if not local.is_file():
         raise RuntimeError(
-            "No model server configured. Set models.download_base_url in config.yaml "
-            "or the VIDEORAG_MODEL_BASE_URL environment variable."
+            "No model manifest. Run scripts/gen_model_manifest.py, or set "
+            "models.download_base_url / VIDEORAG_MODEL_BASE_URL to fetch one."
         )
-    with urllib.request.urlopen(f"{root}/manifest.json", timeout=30) as r:
-        return json.loads(r.read().decode("utf-8"))
+    return json.loads(local.read_text())
+
+
+def _entry_url(entry: dict, root: str) -> str:
+    """Absolute 'url' (current form) or 'path' relative to the base URL (older form)."""
+    if entry.get("url"):
+        return entry["url"]
+    return f"{root}/{entry['path']}"
 
 
 def profile_entries(profile: str, url: Optional[str] = None) -> List[dict]:
@@ -74,7 +90,7 @@ def status(profile: str, url: Optional[str] = None) -> dict:
     try:
         entries = profile_entries(profile, url)
     except Exception as exc:
-        return {"configured": bool(base_url(url)), "error": str(exc),
+        return {"configured": False, "error": str(exc),
                 "present": [], "missing": [], "ready": False}
     present = [e for e in entries if _present(e)]
     missing = [e for e in entries if not _present(e)]
@@ -167,7 +183,7 @@ def download_profile(profile: str, url: Optional[str] = None,
                 if on_progress:
                     on_progress(get_state())
 
-            _download_one(f"{root}/{e['path']}", _PROJECT_ROOT / e["dest"],
+            _download_one(_entry_url(e, root), _PROJECT_ROOT / e["dest"],
                           e["bytes"], e.get("sha256", ""), _on_bytes)
         with _LOCK:
             _STATE.update(running=False, done=True)

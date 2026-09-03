@@ -218,7 +218,11 @@ class MainActivity : AppCompatActivity() {
     private fun setupListeners() {
         btnPickVideo.setOnClickListener { pickVideoLauncher.launch("video/*") }
         btnSelectModelFolder.setOnClickListener { selectFolderLauncher.launch(null) }
-        tvModelBadge.setOnClickListener { if (tvModelBadge.text == "Download models") downloadModels() }
+        // Unconditional: downloadModels() decides for itself whether anything is
+        // missing. Gating on the badge's label was fragile - TextView.getText() is a
+        // CharSequence that does not reliably compare equal to a String literal, so the
+        // tap silently did nothing while the badge plainly read "Download models".
+        tvModelBadge.setOnClickListener { downloadModels() }
         btnClearAll.setOnClickListener { resetAllData() }
         btnDebug.setOnClickListener { showDebugPanel() }
 
@@ -302,6 +306,18 @@ class MainActivity : AppCompatActivity() {
      * kept so a retry resumes rather than restarting.
      */
     private fun downloadModels() {
+        if (downloading) return
+        // Nothing to do when the weights are already present - tapping a "Model ready"
+        // badge should be a no-op, not a spurious download.
+        lifecycleScope.launch(Dispatchers.IO) {
+            val nothingMissing = try { ModelDownloader.missing(this@MainActivity).isEmpty() }
+                                 catch (_: Throwable) { false }
+            if (nothingMissing) return@launch
+            withContext(Dispatchers.Main) { startModelDownload() }
+        }
+    }
+
+    private fun startModelDownload() {
         if (downloading) return
         downloading = true
         tvModelBadge.text = "Downloading…"
@@ -529,8 +545,12 @@ class MainActivity : AppCompatActivity() {
         val frameDescription = frameJson.getString("visual_description")
 
         val embedder = orchestrator.getActiveEmbedder()
-        for (crop in SpatialCropper.generatePyramidCrops(bitmap)) {
-            val v = embedder.embedImage(crop.bitmap)
+        // One batched run for the frame's six crops instead of six single runs. Ingest is
+        // CLIP-bound - 466 keyframes x 6 crops is 2796 forward passes - so per-call
+        // overhead is paid thousands of times per video.
+        val crops = SpatialCropper.generatePyramidCrops(bitmap)
+        val vectors = embedder.embedImages(crops.map { it.bitmap })
+        for ((crop, v) in crops.zip(vectors)) {
             val moment = IndexedMoment(
                 id = "${camera}_${timestamp}_${crop.label}",
                 camera = camera, timestamp = timestamp, epochTime = epochTime,
@@ -539,8 +559,8 @@ class MainActivity : AppCompatActivity() {
             )
             vectorStore.addMoment(moment)
             sqliteFts.saveMoment(moment, currentVideoKey)   // survives restart
-            if (crop.bitmap != bitmap) crop.bitmap.recycle()
         }
+        for (crop in crops) if (crop.bitmap != bitmap) crop.bitmap.recycle()
 
         sqliteFts.insertMoment(
             momentId = "${camera}_${timestamp}", camera = camera, timestamp = timestamp,
