@@ -1,78 +1,73 @@
 # Hosting the model weights
 
-The apps do not ship their model weights (the Android set is ~2 GB, the Windows set
-2.3–3.3 GB). Instead, on first run each app downloads what it needs from a static file
-server you host, verifies each file against a checksum, and stores it locally. Remove
-the app and the weights go with it (see **Uninstall** below).
+The apps ship without weights (Android needs ~2.1 GB, Windows 2.3–3.3 GB). On first run
+each app downloads what it needs, verifies every file against a SHA-256, and stores it
+locally. Uninstall the app and the weights go with it — see **Uninstall** below.
 
-You host a plain directory over HTTP. Any static host works: an nginx/Caddy container,
-an S3/R2 bucket with public objects, a GitHub Release, etc. The only requirement for
-resumable downloads is that the server honours HTTP `Range` requests (nginx, Caddy, S3
-and R2 all do).
+Almost nothing needs hosting. Both apps read a manifest that is **bundled with the build**
+(`android/app/src/main/assets/model_manifest.json`, `config/model_manifest.json`), and
+every GGUF entry in it points straight at HuggingFace, pinned to a repository commit so an
+upstream re-upload cannot change what clients fetch.
 
-## 1. What to upload
+| Platform | Downloads | You host |
+|---|---|---|
+| Android | 2.09 GB | the two MobileCLIP ONNX towers — **398 MB** |
+| Windows desktop (Qwen3-VL 4B) | 3.33 GB | nothing |
+| Windows mobile (Qwen2-VL 2B) | 2.32 GB | nothing |
 
-Run the generator to hash your local weights and (optionally) stage the exact upload
-tree:
+Windows needs no MobileCLIP file: the desktop embedder fetches MobileCLIP-S2 from
+HuggingFace through `open_clip` on first use.
+
+## The one thing you must host
+
+`mobileclip_image.onnx` (144 MB) and `mobileclip_text.onnx` (254 MB) are built locally by
+`scripts/export_mobileclip_onnx.py` + `scripts/patch_clip_text_argmax.py` (the ArgMax int32
+patch that onnxruntime-android requires). They exist nowhere public, so they need a home.
+
+Without them the Android app downloads its GGUFs, then fails on the towers and stays on
+**Download models** — it has no way to embed frames or queries, so search does not work at
+all. This is the only step that blocks shipping the Android app.
+
+A free HuggingFace model repo is the easiest host — public CDN, honours HTTP `Range` (so
+interrupted downloads resume), no bandwidth cost:
 
 ```bash
-python scripts/gen_model_manifest.py --stage
+huggingface-cli login
+huggingface-cli repo create videorag-mobileclip --type model
+huggingface-cli upload <you>/videorag-mobileclip \
+    models/mobileclip_onnx/mobileclip_image.onnx mobileclip_image.onnx
+huggingface-cli upload <you>/videorag-mobileclip \
+    models/mobileclip_onnx/mobileclip_text.onnx  mobileclip_text.onnx
 ```
 
-This writes `dist/models/` laid out exactly as it must appear on the server:
+Any static host works instead (nginx/Caddy, S3, R2, a GitHub Release) as long as it serves
+the two files over HTTPS and honours `Range`.
 
-```
-<server root>/
-  manifest.json
-  android/
-    Qwen2-VL-2B-Instruct-Q4_K_M.gguf          986 MB
-    mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf     710 MB
-    mobileclip_image.onnx                     144 MB
-    mobileclip_text.onnx                      254 MB
-  windows/
-    qwen3_vl/
-      Qwen3VL-4B-Instruct-Q4_K_M.gguf        2497 MB   (desktop profile)
-      mmproj-Qwen3VL-4B-Instruct-F16.gguf     836 MB
-    qwen2_vl_2b/
-      Qwen2-VL-2B-Instruct-Q4_K_M.gguf        986 MB   (mobile profile)
-      mmproj-Qwen2-VL-2B-Instruct-f16.gguf   1332 MB
+Then regenerate the manifest so the apps point at your copies, and rebuild the APK:
+
+```bash
+python scripts/gen_model_manifest.py \
+    --onnx-base https://huggingface.co/<you>/videorag-mobileclip/resolve/main
+cd android && ./gradlew assembleDebug
 ```
 
-Per-install download size: **Android 2.09 GB**, **Windows desktop 4B 3.33 GB**,
-**Windows mobile 2B 2.32 GB**. You only need to upload the Windows profile(s) you
-actually run — a desktop install downloads only its active profile.
+`gen_model_manifest.py` re-reads size and SHA-256 for the GGUFs from the HuggingFace API
+without downloading them, and hashes the two local ONNX files. Run it again whenever you
+replace a weight.
 
-Windows does **not** need a MobileCLIP file: the desktop embedder fetches MobileCLIP-S2
-from HuggingFace via `open_clip` on first use.
+> Check before you ship: no URL in `android/app/src/main/assets/model_manifest.json` may
+> point at `127.0.0.1` or `localhost`. Those are left behind by local testing (the app
+> reaches a development host through `adb reverse`), and on someone else's phone they
+> resolve to that phone.
 
-Upload the whole `dist/models/` tree so that `manifest.json` sits at the server root and
-the files sit at the paths the manifest lists.
+## What the user sees
 
-## 2. Point the apps at your server
-
-Let `BASE` be the URL that serves `manifest.json` (i.e. `manifest.json` is reachable at
-`$BASE/manifest.json`).
-
-- **Windows** — set it in `config/config.yaml`:
-  ```yaml
-  models:
-    download_base_url: "https://models.example.com/videorag"
-  ```
-  or export `VIDEORAG_MODEL_BASE_URL`. No rebuild needed.
-
-- **Android** — set `DEFAULT_BASE_URL` in
-  `android/app/src/main/java/com/cctv/videorag/ModelDownloader.kt` and rebuild the APK.
-  (For testing without a rebuild you can push a `source.txt` containing the URL into the
-  app's models directory:
-  `adb push url.txt /sdcard/Android/data/com.cctv.videorag/files/models/source.txt`.)
-
-## 3. What the user sees
-
-- **Android** — a fresh install shows **Download models** in place of the model badge.
-  Tapping it downloads the ~2 GB set with a progress bar; it resumes if interrupted and
-  flips to **Model ready** when done.
-- **Windows** — the web UI shows a banner, **Download local models**, whenever weights
-  for the active profile are missing. Or run it from the command line:
+- **Android** — a fresh install shows **Download models** where the model badge normally
+  reads "Model ready". Tapping it downloads the set with a progress bar, resumes if
+  interrupted, and flips to **Model ready** when every file is present and verified. If the
+  device is short on space it says so up front instead of failing part-way through.
+- **Windows** — the web UI shows a **Download local models** banner whenever weights for
+  the active profile are missing, or from the command line:
   ```bash
   python scripts/download_models.py                 # active profile
   python scripts/download_models.py --profile mobile
@@ -80,17 +75,25 @@ Let `BASE` be the URL that serves `manifest.json` (i.e. `manifest.json` is reach
 
 ## Uninstall — models are removed automatically
 
-- **Android** — the weights live in the app's own external files directory
-  (`/sdcard/Android/data/com.cctv.videorag/files/models`). Android deletes that directory
-  when the app is uninstalled, so the models go with it. Nothing extra to do.
-- **Windows** — the weights live in `models/` inside the project directory. Deleting the
-  project folder (or the folder a packaged build unpacks into) removes them. They are not
-  written anywhere else on the system.
+- **Android** — weights live in the app's own external files directory,
+  `/sdcard/Android/data/com.cctv.videorag/files/models`. Android deletes that directory
+  when the app is uninstalled. The extracted keyframes, the search index and the local copy
+  of the imported video are in internal storage (`filesDir`), which is deleted too. Nothing
+  is written outside app-private storage, so an uninstall leaves nothing behind — verified
+  on a clean emulator by installing, downloading the full set, uninstalling and confirming
+  both directories were gone.
+- **Windows** — weights live in `models/` inside the project directory. Deleting the project
+  folder (or the folder a packaged build unpacks into) removes them. Nothing is written
+  elsewhere on the system.
 
 ## Integrity
 
-Every file in the manifest carries a SHA-256. Both clients verify each download against
-it before putting the file in place, so a truncated or corrupted transfer fails at
-download time with a clear message rather than as an unreadable-model crash later. If you
-requantise or replace a weight, re-run `gen_model_manifest.py` and re-upload
-`manifest.json` alongside it.
+Every manifest entry carries a SHA-256, and both clients verify each file before moving it
+into place, so a truncated or corrupted transfer fails at download time with a clear message
+rather than as an unreadable-model crash later. Partial downloads are kept as `.part` files
+and resumed via `Range`; a file that fails its checksum is deleted so a retry starts clean.
+
+A note on which GGUF build to use: `bartowski/Qwen2-VL-2B-Instruct-GGUF` is pinned
+deliberately. `ggml-org`'s Q4_K_M has the same architecture and a valid checksum, but makes
+this app's vendored llama.cpp emit EOS after two tokens — answers collapse to a bare
+"White truck at 00:02:42." Swap a weight only after checking the answers it produces.

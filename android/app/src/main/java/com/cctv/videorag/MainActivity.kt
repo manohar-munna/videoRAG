@@ -234,7 +234,6 @@ class MainActivity : AppCompatActivity() {
             ModelPaths.modelsDir(this).absolutePath
         )
         setupListeners()
-        checkAndRequestStoragePermission()
         runTokenizerSelfTest()
         updateModelBadge()
         ChatView.addSystemNote(chatContainer, "Import a video, then ask questions about it.")
@@ -305,7 +304,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun checkAndRequestStoragePermission() {
+    /**
+     * Open the all-files-access settings page. Deliberately NOT called on launch.
+     *
+     * It used to run from onCreate, which meant a fresh install dropped the user straight
+     * into a system Settings screen before they had seen the app - and asked for the most
+     * invasive storage permission Android has, to boot.
+     *
+     * Nothing in the shipping flow needs it. Weights download to getExternalFilesDir, which
+     * ModelPaths searches first and which requires no permission; the video arrives through
+     * the system picker, which grants access to just that one item; frames and the local
+     * video copy live in filesDir. The permission only ever mattered for weights sideloaded
+     * into /sdcard/Download, which ModelPaths still keeps as a fallback. Left here so that
+     * path stays reachable if it is ever wanted, rather than deleted outright.
+     */
+    @Suppress("unused")
+    private fun requestAllFilesAccess() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R &&
             !android.os.Environment.isExternalStorageManager()
         ) {

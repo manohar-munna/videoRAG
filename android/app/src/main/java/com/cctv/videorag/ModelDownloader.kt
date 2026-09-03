@@ -84,6 +84,10 @@ object ModelDownloader {
         }
     }
 
+    /** Bytes as GB, for messages the user reads. */
+    private fun gb(bytes: Long): String =
+        String.format(java.util.Locale.US, "%.1f GB", bytes / 1_000_000_000.0)
+
     /** Entries whose local file is absent or the wrong size. */
     fun missing(context: Context): List<Entry> {
         val dir = ModelPaths.modelsDir(context)
@@ -105,6 +109,24 @@ object ModelDownloader {
     fun downloadMissing(context: Context, onProgress: (Progress) -> Unit) {
         val dir = ModelPaths.modelsDir(context)
         val todo = missing(context)
+
+        // Check the space up front. These are ~2 GB of weights, so a phone that is nearly
+        // full fails somewhere in the middle of the second file - after a long wait, with
+        // whatever IO error the stream happens to raise. Comparing what is left to fetch
+        // against the free space turns that into an immediate, actionable message.
+        // The .part files are renamed within this same directory, so finalising needs no
+        // extra room; the slack is only to avoid filling the volume completely.
+        val needed = todo.sumOf { e ->
+            e.bytes - (File(dir, "${e.dest}.part").takeIf { it.isFile }?.length() ?: 0L)
+        }
+        val free = dir.usableSpace
+        if (free > 0 && free < needed + (64L shl 20)) {
+            throw DownloadException(
+                "Not enough storage: ${gb(needed)} still to download, ${gb(free)} free. " +
+                    "Free up some space and tap again - what has already downloaded is kept."
+            )
+        }
+
         todo.forEachIndexed { i, e ->
             val target = File(dir, e.dest)
             val part = File(dir, "${e.dest}.part")
