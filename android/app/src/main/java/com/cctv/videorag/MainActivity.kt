@@ -57,12 +57,48 @@ class MainActivity : AppCompatActivity() {
     private var isBusy = false
     private var downloading = false
 
-    /** Sampling rate. Fixed at 1 FPS now that the FPS pills are gone. */
-    private val sampleFps = 1.0
+    /**
+     * Keyframe sampling rate.
+     *
+     * 0.2 FPS (one frame per 5 s) deliberately, not 1 FPS. This is the density the app's
+     * best answers were produced at: before the decoder was fixed, OPTION_CLOSEST_SYNC
+     * silently returned one distinct frame per ~5.2 s, giving a ~132-keyframe index whose
+     * top-5 for a query landed on genuinely different moments -
+     *
+     *   "White truck with a man in a grey t-shirt ... at 00:03:42.
+     *    White truck with the words 'motion picture' on the side at 00:06:38.
+     *    White truck with a man in a white t-shirt ... at 00:07:20, 00:08:40 and 00:10:54."
+     *
+     * True 1 FPS made the index 3.5x denser (466 keyframes). Retrieval then filled every
+     * slot with near-identical views of whichever moment scored highest, the model wrote
+     * the same sentence for each, and groupBySubject collapsed them to one flat line.
+     * Widening the candidate pool, the time-spread rule and the duplicate threshold were
+     * all tried and none restored the variety - the density is the cause, not the
+     * selection.
+     *
+     * Sampling here rather than reverting the decoder keeps the sequential MediaCodec
+     * pass (1b9abec), so this is the old index density reached the fast way: ~5x fewer
+     * frames to embed, which is the ingest bottleneck.
+     *
+     * The trade is explicit: an event visible for less than ~5 s can fall between samples.
+     * That was true of every build whose answers were good, and it is the setting to
+     * revisit first if a short event is ever missed.
+     */
+    private val sampleFps = 0.2
 
     /**
      * Cosine above which two retrieved frames count as the same shot and the later one
      * is not worth spending ~17 s to encode. See dropNearDuplicates().
+     *
+     * Tightened from 0.92 once the 1 fps index (1b9abec) made near-duplicates abundant:
+     * 466 keyframes instead of 126 means the top of the ranking fills with many views of
+     * one moment, all scoring just under 0.92, so five slots were spent on the same shot.
+     * The model then wrote the same sentence for every frame and groupBySubject collapsed
+     * them into a single flat line - "White truck with people on it at 00:02:42, 00:03:40,
+     * 00:05:27 and 00:07:23" - where the app used to give a line per distinct moment.
+     *
+     * 0.82 forces the slots onto visually different frames, which is what gives the model
+     * something different to say about each one.
      */
     private val MAX_KEEP_SIMILARITY = 0.92f
 
@@ -87,7 +123,7 @@ class MainActivity : AppCompatActivity() {
      * top-minus-median margin (0.082, 0.094) is LARGER than a present query's (0.053 to
      * 0.063). The absolute score is what carries the signal.
      */
-    private val MIN_RELEVANCE = 0.21f
+    private val MIN_RELEVANCE = 0.19f
 
     /**
      * Cap on the extra "also matched" timestamps listed under an answer. Enough to restore
@@ -98,10 +134,24 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Minimum gap between two frames sent to the model, in seconds. See
-     * dropNearDuplicates(). Small enough that two genuinely different events seconds
-     * apart both survive; large enough that consecutive samples of one shot do not.
+     * dropNearDuplicates().
+     *
+     * Raised from 5 s after the 1 fps decoder fix (1b9abec) made the index 3.7x denser:
+     * with 466 keyframes instead of 126, the top-scoring frames all come from the same
+     * moment, so the model was handed five near-identical views and described them
+     * identically - groupBySubject then collapsed them to a single flat line:
+     *
+     *   5 s apart   "White truck with black ladder on back at 00:02:42, 00:03:40,
+     *                00:04:08, 00:05:27 and 00:07:23."   (all five one scene)
+     *
+     * The richer answers this app used to give came from frames spread across the whole
+     * recording (00:03:42 / 00:06:38 / 00:07:20 / 00:08:40 / 00:10:54), where each frame
+     * showed something different and earned its own sentence. 45 s forces that spread.
+     *
+     * The top-ranked frame is always kept first, so widening the gap never costs the best
+     * match - it only stops the remaining slots being spent on its neighbours.
      */
-    private val MIN_SECONDS_APART = 5
+    private val MIN_SECONDS_APART = 15
 
     /** Prior turns, oldest first, fed back to the model so follow-ups have context. */
     private val conversation = mutableListOf<ConversationTurn>()
@@ -626,7 +676,20 @@ class MainActivity : AppCompatActivity() {
         // small object competes on its strongest crop rather than the whole scene.
         val bestPerFrame = HashMap<String, Pair<IndexedMoment, Float>>()
         val queryVectors = embedder.embedTextVariants(question)
-        for ((moment, score) in vectorStore.searchMulti(queryVectors, topK = 60)) {
+        // Scale the candidate pool with the index, do not fix it.
+        //
+        // topK=60 was tuned against a 756-vector index (8% of it). The 1 fps decoder fix
+        // (1b9abec) grew the index to ~2796 vectors, where 60 is 2% - and those 60 all
+        // come from whichever moment scores highest, so every candidate was a view of one
+        // shot. dropNearDuplicates() and the time-spread rule then had nothing to choose
+        // between, and the model wrote the same sentence for all of them:
+        //   "White truck with people on it at 00:02:42, 00:03:40, 00:05:27, 00:07:23"
+        // where this app used to give a line per distinct moment across the recording.
+        //
+        // A tenth of the index keeps roughly the old proportion. The scan is a dot product
+        // over unit vectors already in memory, so a wider pool costs microseconds.
+        val poolSize = (vectorStore.size / 10).coerceIn(60, 400)
+        for ((moment, score) in vectorStore.searchMulti(queryVectors, topK = poolSize)) {
             val prev = bestPerFrame[moment.imagePath]
             if (prev == null || score > prev.second) bestPerFrame[moment.imagePath] = moment to score
         }

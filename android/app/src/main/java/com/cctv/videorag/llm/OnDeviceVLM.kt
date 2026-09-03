@@ -61,7 +61,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
          * dropNearDuplicates() spends the budget on distinct shots rather than three
          * views of one moment. Fewer, better-framed frames rather than fewer, worse ones.
          */
-        const val MAX_FRAMES_TO_ANALYSE = 3
+        const val MAX_FRAMES_TO_ANALYSE = 5
 
         init {
             try {
@@ -282,21 +282,24 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             val w = (full.width  * r[2]).toInt().coerceAtLeast(1).coerceAtMost(full.width  - x)
             val h = (full.height * r[3]).toInt().coerceAtLeast(1).coerceAtMost(full.height - y)
             val crop = Bitmap.createBitmap(full, x, y, w, h)
-            // Send the crop at its NATIVE size rather than upscaling it back to the full
-            // frame's dimensions.
+            // Upscale the crop back to the full frame's dimensions.
             //
-            // The upscale was there to keep the token count identical to the pre-crop
-            // path, but it adds no information - a 384x216 region resampled to 640x360 is
-            // the same pixels spread over more tokens. Vision encode is ~86% of a cold
-            // query and scales with token count, so those tokens are the single most
-            // expensive thing in the app: 640x360 is ~299 tokens, 384x216 is ~106.
+            // Sending it at its native ~384x216 was tried and reverted. It cut each frame
+            // from ~299 vision tokens to ~106 and halved cold latency, and the livery
+            // query still passed, so the gate accepted it - but the descriptions
+            // collapsed. Compare the same question before and after:
             //
-            // What is genuinely given up is attention budget: Qwen-VL grounds better with
-            // more tokens per image (ggml-org/llama.cpp#16842), so this is only tenable
-            // because the crop already concentrates the subject ~2.8x. Gated on the
-            // livery-reading query, which is the first thing to fail when visual detail
-            // is cut.
-            val scaled = crop
+            //   299 tok  "White truck with a man in a grey t-shirt and black shorts
+            //             walking towards it at 00:03:42. White truck with the words
+            //             'motion picture' on the side at 00:06:38. ..."
+            //   106 tok  "White truck at 00:03:41, 00:05:27 and 00:07:23."
+            //
+            // The upscale adds no pixels, but it gives the encoder more tokens to
+            // represent the same content, and Qwen-VL describes far more with that
+            // budget - consistent with upstream's note that these models want >=1024
+            // image tokens for grounding (ggml-org/llama.cpp#16842). Detail is the point
+            // of the app, so the tokens are worth the latency.
+            val scaled = Bitmap.createScaledBitmap(crop, full.width, full.height, true)
             val dir = File(context.cacheDir, "query_crops").apply { mkdirs() }
             val out = File(dir, "${moment.id.replace(Regex("[^A-Za-z0-9_]"), "_")}.jpg")
             java.io.FileOutputStream(out).use { scaled.compress(Bitmap.CompressFormat.JPEG, 90, it) }
@@ -459,37 +462,62 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
             }
         }
 
-        val prompt = """<|im_start|>system
+        // One generation PER FRAME, not one generation covering all of them.
+        //
+        // Asking a 2B model for "one line for each of the N frames" is not reliable. It
+        // is an instruction-following task, and this model obeys it erratically: across
+        // otherwise identical runs the reply came back at 2, 9, 54 and 83 tokens, i.e.
+        // anywhere from one line to five. When it stops after one line, groupBySubject
+        // has a single description to work with and the answer collapses to
+        // "White truck with black bars on the back at 00:03:45." - which is what made
+        // answers look terse even once retrieval was picking five well-spread frames
+        // (00:03:45 / 00:06:40 / 00:08:50 / 00:10:55 / 00:11:55).
+        //
+        // Prompt wording was tried against this repeatedly and does not hold; a description
+        // per frame is only guaranteed by asking per frame. Each call carries one image and
+        // one short instruction, which the model handles consistently.
+        //
+        // Latency is close to unchanged: prefill is per image token, so N calls with one
+        // image each prefill the same total as one call with N images, and the vision
+        // encode is shared through the encode cache either way. Only the small per-call
+        // generation is repeated.
+        val lines = mutableListOf<String>()
+        for ((i, path) in imagePaths.withIndex()) {
+            val ts = shown[i].timestamp
+            val onePrompt = """<|im_start|>system
 $system<|im_end|>
 <|im_start|>user
-These are keyframes from a surveillance video, in time order.
-
-$frameList
+$marker
+This is one keyframe from a surveillance video, taken at $ts.
 $priorContext
 Question: $query
 
-Write one line for each of the $frameCount frames, starting with its timestamp, describing what that frame shows in relation to the question. Note clothing colour, vehicle markings and any text you can read. Say plainly when the thing asked about is not in a frame.<|im_end|>
+Describe in a single sentence what this frame shows in relation to the question. Note clothing colour, vehicle markings and any text you can read. Say plainly if the thing asked about is not in this frame.<|im_end|>
 <|im_start|>assistant
-$firstStamp -"""
-
-        val answer = try {
-            nativeGenerate(nativeHandle, prompt, imagePaths.toTypedArray())
-        } catch (e: Throwable) {
-            Log.e("VideoRAG_VLM", "nativeGenerate failed: ${e.message}", e)
-            return "Visual analysis failed: ${e.message ?: e.javaClass.simpleName}"
+"""
+            val one = try {
+                nativeGenerate(nativeHandle, onePrompt, arrayOf(path))
+            } catch (e: Throwable) {
+                Log.e("VideoRAG_VLM", "nativeGenerate failed on $ts: ${e.message}", e)
+                continue
+            }
+            val clean = one.trim().removePrefix("-").trim()
+            if (clean.isNotEmpty() && !clean.startsWith("Error")) {
+                lines.add("$ts - " + clean.lineSequence().first().trim())
+            }
         }
 
-        if (answer.isBlank() || answer.startsWith("Error")) {
-            return "The on-device model returned no usable output. $answer".trim()
+        if (lines.isEmpty()) {
+            return "The on-device model returned no usable output."
         }
+        val answer = lines.joinToString("\n")
 
         lastGenStats = try { nativeGetLastGenStats(nativeHandle) } catch (_: Throwable) { "" }
         Log.i("VideoRAG_VLM", "gen stats: $lastGenStats")
 
         val footer = "Analysed ${imagePaths.size} keyframes spanning [$startTs - $endTs] " +
                      "using ${activeModelFileName ?: "the on-device model"}."
-        // the prefilled "HH:MM:SS -" is part of the answer, so put it back on the front
-        val full = "$firstStamp -" + answer.trimEnd()
+        val full = answer.trimEnd()
         val grouped = dropUnsupportedTimestamps(
             groupBySubject(humanise(full)),
             shown.map { it.timestamp }.toSet()

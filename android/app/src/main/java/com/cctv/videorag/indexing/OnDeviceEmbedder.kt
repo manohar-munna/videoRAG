@@ -109,6 +109,42 @@ class OnDeviceEmbedder private constructor(
 
     }
 
+    /**
+     * Embed several images in ONE session run.
+     *
+     * Ingestion is CLIP-bound, not decode-bound. A 13-minute clip keeps ~466 keyframes
+     * and embeds 6 spatial crops of each, so 2796 forward passes dominate it; replacing
+     * per-frame seeking with a sequential MediaCodec pass (1b9abec) only moved the total
+     * 1109 s -> 1019 s, which is what showed the decoder was never the constraint.
+     *
+     * The exported tower has a dynamic batch axis - pixel_values is ['batch',3,256,256] -
+     * so a frame's six crops go through as one run instead of six. Identical arithmetic
+     * and identical vectors; it just stops paying per-call overhead 2796 times and lets
+     * the runtime spread its four threads across the batch rather than within one small
+     * graph.
+     */
+    fun embedImages(bitmaps: List<Bitmap>): List<FloatArray> {
+        if (bitmaps.isEmpty()) return emptyList()
+        if (bitmaps.size == 1) return listOf(embedImage(bitmaps[0]))
+
+        val n = bitmaps.size
+        val per = 3 * IMAGE_SIZE * IMAGE_SIZE
+        val all = FloatArray(n * per)
+        for ((i, bmp) in bitmaps.withIndex()) {
+            val scaled = Bitmap.createScaledBitmap(bmp, IMAGE_SIZE, IMAGE_SIZE, true)
+            preprocess(scaled).copyInto(all, i * per)
+            if (scaled != bmp) scaled.recycle()
+        }
+        val shape = longArrayOf(n.toLong(), 3, IMAGE_SIZE.toLong(), IMAGE_SIZE.toLong())
+        OnnxTensor.createTensor(env, FloatBuffer.wrap(all), shape).use { t ->
+            imageSession.run(mapOf(imageSession.inputNames.first() to t)).use { r ->
+                @Suppress("UNCHECKED_CAST")
+                val rows = r.get(0).value as Array<FloatArray>
+                return rows.map { normalise(it) }
+            }
+        }
+    }
+
     /** Embed one image (or crop) into a unit-length 512-D vector. */
     fun embedImage(bitmap: Bitmap): FloatArray {
         val scaled = Bitmap.createScaledBitmap(bitmap, IMAGE_SIZE, IMAGE_SIZE, true)
@@ -224,8 +260,15 @@ class OnDeviceEmbedder private constructor(
             is FloatArray -> raw
             else -> throw IllegalStateException("unexpected ONNX output ${raw?.javaClass}")
         }
-        // The graph L2-normalises already; renormalise defensively so quantisation
-        // rounding cannot leave vectors slightly off the unit sphere.
+        return normalise(v)
+    }
+
+    /**
+     * The graph L2-normalises already; renormalise defensively so quantisation rounding
+     * cannot leave vectors slightly off the unit sphere. MobileVectorStore depends on
+     * this - every stored vector measures exactly 1.000000 - so a cosine is a dot product.
+     */
+    private fun normalise(v: FloatArray): FloatArray {
         var s = 0f
         for (x in v) s += x * x
         val n = sqrt(s)
