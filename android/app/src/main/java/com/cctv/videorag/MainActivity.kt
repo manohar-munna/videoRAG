@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -295,7 +296,10 @@ class MainActivity : AppCompatActivity() {
             videoViewPlayback.start()
             btnPlayPause.text = "⏸"
         }
-        videoViewPlayback.setOnPreparedListener { it.isLooping = false }
+        videoViewPlayback.setOnPreparedListener { mp ->
+            mp.isLooping = false
+            fitPlayerToVideo(mp.videoWidth, mp.videoHeight)
+        }
         videoViewPlayback.setOnErrorListener { _, w, e ->
             Log.w("VideoView", "playback error what=$w extra=$e"); true
         }
@@ -921,6 +925,31 @@ class MainActivity : AppCompatActivity() {
             // Not fatal: indexing and search do not need it, only tapping a timestamp does.
             Log.w("VideoRAG_Main", "could not cache video for playback: ${e.message}")
         }
+    }
+
+    /**
+     * Give the player the same shape as the video, so no black band is left over.
+     *
+     * VideoView keeps the source aspect ratio inside whatever box it is measured in. The
+     * box was a fixed 200dp tall and match_parent wide, so a 16:9 clip shrank its own width
+     * to fit the height and, being in a vertical LinearLayout, sat flush left - leaving a
+     * black pillar down the right-hand side of the card.
+     *
+     * Deriving the height from the real video dimensions makes the video fill the card's
+     * width exactly. Portrait clips are the exception: height is capped so they cannot take
+     * over the screen, and in that case the leftover is centred rather than all on one side.
+     */
+    private fun fitPlayerToVideo(videoWidth: Int, videoHeight: Int) {
+        if (videoWidth <= 0 || videoHeight <= 0) return
+        val row = videoViewPlayback.parent as? View ?: return
+        val available = row.width - row.paddingLeft - row.paddingRight
+        if (available <= 0) return
+        val maxHeight = (280 * resources.displayMetrics.density).toInt()
+        val wanted = (available.toLong() * videoHeight / videoWidth).toInt()
+        val lp = videoViewPlayback.layoutParams as LinearLayout.LayoutParams
+        lp.height = wanted.coerceAtMost(maxHeight)
+        lp.gravity = Gravity.CENTER_HORIZONTAL
+        videoViewPlayback.layoutParams = lp
     }
 
     /** Seek the inline player to [seconds]; wired to timestamps inside chat messages. */

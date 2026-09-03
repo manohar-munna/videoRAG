@@ -141,10 +141,13 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- height is replaced at runtime with one matching the video's aspect ratio
+                 (see fitPlayerToVideo); 200dp is only what shows before it is prepared -->
             <VideoView
                 android:id="@+id/videoViewPlayback"
                 android:layout_width="match_parent"
-                android:layout_height="200dp" />
+                android:layout_height="200dp"
+                android:layout_gravity="center_horizontal" />
 
             <LinearLayout
                 android:layout_width="match_parent"
