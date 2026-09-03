@@ -122,7 +122,23 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--onnx-base", default="",
                     help="base URL hosting mobileclip_image.onnx / mobileclip_text.onnx")
+    ap.add_argument("--allow-localhost", action="store_true",
+                    help="permit a loopback --onnx-base (local testing via `adb reverse`)")
     args = ap.parse_args()
+
+    # A loopback base is genuinely useful while testing - the phone reaches a dev server
+    # through `adb reverse tcp:8765 tcp:8765`. It is also silent poison in a shipped
+    # build: on someone else's phone 127.0.0.1 is *their* phone, so the CLIP towers never
+    # arrive, the app sits on "Download models", and nothing explains why search is dead.
+    # This manifest shipped that way once. Make it deliberate rather than accidental.
+    if any(h in args.onnx_base for h in ("127.0.0.1", "localhost", "0.0.0.0", "10.0.2.2")):
+        if not args.allow_localhost:
+            raise SystemExit(
+                f"--onnx-base {args.onnx_base!r} is a loopback address, which only works on\n"
+                "the machine serving it. Host the towers somewhere reachable (see\n"
+                "scripts/publish_mobileclip.py), or pass --allow-localhost for local testing.")
+        print(f"!! loopback --onnx-base {args.onnx_base} - for local testing only; this\n"
+              "   manifest must not be shipped.", file=sys.stderr)
 
     print("Resolving GGUF weights from HuggingFace (no download)...")
     android = [hf_entry(*t) for t in HF_GGUF["android"]]
