@@ -1,67 +1,87 @@
-﻿"""
-scripts/download_models.py
----------------------------
-Helper script to download Qwen3-VL 4B Instruct GGUF model weights
-and mmproj vision projector for offline local inference.
+#!/usr/bin/env python3
+"""Download the desktop VLM weights for the active runtime profile.
 
-Usage:
-    python scripts/download_models.py
+    python scripts/download_models.py                 # active profile from config
+    python scripts/download_models.py --profile mobile
+    python scripts/download_models.py --url https://models.example.com/videorag
+
+The URL can also come from config.yaml (models.download_base_url) or the
+VIDEORAG_MODEL_BASE_URL environment variable. MobileCLIP is fetched separately by
+open_clip on first server run and is not downloaded here.
 """
+from __future__ import annotations
 
+import argparse
 import sys
+import time
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-MODELS_DIR = _PROJECT_ROOT / "models" / "qwen3_vl"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-MODEL_FILENAME = "Qwen3VL-4B-Instruct-Q4_K_M.gguf"
-MMPROJ_FILENAME = "mmproj-Qwen3VL-4B-Instruct-F16.gguf"
+from videorag import downloader  # noqa: E402
 
 
-def download_weights():
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    
-    model_path = MODELS_DIR / MODEL_FILENAME
-    mmproj_path = MODELS_DIR / MMPROJ_FILENAME
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--profile", default=None,
+                    help="desktop (4B) or mobile (2B); default: config.yaml llm profile")
+    ap.add_argument("--url", default=None, help="model server root URL")
+    args = ap.parse_args()
 
-    print("=" * 60)
-    print("VideoRAG — Model Weights Downloader")
-    print(f"Destination: {MODELS_DIR}")
-    print("=" * 60)
+    profile = args.profile or _default_profile()
+    print(f"Model server : {downloader.base_url(args.url) or '(not configured)'}")
+    print(f"Profile      : {profile}")
 
-    if model_path.exists() and mmproj_path.exists():
-        print(f"[OK] Model already present: {model_path} ({model_path.stat().st_size / (1024**2):.1f} MB)")
-        print(f"[OK] Vision projector already present: {mmproj_path} ({mmproj_path.stat().st_size / (1024**2):.1f} MB)")
-        print("\nAll model weights are ready for offline inference!")
-        return
+    st = downloader.status(profile, args.url)
+    if not st.get("configured"):
+        print("\nNo model server configured. Set models.download_base_url in "
+              "config/config.yaml or VIDEORAG_MODEL_BASE_URL.", file=sys.stderr)
+        return 2
+    if st.get("error"):
+        print(f"\nCould not read manifest: {st['error']}", file=sys.stderr)
+        return 2
+    if st["ready"]:
+        print("\nAll weights already present. Nothing to download.")
+        return 0
+
+    print(f"Missing      : {len(st['missing'])} file(s), "
+          f"{st['missing_bytes'] / 1e9:.2f} GB\n")
+
+    last = [0.0]
+
+    def show(state: dict) -> None:
+        now = time.time()
+        if now - last[0] < 0.5:
+            return
+        last[0] = now
+        done, tot = state["file_done"], max(state["file_bytes"], 1)
+        pct = 100 * done / tot
+        print(f"\r  [{state['index'] + 1}/{state['total']}] {state['name']}  "
+              f"{done / 1e6:.0f}/{tot / 1e6:.0f} MB ({pct:4.1f}%)   ", end="", flush=True)
 
     try:
-        from huggingface_hub import hf_hub_download
-        print("\nDownloading required weights from Hugging Face...")
-        if not model_path.exists():
-            print(f"Downloading {MODEL_FILENAME} (~2.5 GB)...")
-            hf_hub_download(
-                repo_id="Qwen/Qwen2.5-VL-7B-Instruct-GGUF",
-                filename=MODEL_FILENAME,
-                local_dir=str(MODELS_DIR),
-                local_dir_use_symlinks=False,
-            )
-        if not mmproj_path.exists():
-            print(f"Downloading {MMPROJ_FILENAME} (~836 MB)...")
-            hf_hub_download(
-                repo_id="Qwen/Qwen2.5-VL-7B-Instruct-GGUF",
-                filename=MMPROJ_FILENAME,
-                local_dir=str(MODELS_DIR),
-                local_dir_use_symlinks=False,
-            )
-        print("\n[SUCCESS] Model weights downloaded successfully!")
-    except Exception as e:
-        print(f"\n[NOTE] Automatic download failed: {e}")
-        print("You can download the GGUF model files manually into 'models/qwen3_vl/':")
-        print(f"  1. {MODEL_FILENAME}")
-        print(f"  2. {MMPROJ_FILENAME}")
-        print("Alternatively, you can set GOOGLE_API_KEY in .env to use Gemini API.")
+        downloader.download_profile(profile, args.url, on_progress=show)
+    except Exception as exc:
+        print(f"\n\nDownload failed: {exc}", file=sys.stderr)
+        return 1
+    print("\n\nAll weights downloaded and verified.")
+    return 0
+
+
+def _default_profile() -> str:
+    try:
+        import yaml
+        root = Path(__file__).resolve().parent.parent
+        cfg = yaml.safe_load((root / "config" / "config.yaml").read_text())
+        # honour an explicit profile key if present, else infer from the model path
+        prof = ((cfg or {}).get("llm", {}) or {}).get("profile")
+        if prof:
+            return str(prof)
+        model = ((cfg or {}).get("llm", {}) or {}).get("model", "")
+        return "mobile" if "qwen2_vl_2b" in model or "2B" in model else "desktop"
+    except Exception:
+        return "desktop"
 
 
 if __name__ == "__main__":
-    download_weights()
+    raise SystemExit(main())

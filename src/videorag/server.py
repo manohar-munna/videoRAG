@@ -562,6 +562,31 @@ def get_current_profile():
     }
 
 
+@app.get("/api/models/status")
+def get_models_status():
+    """Which local model weights are present for the active profile, plus any live download."""
+    from videorag import downloader
+    profile = PIPELINE.get("profile", "desktop")
+    st = downloader.status(profile)
+    st["download"] = downloader.get_state()
+    return st
+
+
+@app.post("/api/models/download")
+def start_models_download():
+    """Kick off a background download of the active profile's missing weights."""
+    from videorag import downloader
+    profile = PIPELINE.get("profile", "desktop")
+    st = downloader.status(profile)
+    if not st.get("configured"):
+        raise HTTPException(status_code=400, detail=st.get(
+            "error", "No model server configured (set models.download_base_url)."))
+    if st.get("ready"):
+        return {"started": False, "reason": "already present"}
+    started = downloader.start_background(profile)
+    return {"started": started, "profile": profile, "missing": st["missing"]}
+
+
 @app.post("/api/profile/switch")
 def switch_runtime_profile(req: SwitchProfileRequest):
     """Dynamically switch between Desktop (4B GPU) and Mobile (2B CPU) profiles with clean VLM unloading."""

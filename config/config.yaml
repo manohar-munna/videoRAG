@@ -2,6 +2,12 @@
 # ----------------------
 # All paths can be absolute or relative to the project root.
 
+
+# Model weights are downloaded on first run from this server (manifest at
+# {download_base_url}/manifest.json). Leave blank to disable downloading and
+# require the weights to be present in models/ already.
+models:
+  download_base_url: ""   # e.g. https://models.example.com/videorag
 data:
   # Path to the real CCTV JSON dataset
   data_path: "data/real_cctv_events.json"
