@@ -3,6 +3,8 @@ package com.cctv.videorag.ui
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.text.style.RelativeSizeSpan
+import java.util.Locale
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.Spannable
@@ -50,7 +52,11 @@ object ChatView {
         }
 
     /** The operator's question: right-aligned, solid blue. */
-    fun addUserMessage(container: LinearLayout, text: String) {
+    /**
+     * The question bubble. Returns the TextView so the caller can stamp the elapsed
+     * time onto it once the answer lands - see setUserMessageTiming().
+     */
+    fun addUserMessage(container: LinearLayout, text: String): TextView {
         val ctx = container.context
         val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -71,6 +77,24 @@ object ChatView {
         }
         row.addView(bubble)
         container.addView(row)
+        return bubble
+    }
+
+    /**
+     * Append how long the answer took to the question bubble, dimmed and smaller so it
+     * reads as an annotation rather than part of the question. Makes per-query cost
+     * visible without opening the debug panel.
+     */
+    fun setUserMessageTiming(bubble: TextView, question: String, millis: Long) {
+        val secs = millis / 1000.0
+        val label = if (secs < 10) String.format(Locale.US, "  %.1fs", secs)
+                    else String.format(Locale.US, "  %ds", (millis / 1000))
+        val sp = SpannableString(question + label)
+        val from = question.length
+        sp.setSpan(RelativeSizeSpan(0.8f), from, sp.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sp.setSpan(ForegroundColorSpan(Color.argb(170, 255, 255, 255)),
+                   from, sp.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        bubble.text = sp
     }
 
     /**

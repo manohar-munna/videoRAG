@@ -466,6 +466,10 @@ class MainActivity : AppCompatActivity() {
     private fun restoreLastIndexIfAny() {
         lifecycleScope.launch(Dispatchers.Default) {
             val key = sqliteFts.mostRecentVideoKey() ?: return@launch
+            // Prefer our own copy: the original content:// URI is dead by now.
+            localVideoFile().takeIf { it.isFile && it.length() > 0 }?.let {
+                currentVideoUri = Uri.fromFile(it)
+            }
             val saved = sqliteFts.loadMoments(key)
             if (saved.isEmpty()) return@launch
             vectorStore.clear()
@@ -490,6 +494,17 @@ class MainActivity : AppCompatActivity() {
         val startedAt = System.currentTimeMillis()
 
         lifecycleScope.launch(Dispatchers.Default) {
+            // Keep our own copy so timestamps stay tappable after a restart.
+            //
+            // The picked content:// URI is only readable for the life of this process -
+            // ACTION_GET_CONTENT grants no persistable permission, and the Photos picker
+            // hands back a provider URI that cannot be re-opened later. So once the index
+            // was restored at launch, every timestamp answered "No video loaded" even
+            // though the frames and vectors were all there.
+            //
+            // Copying into filesDir means playback works from a cold start, and the copy
+            // is removed when the app is uninstalled, like the models and the index.
+            cacheVideoLocally(uri)
             // If this video was indexed before, load it back rather than spending ~7
             // minutes re-encoding frames that have not changed.
             val saved = sqliteFts.loadMoments(currentVideoKey)
@@ -637,7 +652,7 @@ class MainActivity : AppCompatActivity() {
 
         etQuery.setText("")
         hideKeyboard()
-        ChatView.addUserMessage(chatContainer, q)
+        val questionBubble = ChatView.addUserMessage(chatContainer, q)
         ChatView.addPending(chatContainer)
         scrollToBottom()
         isBusy = true
@@ -661,6 +676,7 @@ class MainActivity : AppCompatActivity() {
                     onTimestamp = { seconds -> playVideoAt(seconds) },
                     frames = result.frames
                 )
+                lastLatencyMs?.let { ChatView.setUserMessageTiming(questionBubble, q, it) }
                 scrollToBottom()
             }
         }
@@ -888,6 +904,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── playback ──────────────────────────────────────────────────
+
+    /** Where the imported video is kept so playback survives a restart. */
+    private fun localVideoFile(): File =
+        File(File(filesDir, "videos").apply { mkdirs() }, "current.mp4")
+
+    /** Copy the picked video into app storage; best effort, playback-only. */
+    private fun cacheVideoLocally(uri: Uri) {
+        try {
+            val out = localVideoFile()
+            contentResolver.openInputStream(uri)?.use { input ->
+                java.io.FileOutputStream(out).use { fos -> input.copyTo(fos, 1 shl 16) }
+            }
+            Log.i("VideoRAG_Main", "cached video locally: ${out.length() / 1_000_000} MB")
+        } catch (e: Throwable) {
+            // Not fatal: indexing and search do not need it, only tapping a timestamp does.
+            Log.w("VideoRAG_Main", "could not cache video for playback: ${e.message}")
+        }
+    }
 
     /** Seek the inline player to [seconds]; wired to timestamps inside chat messages. */
     private fun playVideoAt(seconds: Int) {
