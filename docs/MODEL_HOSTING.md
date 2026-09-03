@@ -28,6 +28,10 @@ Without them the Android app downloads its GGUFs, then fails on the towers and s
 **Download models** — it has no way to embed frames or queries, so search does not work at
 all. This is the only step that blocks shipping the Android app.
 
+They currently live at
+**https://huggingface.co/manoharmabbu/videorag-mobileclip** — public, and what the shipped
+manifest points at. The rest of this section is how to move them somewhere else.
+
 A free HuggingFace model repo is the easiest host — public CDN, honours HTTP `Range` (so
 interrupted downloads resume), no bandwidth cost:
 
