@@ -14,13 +14,13 @@
       "sha256": "a0ad91f00a7a80dcf84d719a61b00ee2e07b71794f4ee2dfa81a254621a8c418"
     },
     {
-      "url": "http://127.0.0.1:8765/android/mobileclip_image.onnx",
+      "url": "https://huggingface.co/manoharmabbu/videorag-mobileclip/resolve/main/mobileclip_image.onnx",
       "dest": "mobileclip_image.onnx",
       "bytes": 143667268,
       "sha256": "669d397f907aee7b01752cc3d964d8ac7af170044fb71140bbd2933307abbe28"
     },
     {
-      "url": "http://127.0.0.1:8765/android/mobileclip_text.onnx",
+      "url": "https://huggingface.co/manoharmabbu/videorag-mobileclip/resolve/main/mobileclip_text.onnx",
       "dest": "mobileclip_text.onnx",
       "bytes": 254084095,
       "sha256": "46ef2175790511540658b992312f06802996ff4c06a8852759f9fb3f2e3955bb"
