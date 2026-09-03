@@ -62,3 +62,7 @@ android/local.properties
 
 # Sample footage used for local testing (large binaries stay out of git)
 android/sample_videos/
+
+# Model-server staging: keep the manifest (the client contract), never the weights
+dist/models/
+dist/_*

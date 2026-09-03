@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
     private var currentVideoKey: String = ""
     private var lastSelectedTimestampMs = 0
     private var isBusy = false
+    private var downloading = false
 
     /** Sampling rate. Fixed at 1 FPS now that the FPS pills are gone. */
     private val sampleFps = 1.0
@@ -217,6 +218,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupListeners() {
         btnPickVideo.setOnClickListener { pickVideoLauncher.launch("video/*") }
         btnSelectModelFolder.setOnClickListener { selectFolderLauncher.launch(null) }
+        tvModelBadge.setOnClickListener { if (tvModelBadge.text == "Download models") downloadModels() }
         btnClearAll.setOnClickListener { resetAllData() }
         btnDebug.setOnClickListener { showDebugPanel() }
 
@@ -260,16 +262,81 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Reports whether model FILES exist; deliberately does not load them on Main. */
+    /**
+     * Reports whether the model weights are present, and offers to fetch them if not.
+     *
+     * Network-free: it checks local files only (a GGUF the native loader accepts, plus
+     * both CLIP towers), so it is cheap to call on every resume. The manifest fetch that
+     * decides exactly what to download happens later, only when the user taps the badge.
+     * A fresh install therefore shows "Download models" rather than a dead "No model".
+     */
     private fun updateModelBadge() {
+        if (downloading) return
         lifecycleScope.launch(Dispatchers.IO) {
-            val ok = try { orchestrator.getFrameDescriber().isNativeGGUFAvailable() }
-                     catch (_: Throwable) { false }
+            val gguf = try { orchestrator.getFrameDescriber().isNativeGGUFAvailable() }
+                       catch (_: Throwable) { false }
+            val clip = ModelPaths.find(this@MainActivity) {
+                it.name == "mobileclip_image.onnx" || it.name == "mobileclip_image.int8.onnx"
+            } != null && ModelPaths.find(this@MainActivity) {
+                it.name == "mobileclip_text.onnx" || it.name == "mobileclip_text.int8.onnx"
+            } != null
+            val ok = gguf && clip
+            val canDownload = !ok && ModelDownloader.isConfigured(this@MainActivity)
             withContext(Dispatchers.Main) {
-                tvModelBadge.text = if (ok) "Model ready" else "No model"
-                if (!ok && !modelHintShown) {
+                tvModelBadge.text = when {
+                    ok -> "Model ready"
+                    canDownload -> "Download models"
+                    else -> "No model"
+                }
+                if (!ok && !canDownload && !modelHintShown) {
                     modelHintShown = true
                     ChatView.addSystemNote(chatContainer, ModelPaths.instructions(this@MainActivity), isError = true)
+                }
+            }
+        }
+    }
+
+    /**
+     * Pull the missing weights from the model server, showing progress on the ingestion
+     * bar. On success the badge flips to "Model ready"; on failure the partial file is
+     * kept so a retry resumes rather than restarting.
+     */
+    private fun downloadModels() {
+        if (downloading) return
+        downloading = true
+        tvModelBadge.text = "Downloading…"
+        pbIngestion.visibility = View.VISIBLE
+        pbIngestion.isIndeterminate = true
+        tvIngestionInfo.text = "Preparing model download…"
+        ChatView.addSystemNote(chatContainer, "Downloading on-device models. This is a one-time ~2 GB download; keep the app open.")
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                ModelDownloader.downloadMissing(this@MainActivity) { p ->
+                    val doneMb = p.fileDone / 1_000_000
+                    val totMb = if (p.fileBytes > 0) p.fileBytes / 1_000_000 else 0
+                    val pct = if (p.fileBytes > 0) ((p.fileDone * 100) / p.fileBytes).toInt() else 0
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        pbIngestion.isIndeterminate = false
+                        pbIngestion.progress = pct
+                        tvIngestionInfo.text = "Downloading ${p.name} (${p.index + 1}/${p.total}) — $doneMb/$totMb MB"
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    downloading = false
+                    pbIngestion.visibility = View.GONE
+                    tvIngestionInfo.text = "Models downloaded. Import a video to start."
+                    ChatView.addSystemNote(chatContainer, "Models ready.")
+                    modelHintShown = false
+                    updateModelBadge()
+                }
+            } catch (e: Throwable) {
+                withContext(Dispatchers.Main) {
+                    downloading = false
+                    pbIngestion.visibility = View.GONE
+                    tvIngestionInfo.text = "Model download failed."
+                    ChatView.addSystemNote(chatContainer,
+                        "Model download failed: ${e.message}. Tap the badge to resume.", isError = true)
+                    updateModelBadge()
                 }
             }
         }

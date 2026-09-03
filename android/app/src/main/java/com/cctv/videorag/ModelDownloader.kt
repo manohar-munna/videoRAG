@@ -1,0 +1,183 @@
+package com.cctv.videorag
+
+import android.content.Context
+import android.util.Log
+import org.json.JSONObject
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
+
+/**
+ * Pulls the on-device model weights from a static file server on first run.
+ *
+ * The weights are ~2 GB and cannot ship inside the APK (Play limits, and most of it is
+ * one 986 MB GGUF), so a fresh install has no models and the app offers to download
+ * them. They land in ModelPaths.modelsDir(), which is the app's own external files dir:
+ * it needs no storage permission and Android deletes it automatically on uninstall, so
+ * "remove the app, remove its models" is satisfied with no extra code.
+ *
+ * The server hosts a manifest.json and the files it lists. The manifest is the single
+ * source of truth for names, sizes and checksums, so adding or requantising a model is a
+ * server-side change, not an app update.
+ *
+ * Downloads resume: a partially fetched file is kept as `<name>.part` and continued with
+ * an HTTP Range request, because a 986 MB download over a phone connection will be
+ * interrupted. Each completed file is verified against its manifest sha256 before being
+ * put in place, so a truncated or corrupted download fails loudly here instead of as an
+ * unreadable-GGUF crash deep in the native loader.
+ */
+object ModelDownloader {
+
+    private const val TAG = "VideoRAG_Download"
+
+    /**
+     * Root URL the weights are served from. The manifest is expected at
+     * "$BASE/manifest.json" and each file at "$BASE/<its manifest path>".
+     *
+     * Set this to your server before building a release. It can also be overridden at
+     * runtime without a rebuild by placing a file `source.txt` containing the URL in the
+     * models directory (adb push, or a future settings screen).
+     */
+    private const val DEFAULT_BASE_URL = ""   // e.g. "https://models.example.com/videorag"
+
+    fun baseUrl(context: Context): String {
+        val override = File(ModelPaths.modelsDir(context), "source.txt")
+        if (override.isFile) {
+            val u = override.readText().trim()
+            if (u.isNotEmpty()) return u.removeSuffix("/")
+        }
+        return DEFAULT_BASE_URL.removeSuffix("/")
+    }
+
+    fun isConfigured(context: Context): Boolean = baseUrl(context).isNotEmpty()
+
+    data class Entry(val path: String, val dest: String, val bytes: Long, val sha256: String)
+
+    class DownloadException(msg: String) : Exception(msg)
+
+    /** Progress of one file within the batch. [fileBytes] is -1 until the size is known. */
+    data class Progress(
+        val index: Int, val total: Int, val name: String,
+        val fileDone: Long, val fileBytes: Long
+    )
+
+    /** Fetch and parse the Android section of the manifest. */
+    private fun fetchAndroidManifest(base: String): List<Entry> {
+        val text = httpGetText("$base/manifest.json")
+        val arr = JSONObject(text).getJSONArray("android")
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            Entry(o.getString("path"), o.getString("dest"),
+                  o.getLong("bytes"), o.optString("sha256", ""))
+        }
+    }
+
+    /** Entries whose local file is absent or the wrong size. */
+    fun missing(context: Context): List<Entry> {
+        if (!isConfigured(context)) return emptyList()
+        val dir = ModelPaths.modelsDir(context)
+        return try {
+            fetchAndroidManifest(baseUrl(context)).filter { e ->
+                val f = File(dir, e.dest)
+                !f.isFile || f.length() != e.bytes
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "manifest fetch failed: ${e.message}")
+            throw DownloadException("Could not reach the model server: ${e.message}")
+        }
+    }
+
+    /**
+     * Download every missing file. Returns when all are present and verified; throws on
+     * the first failure. [onProgress] is called from this (background) thread.
+     */
+    fun downloadMissing(context: Context, onProgress: (Progress) -> Unit) {
+        val base = baseUrl(context)
+        if (base.isEmpty()) throw DownloadException("No model server configured.")
+        val dir = ModelPaths.modelsDir(context)
+        val todo = missing(context)
+        todo.forEachIndexed { i, e ->
+            val target = File(dir, e.dest)
+            val part = File(dir, "${e.dest}.part")
+            onProgress(Progress(i, todo.size, e.dest, part.takeIf { it.exists() }?.length() ?: 0L, e.bytes))
+            downloadOne("$base/${e.path}", part, e.bytes) { done ->
+                onProgress(Progress(i, todo.size, e.dest, done, e.bytes))
+            }
+            if (e.sha256.isNotEmpty()) {
+                val actual = sha256(part)
+                if (!actual.equals(e.sha256, ignoreCase = true)) {
+                    part.delete()
+                    throw DownloadException("${e.dest} failed checksum; deleted, please retry")
+                }
+            }
+            if (target.exists()) target.delete()
+            if (!part.renameTo(target))
+                throw DownloadException("could not finalise ${e.dest}")
+        }
+    }
+
+    /** Download one file to [part], resuming if a partial exists. */
+    private fun downloadOne(url: String, part: File, expected: Long, onBytes: (Long) -> Unit) {
+        var have = if (part.isFile) part.length() else 0L
+        if (have > expected) { part.delete(); have = 0L }   // stale/oversized partial
+        if (have == expected) { onBytes(have); return }
+
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 20_000
+            readTimeout = 30_000
+            if (have > 0) setRequestProperty("Range", "bytes=$have-")
+        }
+        try {
+            val code = conn.responseCode
+            // 206 = server honoured the resume; 200 = full body (restart from zero)
+            if (have > 0 && code == HttpURLConnection.HTTP_OK) { have = 0L; part.delete() }
+            if (code != HttpURLConnection.HTTP_OK && code != HttpURLConnection.HTTP_PARTIAL)
+                throw DownloadException("HTTP $code for $url")
+
+            conn.inputStream.use { input ->
+                java.io.FileOutputStream(part, /* append = */ have > 0).use { out ->
+                    val buf = ByteArray(1 shl 16)
+                    var done = have
+                    var lastReport = 0L
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        done += n
+                        // throttle callbacks to ~4/MB so the UI thread is not flooded
+                        if (done - lastReport >= (1L shl 18)) { onBytes(done); lastReport = done }
+                    }
+                    out.flush()
+                    onBytes(done)
+                }
+            }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun httpGetText(url: String): String {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000; readTimeout = 15_000
+        }
+        try {
+            if (conn.responseCode != HttpURLConnection.HTTP_OK)
+                throw DownloadException("HTTP ${conn.responseCode} for $url")
+            return conn.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun sha256(f: File): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        f.inputStream().use { s ->
+            val buf = ByteArray(1 shl 16)
+            while (true) {
+                val n = s.read(buf); if (n < 0) break; md.update(buf, 0, n)
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
+}
