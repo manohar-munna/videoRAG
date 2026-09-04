@@ -82,10 +82,67 @@ class MainActivity : AppCompatActivity() {
      * frames to embed, which is the ingest bottleneck.
      *
      * The trade is explicit: an event visible for less than ~5 s can fall between samples.
-     * That was true of every build whose answers were good, and it is the setting to
-     * revisit first if a short event is ever missed.
+     * That was true of every build whose answers were good. It is now the FLOOR rather
+     * than the rate - see sampleFpsFor() for why a fixed rate cannot serve both a
+     * 13-minute clip and a 48-second one.
      */
-    private val sampleFps = 0.2
+    private val MIN_SAMPLE_FPS = 0.2
+
+    /**
+     * Frames to aim for across the whole video, whatever its length.
+     *
+     * 156 samples over the 13-minute clip produced 146 keyframes, the density every good
+     * answer in this project was measured at, so that is the number worth reproducing.
+     */
+    private val TARGET_KEYFRAMES = 60.0
+
+    /** Ceiling, so a very short clip does not turn into thousands of embeddings. */
+    private val MAX_SAMPLE_FPS = 2.0
+
+    /** Rate actually used for the last ingest. Reported in the debug panel. */
+    private var sampleFps = MIN_SAMPLE_FPS
+
+    /** Length of the indexed video. 0 when unknown; drives minSecondsApart(). */
+    private var videoDurationSec = 0
+
+    /**
+     * How densely to sample this particular video.
+     *
+     * A fixed 0.2 fps was tuned on the 13-minute clip. Applied to a short video it
+     * starves retrieval: a 48-second traffic clip yields ~10 samples and 7 keyframes,
+     * so the store holds 42 vectors and there is almost nothing for the ranking to choose
+     * between. Every query then returns the same two or three frames and the answer thins
+     * to a single line - which reads like a model problem and is not one.
+     *
+     * So aim for a frame budget instead of a rate. The lower clamp is the old constant,
+     * so anything long enough to have been sampled well before is sampled identically and
+     * its results are unchanged; only videos short enough to be starved sample faster.
+     */
+    /** Length of [uri] in whole seconds, or 0 if it cannot be read. */
+    private fun durationSecondsOf(uri: Uri): Int {
+        val r = android.media.MediaMetadataRetriever()
+        return try {
+            r.setDataSource(this, uri)
+            ((r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull() ?: 0L) / 1000L).toInt()
+        } catch (e: Throwable) {
+            Log.w("VideoRAG_Main", "could not read duration (${e.message})")
+            0
+        } finally {
+            try { r.release() } catch (_: Throwable) {}
+        }
+    }
+
+    private fun sampleFpsFor(uri: Uri): Double {
+        val seconds = durationSecondsOf(uri).toDouble()
+        videoDurationSec = seconds.toInt()
+        val fps = if (seconds <= 0.0) MIN_SAMPLE_FPS
+                  else (TARGET_KEYFRAMES / seconds).coerceIn(MIN_SAMPLE_FPS, MAX_SAMPLE_FPS)
+        sampleFps = fps
+        Log.i("VideoRAG_Main", "video ${seconds.toInt()}s -> sampling at $fps fps " +
+              "(~${(seconds * fps).toInt()} frames)")
+        return fps
+    }
 
     /**
      * Cosine above which two retrieved frames count as the same shot and the later one
@@ -152,7 +209,28 @@ class MainActivity : AppCompatActivity() {
      * The top-ranked frame is always kept first, so widening the gap never costs the best
      * match - it only stops the remaining slots being spent on its neighbours.
      */
-    private val MIN_SECONDS_APART = 15
+    private val MAX_SECONDS_APART = 15
+
+    /** Never demand a gap so wide that five frames cannot fit in the video. */
+    private val FLOOR_SECONDS_APART = 4
+
+    /**
+     * Minimum gap between two frames sent to the model, for THIS video.
+     *
+     * 15 s was measured on the 13-minute clip and is right there. It is wrong for a short
+     * one: fitting MAX_FRAMES_TO_ANALYSE (5) frames at 15 s apart needs 60 s of video, so
+     * a 47-second clip could never supply more than three - and in practice supplied two,
+     * no matter how densely it was indexed. Both queries on the traffic clip came back
+     * "Analysed 2 keyframes" off a 44-keyframe index for exactly this reason; the density
+     * was there and the spacing rule would not let retrieval spend it.
+     *
+     * duration/6 leaves five frames spanning two-thirds of the recording, which is the
+     * spread that makes each one worth a separate sentence. Anything 90 s or longer still
+     * gets the measured 15 s, so the 13-minute results are untouched.
+     */
+    private fun minSecondsApart(): Int =
+        if (videoDurationSec <= 0) MAX_SECONDS_APART
+        else (videoDurationSec / 6).coerceIn(FLOOR_SECONDS_APART, MAX_SECONDS_APART)
 
     /** Prior turns, oldest first, fed back to the model so follow-ups have context. */
     private val conversation = mutableListOf<ConversationTurn>()
@@ -487,6 +565,10 @@ class MainActivity : AppCompatActivity() {
             // Prefer our own copy: the original content:// URI is dead by now.
             localVideoFile().takeIf { it.isFile && it.length() > 0 }?.let {
                 currentVideoUri = Uri.fromFile(it)
+                // Recover the duration as well: minSecondsApart() falls back to the
+                // 15 s default without it, which would undo the spacing fix on every
+                // restart even though the index itself restored fine.
+                videoDurationSec = durationSecondsOf(Uri.fromFile(it))
             }
             val saved = sqliteFts.loadMoments(key)
             if (saved.isEmpty()) return@launch
@@ -565,7 +647,7 @@ class MainActivity : AppCompatActivity() {
                 frameDecoder.decodeVideoUri(
                     videoUri = uri,
                     cameraName = "cam_user",
-                    sampleFps = sampleFps,
+                    sampleFps = sampleFpsFor(uri),
                     onProgress = { cur, total, _ ->
                         lifecycleScope.launch(Dispatchers.Main) {
                             pbIngestion.isIndeterminate = false
@@ -846,8 +928,8 @@ class MainActivity : AppCompatActivity() {
             val ts = m.timestamp
             if (ts in analysed) continue
             val secs = parseTimestampSeconds(ts)
-            if (spread.any { kotlin.math.abs(parseTimestampSeconds(it) - secs) < MIN_SECONDS_APART }) continue
-            if (analysed.any { kotlin.math.abs(parseTimestampSeconds(it) - secs) < MIN_SECONDS_APART }) continue
+            if (spread.any { kotlin.math.abs(parseTimestampSeconds(it) - secs) < minSecondsApart() }) continue
+            if (analysed.any { kotlin.math.abs(parseTimestampSeconds(it) - secs) < minSecondsApart() }) continue
             spread += ts
         }
         val candidates = spread
@@ -894,7 +976,7 @@ class MainActivity : AppCompatActivity() {
             // still listed under "also matched".
             val tooClose = kept.any {
                 kotlin.math.abs(parseTimestampSeconds(it.timestamp) -
-                                parseTimestampSeconds(moment.timestamp)) < MIN_SECONDS_APART
+                                parseTimestampSeconds(moment.timestamp)) < minSecondsApart()
             }
             if (!tooSimilar && !tooClose) kept.add(moment)
             if (kept.size >= OnDeviceVLM.MAX_FRAMES_TO_ANALYSE) break

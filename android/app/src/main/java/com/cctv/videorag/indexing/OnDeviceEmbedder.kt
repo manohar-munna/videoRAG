@@ -54,6 +54,28 @@ class OnDeviceEmbedder private constructor(
         const val DIM = 512
         const val IMAGE_SIZE = 256          // MobileCLIP-S2's native input resolution
 
+        /**
+         * Whether to offer the image/text graphs to the XNNPACK execution provider.
+         *
+         * Off, on measurement rather than on principle. The EP is present in
+         * onnxruntime-android 1.17.1 and the session builds - the log says "XNNPACK" -
+         * but ORT also reports "some nodes were not assigned to the preferred execution
+         * providers", so only part of MobileCLIP-S2 is taken and the per-image cost on an
+         * SM8550 did not move: ~0.32 s before, ~0.35 s after.
+         *
+         * It was also the only change present when a six-crop batch started returning a
+         * single row, and a whole video indexed at 33 vectors for 33 keyframes instead of
+         * 198. embedImages() now detects and survives that, but an accelerator that buys
+         * nothing and defeats batching is not worth shipping on.
+         *
+         * Left wired up rather than deleted: flip this to true to re-measure, ideally on
+         * another SoC, and watch for "batched run returned N rows" in the log. What has
+         * NOT been tested is this same path with ORT's own thread count left at 4 - the
+         * first attempt pinned it to 1 per ORT's guidance, which likely penalised the
+         * majority of the graph that XNNPACK declined.
+         */
+        private const val USE_XNNPACK = false
+
         // fp32 first, int8 only as a fallback.
         //
         // int8 dynamic quantisation rewrites convolutions to ConvInteger, and
@@ -86,15 +108,46 @@ class OnDeviceEmbedder private constructor(
             }
             val env = OrtEnvironment.getEnvironment()
 
-            // CPU only, deliberately. These graphs are int8 dynamically quantised
-            // (ConvInteger / MatMulInteger / DynamicQuantizeLinear); NNAPI has no
-            // mapping for those operators, so enabling it makes session creation or the
-            // first run fail rather than accelerating anything.
+            // XNNPACK: available, measured, and OFF. See USE_XNNPACK.
+            //
+            // Try XNNPACK first, fall back to ORT's own CPU kernels.
+            //
+            // Ingest is dominated by this tower, not by decoding: six spatial crops per
+            // keyframe at ~0.30 s each on an SM8550, so a 47-second clip is 264 forward
+            // passes and a 13-minute one is 876. XNNPACK carries hand-written ARM kernels
+            // for fp32 convolution that ORT's default provider does not match, and returns
+            // the same numbers - which makes it the one speed-up available here that cannot
+            // move retrieval quality at all.
+            //
+            // Failure is an expected outcome, not an exception. XNNPACK is a build flag and
+            // is absent from some onnxruntime-android packages, and the int8 fallback towers
+            // (ConvInteger / MatMulInteger / DynamicQuantizeLinear) are operators it does not
+            // map - which is also why NNAPI stays off entirely. So a session is attempted
+            // with it and retried without, and the log says which one is live.
             fun session(f: File): OrtSession {
-                val o = OrtSession.SessionOptions()
-                o.setIntraOpNumThreads(4)
+                fun options(useXnnpack: Boolean): OrtSession.SessionOptions {
+                    val o = OrtSession.SessionOptions()
+                    if (useXnnpack) o.addXnnpack(mapOf("intra_op_num_threads" to "4"))
+                    // 4 either way. ORT's guidance is to drop its own pool to 1 under
+                    // XNNPACK, but that assumes XNNPACK takes the graph. It does not take
+                    // this one - session creation logs "some nodes were not assigned to
+                    // the preferred execution providers" - so the majority still runs on
+                    // ORT's CPU kernels, and pinning them to one thread costs more than
+                    // the offloaded nodes save.
+                    o.setIntraOpNumThreads(4)
+                    return o
+                }
+                if (USE_XNNPACK) {
+                    try {
+                        val sess = env.createSession(f.absolutePath, options(true))
+                        Log.i(TAG, "${f.name}: XNNPACK")
+                        return sess
+                    } catch (e: Throwable) {
+                        Log.i(TAG, "${f.name}: XNNPACK unavailable (${e.message}); default CPU kernels")
+                    }
+                }
                 return try {
-                    env.createSession(f.absolutePath, o)
+                    env.createSession(f.absolutePath, options(false))
                 } catch (e: Throwable) {
                     throw ModelUnavailableException(
                         "ONNX Runtime could not open ${f.name}: ${e.message}")
@@ -136,13 +189,31 @@ class OnDeviceEmbedder private constructor(
             if (scaled != bmp) scaled.recycle()
         }
         val shape = longArrayOf(n.toLong(), 3, IMAGE_SIZE.toLong(), IMAGE_SIZE.toLong())
-        OnnxTensor.createTensor(env, FloatBuffer.wrap(all), shape).use { t ->
-            imageSession.run(mapOf(imageSession.inputNames.first() to t)).use { r ->
-                @Suppress("UNCHECKED_CAST")
-                val rows = r.get(0).value as Array<FloatArray>
-                return rows.map { normalise(it) }
+        val rows = try {
+            OnnxTensor.createTensor(env, FloatBuffer.wrap(all), shape).use { t ->
+                imageSession.run(mapOf(imageSession.inputNames.first() to t)).use { r ->
+                    @Suppress("UNCHECKED_CAST")
+                    (r.get(0).value as Array<FloatArray>).map { normalise(it) }
+                }
             }
+        } catch (e: Throwable) {
+            Log.w(TAG, "batched image run failed (${e.message}); embedding one at a time")
+            emptyList()
         }
+
+        // Never return fewer vectors than images.
+        //
+        // The caller zips crops against this list, and zip() truncates to the shorter of
+        // the two - so a short return silently drops spatial crops instead of failing. It
+        // happened: an execution provider that fixes the batch axis to 1 returned a single
+        // row for a six-image batch, and a whole video indexed at one vector per keyframe
+        // rather than six. Retrieval still worked, just without any of the small-object
+        // recall the crops exist to provide, and nothing in the logs said so.
+        if (rows.size == n) return rows
+        if (rows.isNotEmpty()) {
+            Log.w(TAG, "batched run returned ${rows.size} rows for $n images; falling back")
+        }
+        return bitmaps.map { embedImage(it) }
     }
 
     /** Embed one image (or crop) into a unit-length 512-D vector. */
