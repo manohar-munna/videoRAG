@@ -597,6 +597,38 @@ Describe in a single sentence what this frame shows in relation to the question.
      * "00:03:42 - White truck parked by a crowd."
      * "00:07:20 - White truck parked by a crowd."   ->  one line, both timestamps
      */
+    /**
+     * A timestamp the model tacked onto the end of its own sentence.
+     *
+     * The per-frame prompt tells the model which moment it is looking at ("taken at
+     * 00:06:35"), and it frequently echoes that back: "A white truck ... is parked at
+     * 00:06:35". groupBySubject then appends its own " at 00:06:35.", so the line reads
+     * "... is parked at 00:06:35 at 00:06:35."
+     *
+     * The duplicated text is the visible half of the problem. The costly half is that the
+     * echoed timestamp lands in the grouping key, so the same subject seen in five frames
+     * produces five keys and five near-identical lines instead of one line listing five
+     * times - which is exactly how "camera crew" came back as four separate sentences
+     * about the same "motion picture" truck.
+     *
+     * Only a trailing timestamp introduced by at/around/near is removed, so a range the
+     * model wrote deliberately ("between 00:06:35 and 00:08:50") is left intact.
+     */
+    private val echoedTsRx = Regex(
+        """[\s,;]*\b(?:at|around|near)\s+\d{1,2}:\d{2}(?::\d{2})?\s*\.?\s*$""",
+        RegexOption.IGNORE_CASE
+    )
+
+    private fun stripEchoedTimestamp(text: String): String {
+        var out = text.trim()
+        repeat(4) {
+            val next = echoedTsRx.replace(out, "").trim().trimEnd(',', ';', '-')
+            if (next.isEmpty() || next == out) return out
+            out = next
+        }
+        return out
+    }
+
     private fun groupBySubject(text: String): String {
         val lineRx = Regex("""^\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–:]\s*(.+?)\s*$""")
         val order = LinkedHashMap<String, MutableList<String>>()   // normalised -> timestamps
@@ -610,7 +642,7 @@ Describe in a single sentence what this frame shows in relation to the question.
                 continue
             }
             val ts = m.groupValues[1]
-            val desc = m.groupValues[2].trim().trimEnd('.')
+            val desc = stripEchoedTimestamp(m.groupValues[2].trim()).trimEnd('.')
             val key = desc.lowercase().replace(Regex("[^a-z0-9 ]"), "").replace(Regex("\\s+"), " ")
             if (key.isEmpty()) continue
             order.getOrPut(key) { mutableListOf() }.add(ts)
