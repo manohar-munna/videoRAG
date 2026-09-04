@@ -49,6 +49,8 @@ class MainActivity : AppCompatActivity() {
     // ── ingestion state ───────────────────────────────────────────
     private var lastFrameHash: Long? = null
     private var acceptedFramesCount = 0
+    /** Time spent turning existing vectors into object labels, across one ingest. */
+    private var labelNanosTotal = 0L
     private var droppedFramesCount = 0
     private val hashThreshold = MobileFrameFilter.DEFAULT_HAMMING_THRESHOLD
     private var currentVideoUri: Uri? = null
@@ -632,6 +634,7 @@ class MainActivity : AppCompatActivity() {
             }
             vectorStore.clear(); sqliteFts.clearAll()
             acceptedFramesCount = 0; droppedFramesCount = 0; lastFrameHash = null
+            labelNanosTotal = 0L
             conversation.clear()
 
             withContext(Dispatchers.Main) {
@@ -663,6 +666,9 @@ class MainActivity : AppCompatActivity() {
                     }
                 )
                 val secs = (System.currentTimeMillis() - startedAt) / 1000
+                val labelMs = labelNanosTotal / 1_000_000
+                Log.i("VideoRAG_Main", "ingest $secs s total, of which object labelling " +
+                      "$labelMs ms (${if (secs > 0) labelMs * 100.0 / (secs * 1000) else 0.0}%)")
                 withContext(Dispatchers.Main) {
                     isBusy = false
                     pbIngestion.visibility = View.GONE
@@ -704,17 +710,24 @@ class MainActivity : AppCompatActivity() {
         lastFrameHash = currentHash
         acceptedFramesCount++
 
-        // cheap per-frame stats only; the VLM is not loaded during ingestion
-        val vlm = orchestrator.getFrameDescriber()
-        val frameJson = vlm.describeFrameAsJson(bitmap, timestamp, acceptedFramesCount, imagePath)
-        val frameDescription = frameJson.getString("visual_description")
-
         val embedder = orchestrator.getActiveEmbedder()
         // One batched run for the frame's six crops instead of six single runs. Ingest is
         // CLIP-bound - 466 keyframes x 6 crops is 2796 forward passes - so per-call
         // overhead is paid thousands of times per video.
         val crops = SpatialCropper.generatePyramidCrops(bitmap)
         val vectors = embedder.embedImages(crops.map { it.bitmap })
+
+        // Name what the crops contain, reusing the vectors just computed. Timed
+        // separately because "does this slow indexing down" deserves a number.
+        val labelT0 = System.nanoTime()
+        val objects = embedder.labelsFor(vectors)
+        labelNanosTotal += System.nanoTime() - labelT0
+
+        // cheap per-frame stats only; the VLM is not loaded during ingestion
+        val vlm = orchestrator.getFrameDescriber()
+        val frameJson = vlm.describeFrameAsJson(
+            bitmap, timestamp, acceptedFramesCount, imagePath, objects)
+        val frameDescription = frameJson.getString("visual_description")
         for ((crop, v) in crops.zip(vectors)) {
             val moment = IndexedMoment(
                 id = "${camera}_${timestamp}_${crop.label}",

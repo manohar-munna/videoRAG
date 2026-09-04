@@ -314,7 +314,10 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         }
     }
 
-    fun describeFrameAsJson(bitmap: Bitmap, timestamp: String, frameIndex: Int, imagePath: String): JSONObject {
+    fun describeFrameAsJson(
+        bitmap: Bitmap, timestamp: String, frameIndex: Int, imagePath: String,
+        objects: List<String> = emptyList()
+    ): JSONObject {
         val stats = analyzeFramePixels(bitmap)
 
         val colorsArray = JSONArray()
@@ -323,16 +326,28 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         val colorText = if (stats.dominantColors.isEmpty()) "no dominant colour"
                         else stats.dominantColors.joinToString(", ")
 
+        val objectsArray = JSONArray()
+        for (o in objects) objectsArray.put(o)
+
         return JSONObject().apply {
             put("frame_index", frameIndex)
             put("timestamp", timestamp)
             put("image_path", imagePath)
             put("dominant_colors", colorsArray)
             put("lighting", stats.brightnessCategory)
-            put("analysis", "colour histogram only; not yet inspected by the vision model")
-            put("visual_description",
-                "Keyframe at $timestamp. Dominant colours: $colorText. " +
-                "Lighting: ${stats.brightnessCategory}.")
+            put("objects", objectsArray)
+            put("analysis", if (objects.isEmpty())
+                "colour histogram only; not yet inspected by the vision model"
+            else
+                "colour histogram plus zero-shot CLIP labels; not inspected by the vision model")
+            // Objects lead the description because this string is what the sparse index
+            // stores. "car, truck" is something a user might type; "Dominant colours:
+            // grey" is not.
+            put("visual_description", buildString {
+                if (objects.isNotEmpty()) append(objects.joinToString(", ")).append(". ")
+                append("Keyframe at $timestamp. Dominant colours: $colorText. ")
+                append("Lighting: ${stats.brightnessCategory}.")
+            })
         }
     }
 

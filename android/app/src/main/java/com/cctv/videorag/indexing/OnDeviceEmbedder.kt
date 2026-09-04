@@ -51,6 +51,21 @@ class OnDeviceEmbedder private constructor(
 
     companion object {
         private const val TAG = "VideoRAG_Embedder"
+
+        /**
+         * What the labeller can name. Deliberately small and scene-appropriate: every
+         * entry costs a text-tower pass once per session, and a vocabulary full of things
+         * that never appear only invites false positives - CLIP always returns its best
+         * match, so the guard against nonsense is the score threshold plus keeping the
+         * list to things this footage plausibly contains.
+         */
+        private val VOCAB = listOf(
+            "car", "white truck", "truck", "bus", "van", "taxi", "motorcycle", "bicycle",
+            "person", "group of people", "pedestrian crossing", "traffic light",
+            "road", "highway", "parking lot", "building", "tree", "sky",
+            "camera crew", "film camera", "dog", "traffic sign", "number plate",
+            "police car", "ambulance", "construction equipment"
+        )
         const val DIM = 512
         const val IMAGE_SIZE = 256          // MobileCLIP-S2's native input resolution
 
@@ -307,6 +322,69 @@ class OnDeviceEmbedder private constructor(
                 return firstRow(r.get(0).value)
             }
         }
+    }
+
+    /**
+     * Zero-shot object labels for a frame, from vectors that already exist.
+     *
+     * The expensive half of "what is in this frame" is already paid: indexing embeds six
+     * crops per keyframe, and that is 99.99% of the arithmetic. Naming what it saw costs
+     * one dot product per label per crop - about 245k multiply-adds for the vocabulary
+     * below, against roughly 5 GFLOPs for a single image forward pass. So this is free in
+     * any sense that matters, and it needs no second model, no extra download and no
+     * decoding.
+     *
+     * The alternative was running the VLM at ingest, which the ingest path deliberately
+     * avoids ("the VLM is not loaded during ingestion"): at ~8 s a frame that is minutes
+     * of extra work per video, versus microseconds here.
+     *
+     * These are CLIP similarities, not detections. There is no box, no count, and a label
+     * is only as good as the crop it came from - so treat them as retrieval hints, and do
+     * not put them where the VLM will read them as fact.
+     */
+    fun labelsFor(vectors: List<FloatArray>, topK: Int = 3, minScore: Float = 0.20f): List<String> {
+        if (vectors.isEmpty()) return emptyList()
+        val vocab = labelVectors() ?: return emptyList()
+        // Max-pool each label over the crops: an object filling one crop should score on
+        // that crop even when it is a speck in the global view. Same reason the crops
+        // exist at all.
+        val best = FloatArray(VOCAB.size) { -1f }
+        for (v in vectors) {
+            for (i in VOCAB.indices) {
+                val d = dot(v, vocab[i])
+                if (d > best[i]) best[i] = d
+            }
+        }
+        return VOCAB.indices
+            .filter { best[it] >= minScore }
+            .sortedByDescending { best[it] }
+            .take(topK)
+            .map { VOCAB[it] }
+    }
+
+    /** Label embeddings, computed once per session and then reused. */
+    private var labelCache: Array<FloatArray>? = null
+
+    private fun labelVectors(): Array<FloatArray>? {
+        labelCache?.let { return it }
+        return try {
+            val t0 = System.currentTimeMillis()
+            val v = Array(VOCAB.size) { embedCaption("a photo of a ${VOCAB[it]}") }
+            Log.i(TAG, "label vocabulary embedded: ${VOCAB.size} labels in " +
+                       "${System.currentTimeMillis() - t0} ms (once per session)")
+            labelCache = v
+            v
+        } catch (e: Throwable) {
+            Log.w(TAG, "could not embed label vocabulary: ${e.message}")
+            null
+        }
+    }
+
+    private fun dot(a: FloatArray, b: FloatArray): Float {
+        var s = 0f
+        val n = minOf(a.size, b.size)
+        for (i in 0 until n) s += a[i] * b[i]
+        return s
     }
 
     /** CHW float tensor in [0,1], then per-channel normalisation. */
