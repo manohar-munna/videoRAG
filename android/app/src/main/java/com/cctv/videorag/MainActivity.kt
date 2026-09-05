@@ -469,7 +469,7 @@ class MainActivity : AppCompatActivity() {
         if (downloading) return
         // Nothing to do when the weights are already present - tapping a "Model ready"
         // badge should be a no-op, not a spurious download.
-        lifecycleScope.launch(Dispatchers.IO) {
+        appScope.launch(Dispatchers.IO) {
             val nothingMissing = try { ModelDownloader.missing(this@MainActivity).isEmpty() }
                                  catch (_: Throwable) { false }
             if (nothingMissing) return@launch
