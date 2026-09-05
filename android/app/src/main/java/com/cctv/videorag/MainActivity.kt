@@ -25,6 +25,7 @@ import com.cctv.videorag.ingestion.*
 import com.cctv.videorag.llm.*
 import com.cctv.videorag.ui.ChatView
 import com.cctv.videorag.ui.DebugPanel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -1128,6 +1129,10 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         try { videoViewPlayback.stopPlayback() } catch (_: Exception) {}
-        lifecycleScope.launch(Dispatchers.IO) { orchestrator.releaseAll() }
+        CoroutineScope(Dispatchers.IO).launch {
+            try { orchestrator.releaseAll() } catch (e: Throwable) {
+                Log.w("VideoRAG_Main", "releaseAll error: ${e.message}")
+            }
+        }
     }
 }

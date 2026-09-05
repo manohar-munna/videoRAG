@@ -191,6 +191,7 @@ class SQLiteFtsHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
      * Executes sparse BM25/TF-IDF lexical search over indexed visual tokens.
      * Returns a list of (imagePath, Score).
      */
+    @Deprecated("Unused legacy lexical heuristic. MobileVectorStore over MobileCLIP-S2 provides unified dense embedding retrieval.")
     fun searchSparse(query: String, topK: Int = 30): List<Pair<String, Float>> {
         val results = mutableListOf<Pair<String, Float>>()
         val queryTokens = query.lowercase().trim()
