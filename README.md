@@ -240,16 +240,74 @@ Once a keyframe passes the edge hash gate, it is transformed into a high-dimensi
   - **Local Video Cache**: Copies the active video into `filesDir/videos/current.mp4` so click-to-seek video playback works from cold boot even when Android system URI permissions expire.
 
 ---
-   - Step-by-step chronological event sequence
-   - Causal verdict with timestamp confirmation `[CONFIRMED_AT: 00:07:10]`
 
-#### Step 6: Click-to-Play Video at Exact Keyframe Timestamp
-- **Tap any keyframe thumbnail card**: The app reveals the **Forensic Video Playback** card below, seeks your original video to that exact second, and begins playing footage from that moment with `⏸ Pause`, `▶ Play`, and `🔄 Replay Mark` controls!
+## 🔍 Retrieval Dynamics & Anti-Hallucination Pipeline
 
-#### Step 7: Resetting Database
-- Tap the **`🗑 Reset`** button in the top-right of the ingestion card at any time to wipe all indexed vectors, cached keyframe images, and hash history with one tap.
+Retrieval is the critical bridge between raw keyframe embeddings and multimodal language generation. VideoRAG employs a multi-tiered filtering funnel to ensure that the on-device VLM is fed only distinct, highly relevant visual evidence while eliminating false positives and hallucinations.
 
----
+```
+ User Query: "yellow bus"
+       │
+       ▼
+ [ embedTextVariants() ] ──► Dual 512-D Text Vectors ("a photo of a yellow bus")
+       │
+       ▼
+ [ Spatial Max-Pooling ] ──► Evaluates all 6 crops per keyframe; keeps max dot product
+       │
+       ▼
+ [ Relevance Gating ]    ──► Primary query score >= 0.19f?
+       │                      ├── NO  ──► Immediate Honest Refusal ("I couldn't find anything...")
+       │                      └── YES ──► Candidate Pool (Top 10% of Index)
+       ▼
+ [ Semantic & Temporal ] ──► Cosine Similarity <= 0.92f (drops static duplicates)
+ [ Deduplication ]       ──► Temporal Separation >= clamp(duration/6, 4s, 15s)
+       │
+       ▼
+ [ Sub-Region Routing ]  ──► Winning 60% crop passed to VLM & Thumbnail Strip
+```
+
+### 🔎 Query Expansion & Multi-Variant Embedding
+- **Source**: [`OnDeviceEmbedder.kt#L297-L343`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/indexing/OnDeviceEmbedder.kt#L297-L343)
+- **Prompt Framing**: Prepends the standard zero-shot prompt template (`"a photo of <query>"`), ensuring alignment with MobileCLIP's pre-training distribution.
+- **Head-Noun Extraction (`headNoun`)**:
+  - For descriptive multi-word queries (e.g., *"a red double decker bus in the snow"*), it extracts the head noun before the first trailing preposition (`in`, `on`, `at`, `with`, `near`, `under`, `over`, `behind`, etc.), generating an auxiliary recall vector: `"a photo of a bus"`.
+  - **The 3-Word Guardrail**: Two-word queries like *"yellow car"* or *"pink shirt"* do **NOT** generate a head-noun variant. Stripping the color modifier would collapse the search to *"car"*, matching every frame in traffic footage and causing the VLM to hallucinate non-existent yellow vehicles.
+- **Multi-Vector Search (`searchMulti`)**: Calculates cosine similarity across all query variants and takes the maximum score per region.
+
+### 📊 Spatial Max-Pooling & Dynamic Candidate Pooling
+- **Source**: [`MainActivity.kt#L804-L832`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/MainActivity.kt#L804-L832)
+- **Spatial Max-Pooling**: Each keyframe generates 6 crop vectors. During retrieval, `bestPerFrame[moment.imagePath]` collapses these 6 scores into the **maximum scoring crop**, allowing small localized objects to compete on their highest-scoring $60\%$ region rather than a diluted full-frame average.
+- **Dynamic Candidate Pool Scaling**:
+  $$\text{poolSize} = \text{clamp}\left(\frac{\text{vectorStore.size}}{10}, 60, 400\right)$$
+  - Prevents candidate starvation on long surveillance videos with thousands of vectors while remaining ultra-fast ($<1\text{ ms}$ over RAM vectors).
+
+### 🛑 Absolute Relevance Score Gating (`MIN_RELEVANCE = 0.19f`)
+- **Source**: [`MainActivity.kt#L860-L879`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/MainActivity.kt#L860-L879)
+- **Problem**: Nearest-neighbor vector search always returns the top-$K$ candidates, even if the user asks for an object completely absent from the footage (e.g. *"a red double decker bus in the snow"* on a sunny highway). A 2B/3B VLM presented with irrelevant frames will hallucinate plausible descriptions.
+- **Decision Boundary**:
+  - Measured score for present subjects: $\approx 0.218 - 0.233$.
+  - Measured score for absent subjects: $\approx 0.106 - 0.163$.
+  - `MIN_RELEVANCE = 0.19f` cleanly separates presence from absence.
+- **Primary-Caption Evaluation**: Presence is judged strictly on the full user query embedding (not the head-noun variant), preventing broad head nouns from bypassing the gate.
+- **Honest Refusal**: If $\text{topScore} < 0.19$, VideoRAG instantly halts and answers:
+  > *"I couldn't find anything matching that in this video. The closest frame was at HH:MM:SS, but it is not a strong enough match to report."*
+  This saves up to **3 minutes of mobile battery and VLM generation time** while preventing hallucinations.
+
+### ✂️ Semantic Deduplication & Temporal Separation
+- **Source**: [`MainActivity.kt#L972-L1000`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/MainActivity.kt#L972-L1000)
+- **Semantic Cosine Threshold (`MAX_KEEP_SIMILARITY = 0.92f`)**:
+  - Drops keyframes whose MobileCLIP vectors have $>0.92$ cosine similarity with any already-selected keyframe.
+- **Temporal Separation (`minSecondsApart`)**:
+  $$\text{minSecondsApart} = \text{clamp}\left(\frac{\text{durationSeconds}}{6}, 4\text{ s}, 15\text{ s}\right)$$
+  - Prevents the top candidate slots from being consumed by consecutive 1-second frames of the same moving vehicle (e.g. `00:07:21`, `00:07:22`, `00:07:23`), ensuring temporal diversity across the entire video.
+- **"Also Matched" Reporting**:
+  - Keyframes that cleared `MIN_RELEVANCE` but were not sent to the VLM (due to token budgets) are listed under *"Also matched this search, not analysed: HH:MM:SS, ..."* with clickable timestamps.
+
+### 🎯 Sub-Region Crop Routing (`regionCropPath`)
+- **Source**: [`OnDeviceVLM.kt#L416-L425`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/llm/OnDeviceVLM.kt#L416-L425)
+- When a spatial sub-region (e.g. `bottom_left` or `top_right`) wins the max-pooling ranking, VideoRAG crops that exact region from the high-resolution frame and scales it to standard vision input size.
+- This gives the VLM **~2.8x higher pixel density** on the target subject, allowing it to accurately read logos, license plates, and livery text that would be illegible in full-scene views.
+- The chat thumbnail strip displays the exact crop inspected by the model so users can visually verify the AI's conclusions.
 
 ### 🛡️ Mobile RAM Orchestration (6GB Budget ⇄ 12GB High-Performance Scaling)
 
