@@ -96,4 +96,10 @@ class MemoryOrchestrator(
         vlm = null
         System.gc()
     }
+
+    fun abortVLM() {
+        vlm?.abort()
+    }
+
+    fun isVLMAborted(): Boolean = vlm?.isAborted ?: false
 }

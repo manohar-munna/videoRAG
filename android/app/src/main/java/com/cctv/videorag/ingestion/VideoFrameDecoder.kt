@@ -22,6 +22,15 @@ import java.util.Locale
 
 class VideoFrameDecoder(private val context: Context) {
 
+    @Volatile
+    var isCancelled = false
+        private set
+
+    fun cancel() {
+        isCancelled = true
+        Log.i("VideoFrameDecoder", "Video decoding cancellation requested")
+    }
+
     companion object {
         /**
          * Longest edge for a stored keyframe.
@@ -57,6 +66,7 @@ class VideoFrameDecoder(private val context: Context) {
         onProgress: (currentSec: Long, totalSec: Long, frameIndex: Int) -> Unit,
         onKeyframeDecoded: suspend (Bitmap, String, Long, String) -> Unit
     ) = withContext(Dispatchers.IO) {
+        isCancelled = false
         // Sequential decode first; the seek-per-frame path below is the fallback.
         //
         // getFrameAtTime(OPTION_CLOSEST) has to decode forward from the preceding sync
@@ -69,6 +79,7 @@ class VideoFrameDecoder(private val context: Context) {
             decodeVideoSequential(videoUri, cameraName, sampleFps, onProgress, onKeyframeDecoded)
             return@withContext
         } catch (e: Throwable) {
+            if (isCancelled) return@withContext
             Log.w("VideoFrameDecoder", "sequential decode failed (${e.message}); " +
                   "falling back to per-frame seeking")
         }
@@ -84,7 +95,7 @@ class VideoFrameDecoder(private val context: Context) {
 
             var curTimeMs = 0L
             var frameIdx = 0
-            while (curTimeMs < durationMs) {
+            while (curTimeMs < durationMs && !isCancelled) {
                 val timeUs = curTimeMs * 1000L
                 // OPTION_CLOSEST, not OPTION_CLOSEST_SYNC.
                 //
@@ -191,7 +202,7 @@ class VideoFrameDecoder(private val context: Context) {
             var sawOutputEos = false
             val info = MediaCodec.BufferInfo()
 
-            while (!sawOutputEos) {
+            while (!sawOutputEos && !isCancelled) {
                 if (!sawInputEos) {
                     val inIndex = codec.dequeueInputBuffer(10_000)
                     if (inIndex >= 0) {

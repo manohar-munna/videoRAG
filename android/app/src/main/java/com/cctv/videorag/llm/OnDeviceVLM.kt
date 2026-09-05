@@ -28,6 +28,22 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     private external fun nativeGetLastGenStats(handle: Long): String
     private external fun nativeSetCacheDir(handle: Long, dir: String)
     private external fun nativeClose(handle: Long)
+    private external fun nativeAbort(handle: Long)
+
+    @Volatile
+    var isAborted = false
+        private set
+
+    fun abort() {
+        isAborted = true
+        if (nativeHandle != 0L) {
+            try {
+                nativeAbort(nativeHandle)
+            } catch (e: Throwable) {
+                Log.w("VideoRAG_VLM", "nativeAbort failed: ${e.message}")
+            }
+        }
+    }
 
     private var nativeHandle: Long = 0
     private var activeModelDirectory: String? = null
@@ -488,7 +504,12 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // encode is shared through the encode cache either way. Only the small per-call
         // generation is repeated.
         val lines = mutableListOf<String>()
+        isAborted = false
         for ((i, path) in imagePaths.withIndex()) {
+            if (isAborted) {
+                Log.i("VideoRAG_VLM", "answerFromRetrievedContext aborted by user")
+                break
+            }
             val ts = shown[i].timestamp
             val onePrompt = """<|im_start|>system
 $system<|im_end|>
@@ -507,6 +528,7 @@ Describe in a single sentence what this frame shows in relation to the question.
                 Log.e("VideoRAG_VLM", "nativeGenerate failed on $ts: ${e.message}", e)
                 continue
             }
+            if (isAborted) break
             val clean = one.trim().removePrefix("-").trim()
             if (clean.isNotEmpty() && !clean.startsWith("Error")) {
                 val oneLineDesc = clean.lines()
@@ -515,6 +537,10 @@ Describe in a single sentence what this frame shows in relation to the question.
                     .joinToString(" ")
                 lines.add("$ts - $oneLineDesc")
             }
+        }
+
+        if (isAborted) {
+            return "Query stopped by user."
         }
 
         if (lines.isEmpty()) {

@@ -257,5 +257,19 @@
             android:textAllCaps="false"
             android:textColor="#ffffff"
             android:textSize="14sp" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnStop"
+            android:layout_width="wrap_content"
+            android:layout_height="46dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/btn_reset_bg"
+            android:minWidth="0dp"
+            android:paddingHorizontal="18dp"
+            android:text="Stop"
+            android:textAllCaps="false"
+            android:textColor="@color/danger"
+            android:textSize="14sp"
+            android:visibility="gone" />
     </LinearLayout>
 </LinearLayout>

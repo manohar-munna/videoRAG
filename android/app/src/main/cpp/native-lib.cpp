@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <atomic>
 #include <android/log.h>
 
 #include "llama.h"
@@ -50,6 +51,7 @@ struct NativeVLMContext {
     std::string     model_path;
     int             n_threads = 5;
     bool            has_vision = false;
+    std::atomic<bool> abort_requested{false};
 
     // Vision-encoder output, keyed by mtmd's per-image id (a SHA-256 of the pixels).
     //
@@ -347,6 +349,8 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
         return env->NewStringUTF("Error: native VLM engine is not loaded.");
     }
 
+    ctx->abort_requested.store(false);
+
     std::string prompt_str = jstring_to_std(env, prompt);
     const jsize n_images = imagePaths ? env->GetArrayLength(imagePaths) : 0;
 
@@ -415,6 +419,11 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     int cache_hits = 0, cache_misses = 0, disk_hits = 0;
 
     for (size_t i = 0; i < n_chunks; ++i) {
+        if (ctx->abort_requested.load()) {
+            LOGI("nativeGenerate aborted by user during prefill");
+            eval_rc = 2;
+            break;
+        }
         const mtmd_input_chunk * chunk = mtmd_input_chunks_get(chunks, i);
         const bool is_last = (i + 1 == n_chunks);
 
@@ -526,6 +535,11 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     int  generated = 0;
     bool hit_cap   = true;          // cleared by the end-of-generation break below
     for (int i = 0; i < max_new_tokens; ++i) {
+        if (ctx->abort_requested.load()) {
+            LOGI("nativeGenerate aborted by user at token %d", i);
+            hit_cap = false;
+            break;
+        }
         const llama_token tok = llama_sampler_sample(ctx->sampler, ctx->ctx_llama, -1);
         llama_sampler_accept(ctx->sampler, tok);
 
@@ -649,4 +663,14 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeClose(
     if (ctx->ctx_llama) llama_free(ctx->ctx_llama);
     if (ctx->model)     llama_model_free(ctx->model);
     delete ctx;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_cctv_videorag_llm_OnDeviceVLM_nativeAbort(
+        JNIEnv * /*env*/, jobject /*thiz*/, jlong handle) {
+
+    auto * ctx = reinterpret_cast<NativeVLMContext *>(handle);
+    if (!ctx) return;
+    LOGI("nativeAbort called, aborting inference");
+    ctx->abort_requested.store(true);
 }

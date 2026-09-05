@@ -23,10 +23,13 @@ import androidx.lifecycle.lifecycleScope
 import com.cctv.videorag.indexing.*
 import com.cctv.videorag.ingestion.*
 import com.cctv.videorag.llm.*
+import com.cctv.videorag.service.VideoRAGService
 import com.cctv.videorag.ui.ChatView
 import com.cctv.videorag.ui.DebugPanel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -41,6 +44,11 @@ import java.util.Locale
  * cites are tappable and seek the inline player.
  */
 class MainActivity : AppCompatActivity() {
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var currentQueryJob: Job? = null
+    private var currentIngestJob: Job? = null
+    private var currentDownloadJob: Job? = null
 
     private lateinit var orchestrator: MemoryOrchestrator
     private val vectorStore = MobileVectorStore()
@@ -260,6 +268,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnDebug: Button
     private lateinit var etQuery: EditText
     private lateinit var btnSearch: Button
+    private lateinit var btnStop: Button
     private lateinit var cardVideoPlayback: CardView
     private lateinit var tvPlayerTimestamp: TextView
     private lateinit var videoViewPlayback: VideoView
@@ -338,6 +347,7 @@ class MainActivity : AppCompatActivity() {
         btnDebug = findViewById(R.id.btnDebug)
         etQuery = findViewById(R.id.etQuery)
         btnSearch = findViewById(R.id.btnSearch)
+        btnStop = findViewById(R.id.btnStop)
         cardVideoPlayback = findViewById(R.id.cardVideoPlayback)
         tvPlayerTimestamp = findViewById(R.id.tvPlayerTimestamp)
         videoViewPlayback = findViewById(R.id.videoViewPlayback)
@@ -358,6 +368,7 @@ class MainActivity : AppCompatActivity() {
         btnDebug.setOnClickListener { showDebugPanel() }
 
         btnSearch.setOnClickListener { submitQuestion() }
+        btnStop.setOnClickListener { stopCurrentOperation() }
         etQuery.setOnEditorActionListener { _, _, _ -> submitQuestion(); true }
 
         btnClosePlayer.setOnClickListener {
@@ -466,6 +477,59 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun stopCurrentOperation() {
+        if (!isBusy && !downloading) return
+        Log.i("VideoRAG_Main", "User requested stop of current operation")
+
+        // 1. Abort VLM inference & cancel query job
+        try {
+            orchestrator.abortVLM()
+        } catch (e: Throwable) {
+            Log.w("VideoRAG_Main", "Error aborting VLM: ${e.message}")
+        }
+        currentQueryJob?.cancel()
+        currentQueryJob = null
+
+        // 2. Cancel video decoding & indexing job
+        try {
+            frameDecoder.cancel()
+        } catch (e: Throwable) {
+            Log.w("VideoRAG_Main", "Error cancelling frameDecoder: ${e.message}")
+        }
+        currentIngestJob?.cancel()
+        currentIngestJob = null
+
+        // 3. Cancel model download job
+        try {
+            ModelDownloader.cancel()
+        } catch (e: Throwable) {
+            Log.w("VideoRAG_Main", "Error cancelling ModelDownloader: ${e.message}")
+        }
+        currentDownloadJob?.cancel()
+        currentDownloadJob = null
+
+        // 4. Stop Foreground Service
+        VideoRAGService.stop(this)
+
+        // 5. Update UI
+        isBusy = false
+        if (downloading) {
+            downloading = false
+            pbIngestion.visibility = View.GONE
+            tvIngestionInfo.text = "Model download stopped."
+            ChatView.addSystemNote(chatContainer, "Model download stopped by user.")
+            updateModelBadge()
+        } else {
+            pbIngestion.visibility = View.GONE
+            ChatView.replacePending(chatContainer, "[Operation stopped by user]")
+        }
+
+        btnStop.visibility = View.GONE
+        btnSearch.visibility = View.VISIBLE
+        btnSearch.isEnabled = true
+        Toast.makeText(this, "Stopped", Toast.LENGTH_SHORT).show()
+    }
+
     private fun startModelDownload() {
         if (downloading) return
         downloading = true
@@ -473,21 +537,32 @@ class MainActivity : AppCompatActivity() {
         pbIngestion.visibility = View.VISIBLE
         pbIngestion.isIndeterminate = true
         tvIngestionInfo.text = "Preparing model download…"
-        ChatView.addSystemNote(chatContainer, "Downloading on-device models. This is a one-time ~2 GB download; keep the app open.")
-        lifecycleScope.launch(Dispatchers.IO) {
+        btnSearch.visibility = View.GONE
+        btnStop.visibility = View.VISIBLE
+        btnStop.isEnabled = true
+        VideoRAGService.start(this, "VideoRAG", "Preparing model download…")
+        ChatView.addSystemNote(chatContainer, "Downloading on-device models in background. Tap Stop at any time to cancel.")
+
+        currentDownloadJob = appScope.launch(Dispatchers.IO) {
             try {
                 ModelDownloader.downloadMissing(this@MainActivity) { p ->
                     val doneMb = p.fileDone / 1_000_000
                     val totMb = if (p.fileBytes > 0) p.fileBytes / 1_000_000 else 0
                     val pct = if (p.fileBytes > 0) ((p.fileDone * 100) / p.fileBytes).toInt() else 0
-                    lifecycleScope.launch(Dispatchers.Main) {
+                    val msg = "Downloading ${p.name} (${p.index + 1}/${p.total}) — $doneMb/$totMb MB"
+                    VideoRAGService.update(this@MainActivity, "VideoRAG Model Download", msg, pct, 100)
+                    appScope.launch(Dispatchers.Main) {
                         pbIngestion.isIndeterminate = false
                         pbIngestion.progress = pct
-                        tvIngestionInfo.text = "Downloading ${p.name} (${p.index + 1}/${p.total}) — $doneMb/$totMb MB"
+                        tvIngestionInfo.text = msg
                     }
                 }
                 withContext(Dispatchers.Main) {
                     downloading = false
+                    btnStop.visibility = View.GONE
+                    btnSearch.visibility = View.VISIBLE
+                    btnSearch.isEnabled = true
+                    VideoRAGService.stop(this@MainActivity)
                     pbIngestion.visibility = View.GONE
                     tvIngestionInfo.text = "Models downloaded. Import a video to start."
                     ChatView.addSystemNote(chatContainer, "Models ready.")
@@ -497,10 +572,17 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {
                     downloading = false
+                    btnStop.visibility = View.GONE
+                    btnSearch.visibility = View.VISIBLE
+                    btnSearch.isEnabled = true
+                    VideoRAGService.stop(this@MainActivity)
                     pbIngestion.visibility = View.GONE
-                    tvIngestionInfo.text = "Model download failed."
+                    tvIngestionInfo.text = if (ModelDownloader.isCancelled) "Model download stopped." else "Model download failed."
                     ChatView.addSystemNote(chatContainer,
-                        "Model download failed: ${e.message}. Tap the badge to resume.", isError = true)
+                        if (ModelDownloader.isCancelled) "Model download stopped by user."
+                        else "Model download failed: ${e.message}. Tap the badge to resume.",
+                        isError = !ModelDownloader.isCancelled
+                    )
                     updateModelBadge()
                 }
             }
@@ -596,7 +678,7 @@ class MainActivity : AppCompatActivity() {
         currentVideoKey = uri.toString()
         val startedAt = System.currentTimeMillis()
 
-        lifecycleScope.launch(Dispatchers.Default) {
+        currentIngestJob = appScope.launch(Dispatchers.Default) {
             // Keep our own copy so timestamps stay tappable after a restart.
             //
             // The picked content:// URI is only readable for the life of this process -
@@ -640,8 +722,12 @@ class MainActivity : AppCompatActivity() {
 
             withContext(Dispatchers.Main) {
                 isBusy = true
+                btnSearch.visibility = View.GONE
+                btnStop.visibility = View.VISIBLE
+                btnStop.isEnabled = true
+                VideoRAGService.start(this@MainActivity, "VideoRAG", "Indexing video…")
                 ChatView.clear(chatContainer)
-                ChatView.addSystemNote(chatContainer, "Indexing video…")
+                ChatView.addSystemNote(chatContainer, "Indexing video in background… Tap Stop to cancel.")
                 pbIngestion.visibility = View.VISIBLE
                 pbIngestion.isIndeterminate = true
                 cardVideoPlayback.visibility = View.GONE
@@ -653,17 +739,22 @@ class MainActivity : AppCompatActivity() {
                     cameraName = "cam_user",
                     sampleFps = sampleFpsFor(uri),
                     onProgress = { cur, total, _ ->
-                        lifecycleScope.launch(Dispatchers.Main) {
+                        val pct = if (total > 0) ((cur * 100) / total).toInt() else 0
+                        val msg = String.format(
+                            Locale.US, "Indexing %02d:%02d / %02d:%02d — %d keyframes kept",
+                            cur / 60, cur % 60, total / 60, total % 60, acceptedFramesCount
+                        )
+                        VideoRAGService.update(this@MainActivity, "VideoRAG Indexing", msg, pct, 100)
+                        appScope.launch(Dispatchers.Main) {
                             pbIngestion.isIndeterminate = false
-                            pbIngestion.progress = if (total > 0) ((cur * 100) / total).toInt() else 0
-                            tvIngestionInfo.text = String.format(
-                                Locale.US, "Indexing %02d:%02d / %02d:%02d — %d keyframes kept",
-                                cur / 60, cur % 60, total / 60, total % 60, acceptedFramesCount
-                            )
+                            pbIngestion.progress = pct
+                            tvIngestionInfo.text = msg
                         }
                     },
                     onKeyframeDecoded = { bmp, ts, epoch, path ->
-                        ingestAndIndexFrame(bmp, "cam_user", ts, epoch, path)
+                        if (!frameDecoder.isCancelled) {
+                            ingestAndIndexFrame(bmp, "cam_user", ts, epoch, path)
+                        }
                     }
                 )
                 val secs = (System.currentTimeMillis() - startedAt) / 1000
@@ -672,13 +763,22 @@ class MainActivity : AppCompatActivity() {
                       "$labelMs ms (${if (secs > 0) labelMs * 100.0 / (secs * 1000) else 0.0}%)")
                 withContext(Dispatchers.Main) {
                     isBusy = false
+                    btnStop.visibility = View.GONE
+                    btnSearch.visibility = View.VISIBLE
+                    btnSearch.isEnabled = true
+                    VideoRAGService.stop(this@MainActivity)
                     pbIngestion.visibility = View.GONE
-                    tvIngestionInfo.text =
-                        "$acceptedFramesCount keyframes · ${vectorStore.size} vectors · ${droppedFramesCount} duplicates dropped"
-                    ChatView.addSystemNote(
-                        chatContainer,
-                        "Indexed $acceptedFramesCount keyframes in ${secs}s. Ask a question below."
-                    )
+                    if (frameDecoder.isCancelled) {
+                        tvIngestionInfo.text = "Indexing stopped ($acceptedFramesCount keyframes kept)."
+                        ChatView.addSystemNote(chatContainer, "Indexing stopped by user.")
+                    } else {
+                        tvIngestionInfo.text =
+                            "$acceptedFramesCount keyframes · ${vectorStore.size} vectors · ${droppedFramesCount} duplicates dropped"
+                        ChatView.addSystemNote(
+                            chatContainer,
+                            "Indexed $acceptedFramesCount keyframes in ${secs}s. Ask a question below."
+                        )
+                    }
                 }
             } catch (e: Throwable) {
                 Log.e("VideoRAG_Ingest", "Ingestion failed", e)
@@ -686,14 +786,23 @@ class MainActivity : AppCompatActivity() {
                               e.cause is OnDeviceEmbedder.ModelUnavailableException
                 withContext(Dispatchers.Main) {
                     isBusy = false
+                    btnStop.visibility = View.GONE
+                    btnSearch.visibility = View.VISIBLE
+                    btnSearch.isEnabled = true
+                    VideoRAGService.stop(this@MainActivity)
                     pbIngestion.visibility = View.GONE
-                    tvIngestionInfo.text = "Import failed."
-                    ChatView.addSystemNote(
-                        chatContainer,
-                        (if (isModel) "CLIP model error: " else "Could not read video: ") +
-                        (e.message ?: e.javaClass.simpleName),
-                        isError = true
-                    )
+                    if (frameDecoder.isCancelled) {
+                        tvIngestionInfo.text = "Indexing stopped."
+                        ChatView.addSystemNote(chatContainer, "Indexing stopped by user.")
+                    } else {
+                        tvIngestionInfo.text = "Import failed."
+                        ChatView.addSystemNote(
+                            chatContainer,
+                            (if (isModel) "CLIP model error: " else "Could not read video: ") +
+                            (e.message ?: e.javaClass.simpleName),
+                            isError = true
+                        )
+                    }
                 }
             }
         }
@@ -772,21 +881,34 @@ class MainActivity : AppCompatActivity() {
         ChatView.addPending(chatContainer)
         scrollToBottom()
         isBusy = true
-        btnSearch.isEnabled = false
+        btnSearch.visibility = View.GONE
+        btnStop.visibility = View.VISIBLE
+        btnStop.isEnabled = true
+
+        VideoRAGService.start(this, "VideoRAG", "Answering: \"$q\"")
 
         lastQuery = q
         val startedAt = System.currentTimeMillis()
-        lifecycleScope.launch(Dispatchers.Default) {
+        currentQueryJob = appScope.launch(Dispatchers.Default) {
             val result = try { answerQuestion(q) }
                          catch (e: Throwable) {
-                             Log.e("VideoRAG_Query", "query failed", e)
-                             Answer("Something went wrong: ${e.message ?: e.javaClass.simpleName}", emptyList())
+                             if (orchestrator.isVLMAborted()) {
+                                 Answer("Query stopped by user.", emptyList())
+                             } else {
+                                 Log.e("VideoRAG_Query", "query failed", e)
+                                 Answer("Something went wrong: ${e.message ?: e.javaClass.simpleName}", emptyList())
+                             }
                          }
             lastLatencyMs = System.currentTimeMillis() - startedAt
-            conversation.add(ConversationTurn(q, result.text))
+            if (!orchestrator.isVLMAborted()) {
+                conversation.add(ConversationTurn(q, result.text))
+            }
             withContext(Dispatchers.Main) {
                 isBusy = false
+                btnStop.visibility = View.GONE
+                btnSearch.visibility = View.VISIBLE
                 btnSearch.isEnabled = true
+                VideoRAGService.stop(this@MainActivity)
                 ChatView.replacePending(
                     chatContainer, result.text,
                     onTimestamp = { seconds -> playVideoAt(seconds) },
@@ -1129,9 +1251,12 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         try { videoViewPlayback.stopPlayback() } catch (_: Exception) {}
-        CoroutineScope(Dispatchers.IO).launch {
-            try { orchestrator.releaseAll() } catch (e: Throwable) {
-                Log.w("VideoRAG_Main", "releaseAll error: ${e.message}")
+        if (isFinishing) {
+            VideoRAGService.stop(this)
+            CoroutineScope(Dispatchers.IO).launch {
+                try { orchestrator.releaseAll() } catch (e: Throwable) {
+                    Log.w("VideoRAG_Main", "releaseAll error: ${e.message}")
+                }
             }
         }
     }
