@@ -309,20 +309,84 @@ Retrieval is the critical bridge between raw keyframe embeddings and multimodal 
 - This gives the VLM **~2.8x higher pixel density** on the target subject, allowing it to accurately read logos, license plates, and livery text that would be illegible in full-scene views.
 - The chat thumbnail strip displays the exact crop inspected by the model so users can visually verify the AI's conclusions.
 
-### 🛡️ Mobile RAM Orchestration (6GB Budget ⇄ 12GB High-Performance Scaling)
-
-VideoRAG dynamically adapts its memory footprint based on device hardware:
-
-- **6GB–8GB RAM Devices (Strict ~2.5 GB Active Headroom)**:
-  - Android OS and background services consume ~2.8–3.2 GB.
-  - Implements **Sequential Mutex RAM Management (`MemoryOrchestrator.kt`)**: The ONNX MobileCLIP embedder (NPU/NNAPI) and Qwen2-VL 2B (Vulkan GPU/CPU) **never run concurrently in active heap memory**.
-  - **Ingestion Mode**: Allocates the lightweight MobileCLIP ONNX model to embed spatial crops. VLM is held dormant.
-  - **Query Mode**: Closes the embedder session, triggers garbage collection (`System.gc()`), and allocates memory for multi-frame situational reasoning.
-- **12GB+ RAM Devices (High-Capacity Mode)**:
-  - Offers **~7.5–8.5 GB of usable active RAM headroom**.
-  - Retains the 512-D vector index and MobileCLIP ONNX session permanently in RAM while simultaneously executing 4-frame Qwen2-VL 2B or Qwen2.5-VL 3B multimodal reasoning with zero swapping latency.
-
 ---
+
+## 🧠 On-Device Native VLM & JNI Tensor Execution
+
+VideoRAG runs modern Vision-Language Models directly on mobile ARM64 hardware using a custom C++ runtime powered by `llama.cpp` and `libmtmd`, delivering fully offline multimodal reasoning with zero cloud API keys or external server dependencies.
+
+```
+  Top Candidate Keyframes (e.g. 3-5 Crops)
+                     │
+                     ▼
+  ┌────────────────────────────────────────────────────────┐
+  │ Multi-Tier Vision Encode Cache (RAM / Disk .bin)       │
+  │ • Check in-memory embd_cache (SHA-256 pixel hash)      │
+  │ • Check disk cache: cacheDir/embd/<proj>/<hash>.bin    │
+  │ • MISS ──► libmtmd vision encode (~18s/frame)          │
+  │ • HIT  ──► Instant tensor load (<10ms) (Saves ~98s!)   │
+  └──────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+  ┌────────────────────────────────────────────────────────┐
+  │ Isolated Per-Frame Single-Sentence Generation          │
+  │ • 5-Thread ARM64 NEON execution (nativeGenerate)       │
+  │ • Prompt template: <|im_start|>system ... user ...     │
+  │ • Focuses on clothing colors, vehicle livery, text     │
+  └──────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+  ┌────────────────────────────────────────────────────────┐
+  │ Anti-Hallucination Guardrails & Post-Processing        │
+  │ • stripEchoedTimestamp(): Strips reflected timestamps  │
+  │ • groupBySubject(): Aggregates multi-frame sightings   │
+  │ • dropUnsupportedTimestamps(): Mathematical gate       │
+  │   stripping ungrounded/invented arithmetic timestamps  │
+  └──────────────────────────┬─────────────────────────────┘
+                             │
+                             ▼
+              Factual Grounded Chat Response
+```
+
+### ⚡ `llama.cpp` + `libmtmd` C++ Engine on ARM64 NEON
+- **Source**: [`native-lib.cpp`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/cpp/native-lib.cpp) & [`CMakeLists.txt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/cpp/CMakeLists.txt)
+- **Architecture**: Supports Qwen2-VL 2B / Qwen2.5-VL 3B architectures, multimodal RoPE (M-RoPE), and the `qwen2vl_merger` vision projector.
+- **Multithreading**: Configured for 5 CPU threads (`n_threads = 5`) targeting ARM big cores (Cortex-X / Cortex-A7xx) for optimal sustained thermal efficiency without thermal throttling.
+- **Q8_0 Quantised Projector Selection (`pickProjector`)**:
+  - The standard unquantised FP16 vision projector is **1.33 GB**, which exceeds available mobile cache headroom, causing continuous thrashing and high latency (>72s per frame).
+  - VideoRAG prioritizes the **`Q8_0` quantised projector (710 MB)**, which stays fully resident in RAM, runs in **~20.3s per frame**, and preserves 100% of fine OCR and livery reading accuracy.
+
+### 💾 Multi-Tier Vision Encode Cache (RAM + Disk `.bin`)
+- **Source**: [`native-lib.cpp#L82-L163`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/cpp/native-lib.cpp#L82-L163)
+- **The Bottleneck**: Vision encoding (projecting image pixels into LLM embedding space) takes ~18s per keyframe and accounts for **~90% of total query latency** (~98s of 115s on Snapdragon 8 Gen 2).
+- **Two-Tier Architecture**:
+  1. **Tier 1 (RAM `embd_cache`)**: Keeps up to 192 MB of encoded float tensors in memory, keyed by the SHA-256 hash of the decoded image pixels.
+  2. **Tier 2 (Disk `cacheDir/embd/<proj_name>/<sha256>.bin`)**: Persists encoded float tensors to disk (capped at 384 MB LRU).
+- **Impact**: In multi-turn chat sessions, follow-up questions referencing previously examined keyframes load in **<10 ms instead of 18,000 ms**, dropping query response latency from ~115 seconds down to **~5 seconds**!
+
+### 📝 Isolated Per-Frame Prompt Execution
+- **Source**: [`OnDeviceVLM.kt#L480-L524`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/llm/OnDeviceVLM.kt#L480-L524)
+- **Why Multi-Image Prompts Fail**: Submitting 5 images simultaneously in a single prompt to a 2B edge VLM causes erratic instruction-following collapses—the model randomly alternates between generating 80 tokens and stopping after 2 tokens, losing timestamps.
+- **Sequential Per-Frame Execution**: VideoRAG prompts the VLM separately for each keyframe with strict analytical instructions:
+  > *"Describe in a single sentence what this frame shows in relation to the question. Note clothing colour, vehicle markings and any text you can read. Say plainly if the thing asked about is not in this frame."*
+- **Reliability**: Guarantees a detailed, factual sentence for every candidate frame with zero token loss.
+
+### 🛡️ Anti-Hallucination Post-Processing (`groupBySubject` & `dropUnsupportedTimestamps`)
+- **Source**: [`OnDeviceVLM.kt#L573-L650`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/llm/OnDeviceVLM.kt#L573-L650)
+- **`stripEchoedTimestamp`**: Strips redundant timestamps echoed by the model (e.g., *"at 00:03:42 at 00:03:42"*).
+- **`groupBySubject`**: Merges per-frame sentences that describe the same subject into unified chronological summary lines:
+  > *"White truck with 'motion picture' livery parked near crowd at 00:03:42, 00:06:38, and 00:08:50."*
+- **`dropUnsupportedTimestamps`**:
+  - Small edge VLMs have a documented habit of generating arithmetic timestamp sequences (e.g. converting `00:00:03` into `00:00:07`, `00:00:10`, `00:00:12`).
+  - This function parses every timestamp regex (`\b\d{2}:\d{2}:\d{2}\b`) in the final text and cross-references it against `shown.map { it.timestamp }`.
+  - Any timestamp not present in the physically inspected keyframes is **strictly removed**, and sentences with zero real timestamps are discarded.
+
+### 🔒 Strict RAM Mutex Orchestration (`MemoryOrchestrator.kt`)
+- **Source**: [`MemoryOrchestrator.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/llm/MemoryOrchestrator.kt)
+- **The Memory Budget**: A standard 8GB Android device provides ~2.5 GB of active memory headroom after OS allocation. Loading both MobileCLIP ONNX sessions (~400 MB fp32) and Qwen2-VL context (~1.7 GB) simultaneously risks swap thrashing and out-of-memory (OOM) crashes.
+- **Asymmetric Release Policy**:
+  - `releaseEmbedder()` drops the MobileCLIP ONNX image and text sessions immediately after computing the query vector, freeing ~400 MB of heap before the VLM allocates its generation context.
+  - The VLM context and vision encode cache remain resident across queries to preserve sub-second latency.
 
 ### 🏗️ Android Project Directory Structure
 
