@@ -174,80 +174,72 @@ The ingestion pipeline transforms raw surveillance video files into high-density
 
 ---
 
-### 📖 How to Use the Android Version
+## 🧩 Multimodal Indexing & Spatial Pyramid Engine
 
-#### Step 1: Sideload On-Device Model Weights (ADB / USB Transfer)
+Once a keyframe passes the edge hash gate, it is transformed into a high-dimensional spatial semantic representation.
 
-VideoRAG requires two lightweight neural components on mobile:
-1. **MobileCLIP-S2 (ONNX)**: Sideloaded to app internal files for sub-millisecond 512-D keyframe embedding.
-2. **Qwen2.5-VL 3B / Qwen2-VL 2B (GGUF + mmproj)**: Placed in the public `Download/qwen2_vl_2b/` directory.
-
-Run these ADB commands to push models directly to your connected Android phone:
-```bash
-# 1. Create model directory on device public storage
-adb shell "mkdir -p /sdcard/Download/qwen2_vl_2b"
-
-# 2. Push Qwen2-VL 2B / Qwen2.5-VL 3B GGUF weights & Vision Projector
-adb push models/qwen2_vl_2b/Qwen2-VL-2B-Instruct-Q4_K_M.gguf /sdcard/Download/qwen2_vl_2b/
-adb push models/qwen2_vl_2b/mmproj-Qwen2-VL-2B-Instruct-f16.gguf /sdcard/Download/qwen2_vl_2b/
-
-# 3. Push MobileCLIP-S2 ONNX Embedder
-adb push models/mobileclip_s2.onnx /sdcard/Download/
+```
+                  ┌────────────────────────────────────────────────────────┐
+                  │                 Accepted Keyframe (640x360)            │
+                  └───────────────────────────┬────────────────────────────┘
+                                              │
+                    ┌─────────────────────────┴─────────────────────────┐
+                    ▼                                                   ▼
+ ┌──────────────────────────────────────┐            ┌──────────────────────────────────────┐
+ │ 6-Region Spatial Pyramid Decomposition│            │ Dual-Tower MobileCLIP-S2 (ONNX)      │
+ │ • [global]       (0, 0, 1.0, 1.0)    │            │ • Image Tower: 256x256 RGB input     │
+ │ • [top_left]     (0, 0, 0.6, 0.6)    │ ─────────► │ • Batched single pass (6 crops/run)  │
+ │ • [top_right]    (0.4, 0, 0.6, 0.6)  │            │ • Emits 6x L2-normalized 512-D vectors│
+ │ • [bottom_left]  (0, 0.4, 0.6, 0.6)  │            │ • Zero-shot vocabulary classifier    │
+ │ • [bottom_right] (0.4, 0.4, 0.6, 0.6)│            └──────────────────┬───────────────────┘
+ │ • [center]       (0.2, 0.2, 0.6, 0.6)│                               │
+ └──────────────────────────────────────┘                               ▼
+                                                     ┌──────────────────────────────────────┐
+                                                     │ Hybrid Storage & Persistence         │
+                                                     │ • MobileVectorStore (RAM Cosine Index)│
+                                                     │ • SQLite FTS5 (Cold-Start Moments DB)│
+                                                     └──────────────────────────────────────┘
 ```
 
-> [!TIP]
-> **No ADB?** You can copy the files via USB cable or download them directly in mobile Chrome to your phone's **`Internal Storage > Download > qwen2_vl_2b`** folder. Use the **`📂 Model Folder`** button inside the app to select the folder directly.
+### 📐 6-Region Spatial Pyramid Cropping (`SpatialCropper.kt`)
+- **Source**: [`SpatialCropper.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/indexing/SpatialCropper.kt)
+- **Why Global Embeddings Fail**: In wide-angle CCTV footage, small targets (e.g. a yellow bus, a pedestrian, or a ladder) occupy only 2%–5% of the frame. Global embeddings are dominated by asphalt and sky, causing target moments to rank 5th–10th with near-tied scores.
+- **Pyramid Decomposition**:
+  Slices each keyframe into **6 overlapping sub-regions** scaled at 60% width and 60% height:
+  1. `global`: Full scene ($100\% \times 100\%$)
+  2. `top_left`: Upper-left quadrant $[0.0, 0.0, 0.6, 0.6]$ (Distant oncoming traffic / upper corridor)
+  3. `top_right`: Upper-right quadrant $[0.4, 0.0, 0.6, 0.6]$ (Shoulders / upper roadside)
+  4. `bottom_left`: Lower-left quadrant $[0.0, 0.4, 0.6, 0.6]$ (Foreground inner lanes)
+  5. `bottom_right`: Lower-right quadrant $[0.4, 0.4, 0.6, 0.6]$ (Foreground outer lanes / sidewalks)
+  6. `center`: Center corridor $[0.2, 0.2, 0.6, 0.6]$ (Midground traffic flow)
+- **Benefit**: Slicing the frame gives the target object **~2.8x higher pixel density** in the embedding space.
 
-#### Step 2: Build & Launch in Android Studio (or Terminal CLI)
-1. **In Android Studio**:
-   - Open Android Studio, select **Open**, and select the [`/android`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android) directory.
-   - Connect your physical Android phone (ensure **USB Debugging** and **All Files Access** permissions are granted).
-   - Click **Run ▶ (Shift + F10)**.
-2. **Via Command Line (Gradle CLI)**:
-   ```bash
-   cd android
-   
-   # Compile Kotlin and native C++ JNI sources:
-   ./gradlew compileDebugKotlin
-   
-   # Assemble Debug APK:
-   ./gradlew assembleDebug
-   # -> Output APK: android/app/build/intermediates/apk/debug/app-debug.apk
-   
-   # Assemble Production Release APK:
-   ./gradlew assembleRelease
-   ```
-3. **Install directly via ADB**:
-   ```bash
-   adb install -r app/build/intermediates/apk/debug/app-debug.apk
-   ```
+### 🧠 Dual-Tower MobileCLIP-S2 ONNX Embeddings
+- **Source**: [`OnDeviceEmbedder.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/indexing/OnDeviceEmbedder.kt) & [`ClipTokenizer.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/indexing/ClipTokenizer.kt)
+- **Shared 512-D Hypersphere**: Both images and text strings are mapped into a single unified 512-dimensional Euclidean space where $\|v\| = 1.0000$. Semantic similarity is calculated strictly via cosine dot-product ($u \cdot v$).
+- **No Mock Fallbacks**: Unlike naive systems that silently fall back to RGB color histograms when models are missing, VideoRAG enforces strict neural execution—throwing explicit `ModelUnavailableException` if ONNX weights are missing.
+- **Batched Single-Pass Execution**:
+  - Processing 466 keyframes $\times$ 6 crops equals 2,796 forward passes.
+  - VideoRAG executes all 6 crops in a **single batched ONNX tensor call** ($[6, 3, 256, 256]$), eliminating per-call JNI invocation overhead and speeding up ingestion by >3.5x.
+- **BPE Tokenizer Self-Testing**:
+  - Contains a native Kotlin port of the Byte-Pair Encoding (BPE) tokenizer ([`ClipTokenizer.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/indexing/ClipTokenizer.kt)).
+  - Automatically runs an automated self-test on app startup ([`ClipTokenizerSelfTest.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/indexing/ClipTokenizerSelfTest.kt)), validating that Kotlin token IDs match Python `open_clip` reference tokens 100% across all edge cases.
 
-#### Step 3: Ingest a Video
-1. **Choose Extraction Rate**:
-   - **`0.5 FPS (2s)`** *(Recommended for 10–30 minute videos: samples 1 frame every 2 seconds)*.
-   - **`1.0 FPS (1s)`** *(Samples 1 frame per second)*.
-   - **`2.0 FPS`** *(Dense sampling for short clips)*.
-2. Tap **`📁 Upload Video`** to pick any `.mp4` / `.mkv` video from device storage, or tap **`🌐 Video Link`** to enter a direct video URL.
-3. Watch the live telemetry dashboard:
-   - **Progress Bar**: Shows current decoding progress (e.g. `00:04:30 / 00:13:00 (34%)`).
-   - **Stage 1 Edge Hash Gate**: Shows live 64-bit dHash hex values, Hamming distance `Δ`, and static frames dropped (e.g. `686 static frames dropped, 84.5% Gate Drop Rate`).
-   - **3-Column Metrics Grid**: Shows real-time counts for **Extracted Frames**, **Indexed Regions**, and **Processing Time**.
+### 🏷️ Zero-Shot On-Device Object Labeling
+- **Source**: [`OnDeviceEmbedder.kt#L62-L68`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/indexing/OnDeviceEmbedder.kt#L62-L68)
+- **Zero Extra Image Cost**: Reuses the 512-D image vectors already computed during ingestion.
+- **Vocabulary Classifier**: Pre-computes 512-D text vectors for a curated surveillance vocabulary (`car`, `white truck`, `bus`, `van`, `motorcycle`, `bicycle`, `person`, `camera crew`, `traffic light`, `traffic sign`, etc.).
+- **Automatic Metadata**: Tags matching objects into the frame's `IndexedMoment.jsonMetadata` and SQLite FTS search index, enabling instant keyword lookups.
 
-#### Step 4: Search Using Natural Language
-1. Enter any search prompt in the query box (e.g.):
-   - `"camera crew or film crew with a black cart"`
-   - `"people wearing pink cloths"`
-   - `"white car or pickup truck"`
-   - `"person carrying a black backpack"`
-2. Tap **`Search`**.
+### 🗄️ In-Memory Vector Store & SQLite FTS5 Persistence
+- **Source**: [`MobileVectorStore.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/indexing/MobileVectorStore.kt) & [`SQLiteFtsHelper.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/indexing/SQLiteFtsHelper.kt)
+- **`MobileVectorStore`**: A thread-safe, in-memory repository of `IndexedMoment` objects storing vectors, metadata, crop regions, and JSON documents.
+- **`SQLiteFtsHelper`**:
+  - Persists all indexed moments into SQLite (`moments` table) with Full-Text Search (FTS5).
+  - **Cold-Start Restoration**: When the app is closed or restarted, `restoreLastIndexIfAny()` immediately restores all indexed keyframes and 512-D vectors into memory in <150 ms without requiring the user to re-import or re-encode the video!
+  - **Local Video Cache**: Copies the active video into `filesDir/videos/current.mp4` so click-to-seek video playback works from cold boot even when Android system URI permissions expire.
 
-#### Step 5: Inspect Storyboard & Situational Reasoning
-1. **Chronological Storyboard**: The app displays matching keyframe thumbnail cards ordered sequentially from start to finish with:
-   - Timestamp marker (e.g. `00:05:18`)
-   - Cosine Match Percentage (e.g. `Match: 85%`)
-   - Matched Spatial Region (e.g. `Region: [bottom_left]`)
-2. **Forensic Situation Analysis**: Read the AI summary detailing:
-   - Activity classification & monitored time window
+---
    - Step-by-step chronological event sequence
    - Causal verdict with timestamp confirmation `[CONFIRMED_AT: 00:07:10]`
 
