@@ -388,277 +388,206 @@ VideoRAG runs modern Vision-Language Models directly on mobile ARM64 hardware us
   - `releaseEmbedder()` drops the MobileCLIP ONNX image and text sessions immediately after computing the query vector, freeing ~400 MB of heap before the VLM allocates its generation context.
   - The VLM context and vision encode cache remain resident across queries to preserve sub-second latency.
 
-### 🏗️ Android Project Directory Structure
+---
+
+## 💬 Conversational Chat UI & Forensic Video Player
+
+VideoRAG provides a purpose-built mobile interface designed for swift forensic investigation and seamless multi-turn reasoning.
+
+```
+ ┌─────────────────────────────────────────────────────────────┐
+ │ 📹 Video Ingested: surveillance_cam_04.mp4 (13m 45s) [Reset]│
+ ├─────────────────────────────────────────────────────────────┤
+ │ [ Operator ]                                    [ 14.2s ]   │
+ │   "When does the white truck appear with the camera crew?"  │
+ │                                                             │
+ │ [ VideoRAG AI ]                                             │
+ │   White truck with 'motion picture' livery parked near the  │
+ │   crowd at 00:03:42, 00:06:38, and 00:08:50.                │
+ │   Also matched this search, not analysed: 00:10:54          │
+ │                                                             │
+ │   Frames analysed (3) — tap to jump                         │
+ │   ┌───────────┐  ┌───────────┐  ┌───────────┐               │
+ │   │ [CropImg] │  │ [CropImg] │  │ [CropImg] │               │
+ │   │  00:03:42 │  │  00:06:38 │  │  00:08:50 │               │
+ │   └───────────┘  └───────────┘  └───────────┘               │
+ ├─────────────────────────────────────────────────────────────┤
+ │ 🎬 Forensic Video Player: Playing at 00:03:42               │
+ │ [ ⏸ Pause ] [ ▶ Play ] [ 🔄 Replay Mark ]                  │
+ ├─────────────────────────────────────────────────────────────┤
+ │ [ Ask a question about this video...              ] [ Send ]│
+ └─────────────────────────────────────────────────────────────┘
+```
+
+### 📱 Multi-Turn Conversational Interface (`ChatView.kt`)
+- **Source**: [`ChatView.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/ui/ChatView.kt)
+- **Operator Question Bubbles**: Right-aligned, primary-colored message bubbles stamped with real-time query latency (e.g. `  14.2s` via `setUserMessageTiming`), giving investigators instant visibility into model execution speed.
+- **AI Answer Cards**: Left-aligned structured cards with selectable text and automatically linkified timestamps.
+- **Evidence Frame Thumbnail Strip (`addFrameStrip`)**:
+  - Displays a horizontal scrolling gallery of the exact keyframes and spatial crops evaluated by the VLM.
+  - Gives users visual proof of the AI's findings and makes misinterpretations immediately diagnosable.
+- **Context Retention**: Passes the prior conversation turns (truncated to essential facts) back into the prompt so users can ask contextual follow-up questions (e.g. *"What color is the driver's shirt?"* or *"Did anyone get out of the vehicle?"*).
+
+### 🎬 Timestamped Click-to-Seek Video Playback
+- **Source**: [`MainActivity.kt#L1020-L1060`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/MainActivity.kt#L1020-L1060)
+- **Instant Video Seeking**: Tapping **ANY** timestamp in the AI's response text (e.g. `00:03:42`) or tapping **ANY** keyframe thumbnail in the evidence strip instantly seeks the video player to that exact second and begins playback.
+- **Local Video Cache**: During ingestion, VideoRAG caches the video file into `filesDir/videos/current.mp4`. This guarantees that click-to-seek video playback continues working across device restarts even when Android's system URI permissions expire.
+
+### 🔬 Diagnostics Debug Panel (`DebugPanel.kt`)
+- **Source**: [`DebugPanel.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/ui/DebugPanel.kt)
+- Tap the **`🔬 Diagnostics`** button in the top bar to inspect comprehensive real-time telemetry:
+  - **Pipeline Health**: Active VLM model filename, MobileCLIP ONNX embedder status, and BPE tokenizer verification.
+  - **Index Statistics**: Total keyframes kept, static frames dropped by dHash gate, gate drop rate %, dense 512-D vectors, and SQLite FTS index rows.
+  - **Query Diagnostics**: Latency breakdown, tokens per second, prefill time, generation time, frames sent to model, and any unsupported timestamps dropped by the anti-hallucination filter.
+  - **Recall@10 Vector Ranking**: Displays raw cosine similarity scores, spatial crop regions (`[top_left]`, `[center]`, `[global]`), and dispatch status (`sent` vs `—`).
+  - **One-Tap Export**: "Copy" button copies full forensic JSON diagnostics to the Android clipboard.
+
+### 📥 Automated Model Downloader (`ModelDownloader.kt` & `ModelPaths.kt`)
+- **Source**: [`ModelDownloader.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/ModelDownloader.kt) & [`ModelPaths.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/ModelPaths.kt)
+- **Zero-Setup First Launch**: Automatically detects missing model weights on startup and offers to download them from a CDN manifest (`model_manifest.json`).
+- **Canonical Storage**: Files are saved into the app's dedicated storage directory:
+  $$\text{Path: } \texttt{/sdcard/Android/data/com.cctv.videorag/files/models/}$$
+  - Requires **zero dangerous system storage permissions** (`MANAGE_EXTERNAL_STORAGE` is not needed).
+  - Cannot be revoked by Android OS updates or OEM battery savers.
+  - Automatically deleted when the app is uninstalled.
+- **Robust Download Engine**: Features HTTP Range resume (`.part` files) and strict SHA-256 integrity verification.
+- **Manual Sideload Support**: Also supports manual sideloading via USB/ADB into `/sdcard/Download/qwen2_vl_2b`.
+
+---
+
+## 🏗️ Android Project Directory Structure
 
 ```text
 android/
 ├── app/src/main/
-│   ├── AndroidManifest.xml             # Camera, storage & Internet permissions
+│   ├── AndroidManifest.xml             # Permissions (Camera, Storage, Internet)
+│   ├── assets/
+│   │   ├── mobileclip_s2_image.onnx    # Apple MobileCLIP-S2 Image Tower (256x256 RGB)
+│   │   ├── mobileclip_s2_text.onnx     # Apple MobileCLIP-S2 Text Tower (77 tokens)
+│   │   ├── bpe_simple_vocab_16e6.txt   # CLIP BPE Vocabulary (49,408 tokens)
+│   │   └── model_manifest.json         # CDN Model weights manifest & SHA-256 hashes
 │   ├── cpp/
-│   │   ├── CMakeLists.txt              # Native C++ build config (-O3 -ffast-math)
-│   │   └── native-lib.cpp              # JNI wrapper for Vulkan/GPU VLM reasoning
+│   │   ├── CMakeLists.txt              # Native C++ build config (-O3 -ffast-math -flto)
+│   │   ├── native-lib.cpp              # JNI wrapper, vision encode cache, llama.cpp execution
+│   │   └── llama_engine/               # llama.cpp core runtime + libmtmd multimodal engine
 │   ├── java/com/cctv/videorag/
-│   │   ├── MainActivity.kt             # UI Controller, VideoView player, Storyboard renderer
-│   │   ├── ingestion/
-│   │   │   ├── VideoFrameDecoder.kt   # Hardware MediaMetadataRetriever video decoder
-│   │   │   ├── MobileFrameFilter.kt   # 64-bit grayscale dHash & Hamming Distance gate
-│   │   │   └── VideoDownloader.kt     # Background HTTP/HTTPS video URL downloader
+│   │   ├── MainActivity.kt             # UI Controller, VideoView player, Query dispatcher
+│   │   ├── ModelDownloader.kt          # CDN downloader with HTTP Range resume & SHA-256
+│   │   ├── ModelPaths.kt               # Canonical model storage paths & discovery
 │   │   ├── indexing/
-│   │   │   ├── OnDeviceEmbedder.kt    # Apple MobileCLIP-S2 (ONNX NNAPI / Edge Projection)
-│   │   │   ├── MobileVectorStore.kt   # Thread-safe in-memory Cosine similarity index
-│   │   │   └── SpatialCropper.kt      # 6-region spatial pyramid subdivider
-│   │   └── llm/
-│   │       ├── OnDeviceVLM.kt         # JNI bridge for multi-frame situational reasoning
-│   │       └── MemoryOrchestrator.kt  # Strict Mutex RAM lifecycle orchestrator
+│   │   │   ├── OnDeviceEmbedder.kt     # MobileCLIP ONNX batched runner & zero-shot vocabulary
+│   │   │   ├── ClipTokenizer.kt        # Native Kotlin BPE Tokenizer port
+│   │   │   ├── ClipTokenizerSelfTest.kt# Self-test validating BPE against Python reference
+│   │   │   ├── MobileVectorStore.kt    # In-memory thread-safe Cosine similarity index
+│   │   │   ├── SpatialCropper.kt       # 6-region spatial pyramid subdivider (60% scale)
+│   │   │   └── SQLiteFtsHelper.kt      # SQLite FTS5 database for cold-start index restoration
+│   │   ├── ingestion/
+│   │   │   ├── VideoFrameDecoder.kt    # Sequential single-pass MediaCodec hardware decoder
+│   │   │   ├── MobileFrameFilter.kt    # 64-bit grayscale dHash & Hamming Distance edge gate
+│   │   │   └── VideoDownloader.kt      # HTTP/HTTPS remote video downloader
+│   │   ├── llm/
+│   │   │   ├── OnDeviceVLM.kt          # JNI bridge, isolated per-frame prompt, anti-hallucination
+│   │   │   ├── MemoryOrchestrator.kt   # Mutex RAM manager (releases MobileCLIP before VLM)
+│   │   │   └── ConversationTurn.kt     # Multi-turn conversational history data model
+│   │   └── ui/
+│   │       ├── ChatView.kt             # Conversational chat bubbles & thumbnail strip
+│   │       └── DebugPanel.kt           # Real-time pipeline diagnostics & telemetry modal
 │   └── res/
-│       ├── layout/activity_main.xml   # Clean Web UI-aligned Light Theme dashboard
-│       ├── drawable/                  # Modern pill selectors, badge containers, metric cards
-│       └── values/                    # Colors, strings, and Light Theme styles
-├── build.gradle.kts                    # Root build configuration (AGP 8.2.2)
-└── settings.gradle.kts                 # Project settings
+│       ├── layout/activity_main.xml    # Modern Light Theme forensic workstation UI
+│       ├── drawable/                   # Adaptive vectors, bubble backgrounds, badge containers
+│       └── values/                     # Colors, styles, and typography
+├── build.gradle.kts                    # App build configuration (NDK, ONNX Runtime, Coroutines)
+└── settings.gradle.kts                 # Root project configuration
 ```
 
 ---
 
-## 📌 System Architecture & Pipeline Overview (Desktop / Web)
+## 🛠️ Build, Sideload & Installation Guide
 
-VideoRAG's desktop/server pipeline provides high-throughput surveillance intelligence for central monitoring stations:
+### Prerequisites
+- Android Studio Ladybug (2024.2+) or Hedgehog+
+- Android NDK `26.1.10909125` (or latest NDK installed via SDK Manager)
+- Physical Android Device (`ARM64-v8a`, Qualcomm Snapdragon 8 Gen 2 / Gen 3 recommended, 8GB+ RAM, Android 11+)
+- USB Cable with USB Debugging enabled
 
-```text
- CCTV Camera Stream (MP4 / RTSP / YouTube Live DVR)
-      │
-      ▼
- ┌─────────────────────────────────────────────────────────────┐
- │  STAGE 1: Edge Hash Gate (<0.2ms / frame)                   │
- │  • 64-bit dHash / pHash gradient fingerprinting            │
- │  • Drops 50–85% static/duplicate scenes before LLM ingestion│
- └─────────────────────────────────────────────────────────────┘
-      │ (Significant scene shifts & motion keyframes)
-      ▼
- ┌─────────────────────────────────────────────────────────────┐
- │  STAGE 2: Apple MobileCLIP-S2 Embedder (512-D)              │
- │  • Fast zero-shot vision-text embedding                     │
- │  • Stored in FAISS IndexFlatIP (Unit Cosine Normalized)     │
- └─────────────────────────────────────────────────────────────┘
-      │
-      ▼ (User Natural Language Query)
- ┌─────────────────────────────────────────────────────────────┐
- │  STAGE 3: 2-Stage Multimodal Retrieval                      │
- │  1. FAISS Cosine Search: Retrieves top candidate episodes   │
- │  2. Cross-Encoder Reranker (ms-marco-MiniLM-L-6-v2):        │
- │     Joint query-passage attention promotes true targets     │
- └─────────────────────────────────────────────────────────────┘
-      │ (Top-1 Reranked Chronological Episode)
-      ▼
- ┌─────────────────────────────────────────────────────────────┐
- │  STAGE 4: Dynamic VLM Forensic Reasoning                    │
- │  • Desktop Profile: Qwen3-VL 4B (CUDA GPU, 5-frame window) │
- │  • Mobile Profile:  Qwen2-VL 2B (CPU Q8_0, 3-frame window) │
- │  • Verifies target pixels & outputs [CONFIRMED_AT: HH:MM:SS]│
- └─────────────────────────────────────────────────────────────┘
+### Step 1: Model Setup (Two Options)
+
+#### Option A: Automatic In-App Download (Recommended)
+1. Build and install the APK on your device.
+2. On first launch, the app prompts to download required models (~2 GB total).
+3. Tap **`Download Models`** to fetch and verify the weights automatically.
+
+#### Option B: Manual Sideload via ADB
+Download the models to your PC and push them directly to the canonical app folder:
+```bash
+# Create canonical models directory on device
+adb shell "mkdir -p /sdcard/Android/data/com.cctv.videorag/files/models"
+
+# Push Qwen2-VL 2B GGUF model and Q8_0 Projector
+adb push Qwen2-VL-2B-Instruct-Q4_K_M.gguf /sdcard/Android/data/com.cctv.videorag/files/models/
+adb push mmproj-Qwen2-VL-2B-Instruct-q8_0.gguf /sdcard/Android/data/com.cctv.videorag/files/models/
 ```
 
----
+### Step 2: Build & Install via Gradle CLI
 
-## ⚡ Dynamic Dual-Profile VLM Execution (Desktop 4B vs. Mobile 2B)
+```bash
+cd android
 
-| Feature / Metric | ⚡ Desktop 4B (GPU) Profile | 📱 Mobile 2B (CPU) Profile |
-| :--- | :--- | :--- |
-| **Model** | `Qwen3-VL-4B-Instruct-Q4_K_M.gguf` | `Qwen2-VL-2B-Instruct-Q4_K_M.gguf` |
-| **Vision Projector** | `mmproj-Qwen3VL-4B-Instruct-F16.gguf` | `mmproj-Qwen2-VL-2B-Instruct-f16.gguf` |
-| **Compute Device** | NVIDIA CUDA GPU (`-ngl 99`) | CPU-Only (`-ngl 0`, 6 threads) |
-| **Context Window & Slots** | 4,096 tokens (1 slot, Zero OOM on 6GB VRAM) | 2,048 tokens (1 slot, Low-Footprint CPU) |
-| **KV Cache Type** | `FP16` | **`Q8_0` Quantized** |
-| **Max Generation Window**| **768 tokens (Full Step-by-Step Observations)** | **768 tokens** |
-| **Storyboard Window** | 5 frames (`[-2, -1, 0, +1, +2]`) | **3 frames (`[-1, 0, +1]`)** |
-| **Inference Scaling** | 768 px max dimension | **512 px max dimension (In-Memory)** |
-| **GPU Dedicated VRAM** | `~4.40 GB / 6.00 GB (Fits RTX 4050/3060)` | **`0 MB (CPU Mode Safe ✅)`** |
-| **Single-Query Latency** | **`~3.19 seconds`** | **`~8.5 – 12 seconds`** |
-| **Token Throughput** | **`~42 – 45 tok/s`** | **`~12 – 18 tok/s`** |
+# Compile Kotlin and native C++ JNI sources:
+./gradlew compileDebugKotlin
 
----
+# Assemble Debug APK:
+./gradlew assembleDebug
+# -> Output APK: app/build/outputs/apk/debug/app-debug.apk
 
-## 🔍 Two-Stage Retrieval: FAISS Cosine + Cross-Encoder Reranking
-
-1. **Stage 1 (FAISS Vector Search)**:
-   - Uses Apple MobileCLIP-S2 to embed queries and image keyframes into a 512-D unit hypersphere ($\|v\| = 1.0000$).
-   - Retrieves candidate pool of `12+` chronological candidate episodes in `< 100 ms`.
-2. **Stage 2 (Transformer Cross-Encoder Reranking)**:
-   - Uses `cross-encoder/ms-marco-MiniLM-L-6-v2` to jointly score the user natural language query against multi-frame forensic episode descriptions.
-   - Promotes the exact target sequence to **Rank #1**.
-
----
-
-## 📹 Edge-Gate Frame Filtering (dHash / pHash)
-
-- **Execution Speed**: `< 0.15 ms` per frame on mobile CPU / desktop CPU.
-- **Compute Reduction**: Drops **50% to 85%** of redundant frames at the edge gate before vector embedding or LLM ingestion.
-- **Configurable Threshold**: Interactive slider / settings to preserve motion while dropping static CCTV frames.
-
----
-
-## 🖥️ Surveillance Command Center Web UI
-
-The built-in web control room at `http://127.0.0.1:8000/` includes:
-1. **Dual Profile Switcher**: Interactive `[ ⚡ Desktop 4B (GPU) ]` ⇄ `[ 📱 Mobile 2B (CPU) ]` toggle buttons in the top navigation bar.
-2. **Multi-Camera Monitor**: Synchronized DVR player supporting local MP4 footage, RTSP streams, and YouTube Live feeds.
-3. **Forensic Storyboard**: Chronological keyframe display citing exact timestamps (`[CONFIRMED_AT: HH:MM:SS]`).
-4. **Developer Hub**: Live telemetry tracking GPU VRAM, RAM %, token speed, and edge gate filter metrics.
-
----
-
-## 🔬 Real-Time Forensic Diagnostics & Retrieval Debug Panel
-
-VideoRAG includes a **Real-Time Forensic Retrieval Diagnostics Panel** integrated directly into the Web UI. It allows security operators and AI engineers to verify query execution and isolate whether an unexpected result stems from a **Retriever Failure** or **VLM Cognitive Limits**:
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 🔬 FORENSIC RETRIEVAL DIAGNOSTICS                                  [ACTIVE] │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 1. Query Expansion & Color Integrity Audit                                  │
-│    > "people wearing pink color costumes"                                   │
-│    > "person wearing pink clothing"                                         │
-│    > "individual dressed in pink garments" [COLOR PRESERVED ✅]              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 2. Text Reranker Status: BYPASSED (Visual Mode) | Funnel Depth: 12 Episodes │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 3. Automated Pipeline Isolation Verdict:                                    │
-│    🔍 RETRIEVER OK: Top visual hits present in storyboard.                  │
-│       Auditing VLM reasoning layer for temporal and object grounding.       │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 4. Raw Vector Database Top Hits (Recall@15):                                │
-│    Rank 1: 00:07:36 | Region: [global]      | Score: 0.8178 | [SENT ✅]     │
-│    Rank 2: 00:07:30 | Region: [top_left]    | Score: 0.8167 | [SENT ✅]     │
-│    Rank 3: 02:08:44 | Region: [bottom_left] | Score: 0.8061 | [MISSED ❌]   │
-└─────────────────────────────────────────────────────────────────────────────┘
+# Install directly to connected physical device:
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Diagnostic Isolation Rules:
-- **Color Dilution Check**: Verifies that color modifiers (`pink`, `red`, `blue`, `white`) strictly propagate through all expanded synonyms. If a generic synonym lacks the active modifier, it flags `[WARN: COLOR DILUTED]`.
-- **Storyboard Gap Audit**: If the highest-scoring raw visual hit in FAISS is missing from the compiled VLM storyboard, the panel flags `Retriever Failure: Storyboard Gap`.
-- **Interactive Click-to-Seek**: Clicking any raw vector match row in the Recall@15 table immediately seeks the video player to that exact timestamp for manual visual inspection.
+### Step 3: Ingest a Surveillance Video
+1. Open **VideoRAG** on your device.
+2. Tap **`📁 Upload Video`** to select any `.mp4` or `.mkv` recording from storage, or tap **`🌐 Video Link`** to enter a video URL.
+3. Watch the real-time ingestion telemetry:
+   - **Progress Bar**: Shows decoding timestamp (e.g. `00:04:30 / 00:13:00 (34%)`).
+   - **Edge Gate**: Displays static frames dropped and gate drop rate (e.g. `686 static frames dropped, 84.5% Gate Drop Rate`).
+   - **Metrics**: Extracted Keyframes, Indexed 512-D Regions, and Ingest Time.
+
+### Step 4: Multi-Turn Conversational Forensic Querying
+1. Type any natural language search or query in the chat input (e.g.):
+   - `"When does the yellow bus appear?"`
+   - `"Find any white truck or van near the traffic light"`
+   - `"Did a person in pink clothing cross the street?"`
+   - `"What is written on the side of the truck?"`
+2. Tap **`Send`**.
+3. Inspect the conversational response, timing metrics, and the evidence frame strip.
+4. Tap **any timestamp** or **thumbnail card** to instantly jump the video player to that exact second!
 
 ---
 
-## 🛠️ Quickstart & Desktop Installation
+## ❓ Frequently Asked Questions & Forensic Troubleshooting
 
-### 1. Environment Setup
-```powershell
-# Clone the repository
-git clone https://github.com/manohar-munna/videoRAG.git
-cd videoRAG
+### 1. Why does the first query take ~110 seconds, while follow-up questions take ~5 seconds?
+- **Cause**: The first query performs a cold vision encode (`libmtmd`) on the candidate keyframes (~18 seconds per frame).
+- **Resolution**: VideoRAG automatically saves encoded tensors to its **Multi-Tier Vision Encode Cache** (RAM + Disk `.bin`). Follow-up questions in the conversation reuse these cached embeddings in **<10 ms**, dropping response latency to ~5 seconds.
 
-# Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate
+### 2. Why does the app answer "I couldn't find anything matching that" instead of generating an answer?
+- **Cause**: VideoRAG's **Relevance Score Gating (`MIN_RELEVANCE = 0.19f`)** detected that the query does not match any frame in the footage.
+- **Why this is a feature**: Nearest-neighbor vector search always returns candidates even for absent objects (e.g., searching for *"a red bus in snow"* on a sunny highway). Rather than wasting 3 minutes of battery and letting the VLM hallucinate, VideoRAG honestly refuses absent queries immediately.
 
-# Install dependencies
-pip install -r requirements.txt
-```
+### 3. How does the app prevent timestamp hallucinations?
+- Small edge VLMs often generate arithmetic sequences of timestamps (e.g. `00:00:03`, `00:00:07`, `00:00:10`).
+- VideoRAG enforces a strict mathematical post-processing gate ([`dropUnsupportedTimestamps`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/llm/OnDeviceVLM.kt#L573-L601)) that cross-references every timestamp in the output against `shown.map { it.timestamp }` and strips any ungrounded claim.
 
-### 2. Start Desktop Server
-```powershell
-# Launch in default Desktop (GPU) mode:
-python src/videorag/server.py --port 8000
+### 4. Does the app require any internet connection or cloud API?
+- **No.** VideoRAG is 100% on-device. Keyframe decoding, dHash edge filtering, spatial cropping, MobileCLIP ONNX embeddings, vector retrieval, and Qwen2-VL multimodal reasoning execute entirely locally on your phone's processor.
 
-# Or launch in Mobile (CPU) mode:
-python src/videorag/server.py --profile mobile --port 8000
-```
-Open **`http://127.0.0.1:8000/`** in your browser.
-
----
-
-## 🔌 REST API Reference
-
-### 1. Execute Semantic Search
-- **Endpoint**: `POST /api/search`
-- **Request Body**:
-```json
-{
-  "query": "camera crew with a black cart",
-  "top_k": 5
-}
-```
-
-### 2. Runtime Profile Switching
-- **Endpoint**: `POST /api/profile/switch`
-- **Request Body**:
-```json
-{
-  "profile": "mobile"
-}
-```
-
-### 3. System Health
-- **Endpoint**: `GET /api/health`
-
----
-
-## ⚙️ Configuration Reference (`config.yaml`)
-
-```yaml
-# Edge Frame Extraction & dHash Filtering
-edge_filter:
-  enabled: true
-  hash_method: "dhash"          # Options: "dhash", "phash"
-  hamming_threshold: 10         # Min bitwise difference to keep frame
-
-# Multimodal Indexing & Embedding
-indexing:
-  model_name: "MobileCLIP-S2"   # Apple MobileCLIP-S2 (512-D)
-  dimension: 512
-  index_type: "flat_ip"         # FAISS IndexFlatIP for normalized cosine similarity
-
-# Retrieval & Temporal Episode Bundling
-retrieval:
-  top_k: 10
-  context_window: 2             # ±2 neighbouring frames
-  use_reranker: true            # Enables Cross-Encoder second-stage reranking
-
-# Vision-Language Model (Forensic Engine)
-llm:
-  backend: "local"
-  model: "models/qwen3_vl/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
-  base_url: "http://127.0.0.1:8080/v1"
-  temperature: 0.1
-  max_tokens: 768
-```
-
----
-
-## ❓ Troubleshooting & Frequently Asked Questions
-
-### 1. Why am I seeing a generic "Based on chronological CCTV surveillance footage..." response?
-- **Cause**: The local `llama-server` process on port 8080 is either not running, initializing, or encountered a CUDA out-of-memory error. The backend catches the connection error and outputs a heuristic fallback summary.
-- **Resolution**:
-  1. Check if `http://127.0.0.1:8080/health` returns `{"status":"ok"}`.
-  2. Verify that model weights are present in `models/qwen3_vl/` (`Qwen3VL-4B-Instruct-Q4_K_M.gguf` & `mmproj-Qwen3VL-4B-Instruct-F16.gguf`).
-  3. Ensure `--parallel 1` is configured in `vlm_process_manager.py` so GPU VRAM stays under 4.5 GB.
-
-### 2. How do I tune the Edge Gate (dHash Hamming Threshold)?
-- **Outdoor Streets / Traffic (`Threshold: 8–12`)**: Filters 50–70% of static road scenes while guaranteeing zero missed vehicle or pedestrian entries.
-- **Indoor Hallways / Controlled Corridors (`Threshold: 4–6`)**: Filters 80–90% of empty corridors, only capturing when individuals enter the camera field of view.
-- **Dense Mode / No Filtering (`Threshold: 0` or Toggle Off)**: Extracts 100% of frames at the chosen sampling rate (0.5, 1.0, or 2.0 FPS).
-
-### 3. Android: Model Folder Permission Restriction (Scoped Storage)
-- If Android 11+ restricts file access to the `Download/qwen2_vl_2b/` directory:
-  1. Ensure **All Files Access** (`MANAGE_EXTERNAL_STORAGE`) is enabled for VideoRAG in device Settings.
-  2. Or tap the **`📂 Model Folder`** button in the app header and pick the folder directly via the system document tree picker.
-
-### 4. How do I connect the Android app to my Desktop/LAN VLM Server?
-- If your phone and PC are on the same Wi-Fi network:
-  1. Start the desktop server with `python src/videorag/server.py --port 8000`.
-  2. The mobile app automatically probes candidate endpoints (`http://10.0.2.2:8080/v1` for Emulator, `http://127.0.0.1:8080/v1` for local daemons).
-  3. You can also configure a custom server LAN URL (`customServerUrl = "http://192.168.1.X:8080/v1"` in `OnDeviceVLM.kt`) to stream full 4B/2B neural visual tokens over Wi-Fi with sub-second latency.
-
-### 5. How does the Android App analyze footage when completely offline?
-- In standalone offline mode with no active network daemon:
-  1. `OnDeviceVLM.kt` loads the extracted JPEG keyframe bitmaps from internal device storage.
-  2. It computes **pixel luminosity**, **dominant RGB/HSV color spectra** (detecting specific clothing, vehicles, and objects), and **quadrant motion shift energy (`Δ`)** across the sequence.
-  3. It constructs a dynamic, factual forensic report citing exact visual evidence and grounding timestamps with zero static mock strings.
+### 5. Why are small objects (e.g. distant vehicles or bags) detected so accurately?
+- Naive systems downscale the entire frame to $256 \times 256$, blurring small objects.
+- VideoRAG's **6-Region Spatial Pyramid Cropping (`SpatialCropper.kt`)** slices each frame into 6 overlapping 60% regions, giving small objects **~2.8x higher pixel density** in the embedding space and during VLM inference.
 
 ---
 
 ## 📄 License
 
 MIT License. Built for real-time multimodal CCTV surveillance intelligence with zero cloud dependency.
+
