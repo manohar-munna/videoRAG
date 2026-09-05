@@ -728,6 +728,7 @@ class MainActivity : AppCompatActivity() {
         val frameJson = vlm.describeFrameAsJson(
             bitmap, timestamp, acceptedFramesCount, imagePath, objects)
         val frameDescription = frameJson.getString("visual_description")
+        val momentsToSave = mutableListOf<IndexedMoment>()
         for ((crop, v) in crops.zip(vectors)) {
             val moment = IndexedMoment(
                 id = "${camera}_${timestamp}_${crop.label}",
@@ -736,8 +737,9 @@ class MainActivity : AppCompatActivity() {
                 description = frameDescription, jsonMetadata = frameJson.toString()
             )
             vectorStore.addMoment(moment)
-            sqliteFts.saveMoment(moment, currentVideoKey)   // survives restart
+            momentsToSave.add(moment)
         }
+        sqliteFts.saveMoments(momentsToSave, currentVideoKey)   // survives restart in single tx
         for (crop in crops) if (crop.bitmap != bitmap) crop.bitmap.recycle()
 
         sqliteFts.insertMoment(

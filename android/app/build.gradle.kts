@@ -88,7 +88,6 @@ dependencies {
 
     // Local Storage (SQLite for metadata)
     implementation("androidx.sqlite:sqlite-ktx:2.4.0")
-    implementation("androidx.room:room-runtime:2.6.1")
 
     // Coroutines for non-blocking UI
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")

@@ -14,11 +14,8 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -224,31 +221,37 @@ class VideoFrameDecoder(private val context: Context) {
                     // stream has a gap longer than one sampling period.
                     while (nextEmitUs <= info.presentationTimeUs) nextEmitUs += intervalUs
 
-                    val bmp = try {
-                        codec.getOutputImage(outIndex)?.use { imageToBitmap(it) }
+                    val secondsTotal = info.presentationTimeUs / 1_000_000L
+                    val hh = secondsTotal / 3600
+                    val mm = (secondsTotal % 3600) / 60
+                    val ss = secondsTotal % 60
+                    val ts = String.format(Locale.US, "%02d:%02d:%02d", hh, mm, ss)
+                    val filename = String.format(
+                        Locale.US, "%s_%02d_%02d_%02d_%05d.jpg", cameraName, hh, mm, ss, frameIdx)
+                    val outFile = File(frameOutputDir, filename)
+
+                    val savedOk = try {
+                        codec.getOutputImage(outIndex)?.use { image ->
+                            imageToJpegFile(image, outFile, 85)
+                            true
+                        } ?: false
                     } catch (e: Throwable) {
-                        Log.w("VideoFrameDecoder", "frame convert failed: ${e.message}"); null
+                        Log.w("VideoFrameDecoder", "frame convert failed: ${e.message}")
+                        false
                     }
-                    if (bmp != null) {
-                        val frameBitmap = downscale(bmp, MAX_KEYFRAME_DIM)
-                        val secondsTotal = info.presentationTimeUs / 1_000_000L
-                        val hh = secondsTotal / 3600
-                        val mm = (secondsTotal % 3600) / 60
-                        val ss = secondsTotal % 60
-                        val ts = String.format(Locale.US, "%02d:%02d:%02d", hh, mm, ss)
-                        val filename = String.format(
-                            Locale.US, "%s_%02d_%02d_%02d_%05d.jpg", cameraName, hh, mm, ss, frameIdx)
-                        val outFile = File(frameOutputDir, filename)
-                        FileOutputStream(outFile).use { fos ->
-                            frameBitmap.compress(Bitmap.CompressFormat.JPEG, 85, fos)
+
+                    if (savedOk && outFile.isFile && outFile.length() > 0L) {
+                        val decoded = BitmapFactory.decodeFile(outFile.absolutePath)
+                        val frameBitmap = if (decoded != null) downscale(decoded, MAX_KEYFRAME_DIM) else null
+                        if (frameBitmap != null) {
+                            onProgress(secondsTotal, totalSec, frameIdx)
+                            onKeyframeDecoded(
+                                frameBitmap, ts,
+                                System.currentTimeMillis() - (durationUs / 1000 - secondsTotal * 1000),
+                                outFile.absolutePath
+                            )
+                            frameIdx++
                         }
-                        onProgress(secondsTotal, totalSec, frameIdx)
-                        onKeyframeDecoded(
-                            frameBitmap, ts,
-                            System.currentTimeMillis() - (durationUs / 1000 - secondsTotal * 1000),
-                            outFile.absolutePath
-                        )
-                        frameIdx++
                     }
                 }
                 codec.releaseOutputBuffer(outIndex, false)
@@ -262,13 +265,10 @@ class VideoFrameDecoder(private val context: Context) {
     }
 
     /**
-     * YUV_420_888 Image to Bitmap, via NV21 and the platform JPEG encoder.
-     *
-     * Row and pixel strides are honoured rather than assumed: decoders pad rows to
-     * hardware alignments, and some emit semi-planar chroma where U and V interleave in
-     * one buffer, so copying the planes wholesale produces skewed or false-colour frames.
+     * YUV_420_888 Image to JPEG file directly, via NV21 in a single compression pass.
+     * Avoids generational loss and memory allocations from double compression.
      */
-    private fun imageToBitmap(image: Image): Bitmap {
+    private fun imageToJpegFile(image: Image, targetFile: File, quality: Int = 85) {
         val w = image.width
         val h = image.height
         val nv21 = ByteArray(w * h * 3 / 2)
@@ -304,53 +304,9 @@ class VideoFrameDecoder(private val context: Context) {
             }
         }
 
-        val out = ByteArrayOutputStream()
-        YuvImage(nv21, ImageFormat.NV21, w, h, null)
-            .compressToJpeg(Rect(0, 0, w, h), 90, out)
-        val bytes = out.toByteArray()
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            ?: throw IllegalStateException("JPEG decode of converted frame failed")
-    }
-
-    /**
-     * Create CameraX ImageAnalysis analyzer for real-time live CCTV feed decoding.
-     */
-    fun createLiveStreamAnalyzer(
-        onLiveFrame: (Bitmap, String, Long) -> Unit
-    ): ImageAnalysis.Analyzer {
-        return ImageAnalysis.Analyzer { imageProxy ->
-            val bitmap = imageProxyToBitmap(imageProxy)
-            if (bitmap != null) {
-                val now = System.currentTimeMillis()
-                val seconds = (now / 1000) % 86400
-                val hh = (seconds / 3600) % 24
-                val mm = (seconds % 3600) / 60
-                val ss = seconds % 60
-                val ts = String.format(Locale.US, "%02d:%02d:%02d", hh, mm, ss)
-                onLiveFrame(bitmap, ts, now)
-            }
-            imageProxy.close()
+        FileOutputStream(targetFile).use { fos ->
+            YuvImage(nv21, ImageFormat.NV21, w, h, null)
+                .compressToJpeg(Rect(0, 0, w, h), quality, fos)
         }
-    }
-
-    private fun imageProxyToBitmap(image: ImageProxy): Bitmap? {
-        val planeY = image.planes[0].buffer
-        val planeU = image.planes[1].buffer
-        val planeV = image.planes[2].buffer
-
-        val sizeY = planeY.remaining()
-        val sizeU = planeU.remaining()
-        val sizeV = planeV.remaining()
-
-        val nv21 = ByteArray(sizeY + sizeU + sizeV)
-        planeY.get(nv21, 0, sizeY)
-        planeV.get(nv21, sizeY, sizeV)
-        planeU.get(nv21, sizeY + sizeV, sizeU)
-
-        val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
-        val out = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 85, out)
-        val imageBytes = out.toByteArray()
-        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
     }
 }

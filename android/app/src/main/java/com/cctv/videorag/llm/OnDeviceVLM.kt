@@ -437,21 +437,12 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // One media marker per frame; mtmd substitutes the encoded image at each
         // marker, keeping frames in chronological order inside the prompt.
         val marker = "<__media__>"
-        val frameList = sorted
-            .filter { File(it.imagePath).exists() }
-            .joinToString(separator = "\n") { "Frame at ${it.timestamp}:\n" + marker }
 
         // Qwen2-VL has native visual grounding and will answer a bare noun phrase like
         // "yellow bus" in detection mode, emitting <|object_ref_start|>...<|box_start|>
         // (606,182),(709,325)<|box_end|> instead of prose. Correct, but not an answer a
         // person can read. Frame the task as prose Q&A and rule coordinates out explicitly.
         val shown = sorted.filter { File(it.imagePath).exists() }
-        val frameCount = shown.size
-        // Prefill the assistant turn with the first timestamp so the model continues an
-        // established pattern instead of choosing a format. Instructions alone produced,
-        // in turn: a copied worked example, literal <placeholders>, "Answer:" on every
-        // line, and finally a two-word reply with no timestamps at all.
-        val firstStamp = shown.firstOrNull()?.timestamp ?: "00:00:00"
 
         // The frames are retrieval hits, not consecutive video: they can be minutes
         // apart. Without saying so the model narrates them as continuous motion and
@@ -518,7 +509,11 @@ Describe in a single sentence what this frame shows in relation to the question.
             }
             val clean = one.trim().removePrefix("-").trim()
             if (clean.isNotEmpty() && !clean.startsWith("Error")) {
-                lines.add("$ts - " + clean.lineSequence().first().trim())
+                val oneLineDesc = clean.lines()
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .joinToString(" ")
+                lines.add("$ts - $oneLineDesc")
             }
         }
 
@@ -585,12 +580,29 @@ Describe in a single sentence what this frame shows in relation to the question.
             val good = stamps.filter { it in allowed }
             // Nothing on this line was actually observed, so the claim has no evidence.
             if (good.isEmpty()) return@mapNotNull null
-            // Otherwise rebuild the sentence around only the supported timestamps, rather
-            // than trying to patch the punctuation the removals leave behind.
-            val head = line.substring(0, line.indexOf(stamps.first())).trimEnd().trimEnd(',')
-            val list = if (good.size == 1) good[0]
-                       else good.dropLast(1).joinToString(", ") + " and " + good.last()
-            "$head $list."
+
+            // If line matches standard groupBySubject format: "<Prefix> at <ts-list>."
+            val atIdx = line.lastIndexOf(" at ")
+            if (atIdx != -1 && stamps.all { line.indexOf(it) > atIdx }) {
+                val head = line.substring(0, atIdx).trimEnd()
+                val list = if (good.size == 1) good[0]
+                           else good.dropLast(1).joinToString(", ") + " and " + good.last()
+                return@mapNotNull "$head at $list."
+            }
+
+            // General case: remove ungrounded timestamps in-place without destroying sentence prose
+            var cleaned = line
+            for (b in bad) {
+                cleaned = cleaned.replace(b, "")
+            }
+            cleaned = cleaned
+                .replace(Regex("""\b(?:at|around|near)\s*(?:and\s*|,\s*|\.\s*)+"""), "")
+                .replace(Regex(""",\s*,"""), ",")
+                .replace(Regex("""\s+and\s*\."""), ".")
+                .replace(Regex(""",\s*\."""), ".")
+                .replace(Regex("""\s+"""), " ")
+                .trim()
+            if (cleaned.isBlank() || cleaned == ".") null else cleaned
         }
         Log.w("VideoRAG_VLM", "dropped unsupported timestamps: $removed")
         lastDroppedTimestamps = removed.toList()
@@ -644,10 +656,29 @@ Describe in a single sentence what this frame shows in relation to the question.
         return out
     }
 
+    private val GROUPING_STOP_WORDS = setOf(
+        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+        "in", "on", "at", "to", "of", "and", "with", "this", "that", "it"
+    )
+
+    private class SubjectCluster(
+        val representativeKey: String,
+        val display: String,
+        val contentWords: Set<String>,
+        val timestamps: MutableList<String> = mutableListOf()
+    )
+
+    private fun jaccardSimilarity(s1: Set<String>, s2: Set<String>): Float {
+        if (s1.isEmpty() && s2.isEmpty()) return 1.0f
+        if (s1.isEmpty() || s2.isEmpty()) return 0.0f
+        val intersection = s1.count { it in s2 }
+        val union = s1.size + s2.size - intersection
+        return if (union == 0) 0.0f else intersection.toFloat() / union.toFloat()
+    }
+
     private fun groupBySubject(text: String): String {
         val lineRx = Regex("""^\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–:]\s*(.+?)\s*$""")
-        val order = LinkedHashMap<String, MutableList<String>>()   // normalised -> timestamps
-        val display = HashMap<String, String>()                    // normalised -> first wording
+        val clusters = mutableListOf<SubjectCluster>()
         val passthrough = mutableListOf<String>()
 
         for (raw in text.lines()) {
@@ -660,15 +691,36 @@ Describe in a single sentence what this frame shows in relation to the question.
             val desc = stripEchoedTimestamp(m.groupValues[2].trim()).trimEnd('.')
             val key = desc.lowercase().replace(Regex("[^a-z0-9 ]"), "").replace(Regex("\\s+"), " ")
             if (key.isEmpty()) continue
-            order.getOrPut(key) { mutableListOf() }.add(ts)
-            display.putIfAbsent(key, desc)
+
+            val words = key.split(" ").filter { it.length > 1 && it !in GROUPING_STOP_WORDS }.toSet()
+
+            var bestCluster: SubjectCluster? = null
+            var bestSim = 0.59f
+            for (cluster in clusters) {
+                val sim = if (cluster.representativeKey == key) 1.0f
+                          else jaccardSimilarity(cluster.contentWords, words)
+                if (sim > bestSim) {
+                    bestSim = sim
+                    bestCluster = cluster
+                }
+            }
+
+            if (bestCluster != null) {
+                if (!bestCluster.timestamps.contains(ts)) {
+                    bestCluster.timestamps.add(ts)
+                }
+            } else {
+                val newCluster = SubjectCluster(key, desc, words)
+                newCluster.timestamps.add(ts)
+                clusters.add(newCluster)
+            }
         }
-        if (order.isEmpty()) return text
+        if (clusters.isEmpty()) return text
 
         val out = StringBuilder()
-        for ((key, times) in order) {
-            val what = display[key] ?: continue
-            out.append(what.replaceFirstChar { it.uppercase() })
+        for (cluster in clusters) {
+            val times = cluster.timestamps
+            out.append(cluster.display.replaceFirstChar { it.uppercase() })
             out.append(if (times.size == 1) " at ${times[0]}." else " at ${times.dropLast(1).joinToString(", ")} and ${times.last()}.")
             out.append('\n')
         }
@@ -718,7 +770,6 @@ Describe in a single sentence what this frame shows in relation to the question.
         val dominantColors: List<String>,
         val brightnessCategory: String,
         val hasYellow: Boolean,
-        val yellowInLowerLeft: Boolean,
         val hasRed: Boolean,
         val hasBlue: Boolean,
         val hasGreen: Boolean,
@@ -736,15 +787,11 @@ Describe in a single sentence what this frame shows in relation to the question.
         var sampleCount = 0
 
         var yellowCount = 0
-        var yellowLowerLeftCount = 0
         var redCount = 0
         var greenCount = 0
         var blueCount = 0
         var whiteCount = 0
         var darkCount = 0
-
-        val midY = bmp.height / 2
-        val midX = bmp.width / 2
 
         for (y in 0 until bmp.height step stepY) {
             for (x in 0 until bmp.width step stepX) {
@@ -767,9 +814,6 @@ Describe in a single sentence what this frame shows in relation to the question.
                 // Yellow / Amber
                 if ((hue in 26.0f..65.0f && sat > 0.22f && value > 0.35f) || (r > 130 && g > 130 && b < r * 0.70f)) {
                     yellowCount++
-                    if (y > midY && x < midX) {
-                        yellowLowerLeftCount++
-                    }
                 }
                 // Red / Crimson
                 if (((hue in 0.0f..25.0f || hue in 330.0f..360.0f) && sat > 0.22f && value > 0.20f) || (r > 90 && r > g * 1.3f && r > b * 1.3f)) {
@@ -798,7 +842,6 @@ Describe in a single sentence what this frame shows in relation to the question.
         val total = maxOf(1, sampleCount).toFloat()
 
         val hasYellow = (yellowCount / total > 0.008f)
-        val yellowInLowerLeft = (yellowLowerLeftCount / total > 0.004f)
         val hasRed = (redCount / total > 0.008f)
         val hasGreen = (greenCount / total > 0.010f)
         val hasBlue = (blueCount / total > 0.010f)
@@ -823,7 +866,6 @@ Describe in a single sentence what this frame shows in relation to the question.
             dominantColors = colors,
             brightnessCategory = lighting,
             hasYellow = hasYellow,
-            yellowInLowerLeft = yellowInLowerLeft,
             hasRed = hasRed,
             hasBlue = hasBlue,
             hasGreen = hasGreen,

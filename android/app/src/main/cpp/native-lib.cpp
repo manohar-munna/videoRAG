@@ -14,6 +14,8 @@
 #include <jni.h>
 #include <string>
 #include <map>
+#include <unordered_map>
+#include <list>
 #include <vector>
 #include <sstream>
 #include <unistd.h>
@@ -36,6 +38,10 @@
 
 namespace {
 
+// Roughly 1.8 MB per 640x360 keyframe (299 tokens x 1536 dims x 4 bytes). 192 MB holds
+// a hundred or so frames, which is far more than one conversation revisits.
+static const size_t EMBD_CACHE_MAX_BYTES = 192ull * 1024 * 1024;
+
 struct NativeVLMContext {
     llama_model   * model     = nullptr;
     llama_context * ctx_llama = nullptr;
@@ -51,8 +57,26 @@ struct NativeVLMContext {
     // retrieve largely the same frames as the question before them, so without this the
     // same pixels are re-encoded on every turn. Keyed by content hash rather than file
     // path, so an identical frame reached by a different route still hits.
-    std::map<std::string, std::vector<float>> embd_cache;
+    // Employs LRU eviction so memory stays strictly capped under EMBD_CACHE_MAX_BYTES.
+    struct EmbdEntry {
+        std::vector<float> data;
+        std::list<std::string>::iterator lru_it;
+    };
+    std::unordered_map<std::string, EmbdEntry> embd_cache;
+    std::list<std::string> embd_lru;
     size_t embd_cache_bytes = 0;
+
+    void evict_embd_cache(size_t need_bytes, size_t max_bytes) {
+        while (!embd_lru.empty() && (embd_cache_bytes + need_bytes > max_bytes)) {
+            const std::string oldest_key = embd_lru.back();
+            embd_lru.pop_back();
+            auto it = embd_cache.find(oldest_key);
+            if (it != embd_cache.end()) {
+                embd_cache_bytes -= it->second.data.size() * sizeof(float);
+                embd_cache.erase(it);
+            }
+        }
+    }
 
     // Last generate() breakdown, read back by nativeGetLastGenStats(). Generation is the
     // largest phase of a query and there is no other way to see inside it on devices
@@ -155,12 +179,12 @@ static void save_embd_file(const std::string & dir, const std::string & key,
     fclose(f);
     if (ok) rename(tmp.c_str(), fin.c_str());
     else    remove(tmp.c_str());
-    evict_embd_dir(dir, EMBD_DISK_MAX_BYTES);
-}
 
-// Roughly 1.8 MB per 640x360 keyframe (299 tokens x 1536 dims x 4 bytes). 192 MB holds
-// a hundred or so frames, which is far more than one conversation revisits.
-static const size_t EMBD_CACHE_MAX_BYTES = 192ull * 1024 * 1024;
+    static int save_counter = 0;
+    if (++save_counter % 16 == 0) {
+        evict_embd_dir(dir, EMBD_DISK_MAX_BYTES);
+    }
+}
 
 // Route llama/ggml logging into logcat instead of stderr, which is discarded on Android.
 void log_to_logcat(ggml_log_level level, const char * text, void * /*user_data*/) {
@@ -208,12 +232,10 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeInitWithFiles(
     }
 
     llama_context_params cparams = llama_context_default_params();
-    // Sizing note: image tokens scale with SOURCE resolution, not with anything we
-    // choose here. VideoFrameDecoder emits frames at the video's native size, so a
-    // 1280x720 clip yields ~1125 tokens per frame - five of those is 5,625 and
-    // overflows a 4096 context. Frames are now downscaled at decode AND capped via
-    // image_max_tokens below; this ceiling is the third layer of protection.
-    cparams.n_ctx   = 8192;
+    // Sizing note: each inference call processes a single keyframe + prompt (~300-500 tokens).
+    // An 8192 context wastes ~1.2 GB of mobile RAM on unneeded KV cache, leading to Android
+    // LMK process kills. 2048 tokens provides ample headroom while saving ~900 MB RAM.
+    cparams.n_ctx   = 2048;
     cparams.n_batch = 2048;   // image chunks are submitted in one batch
     cparams.n_threads       = 5;
     cparams.n_threads_batch = 5;
@@ -366,6 +388,11 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
     text.add_special   = false;  // caller supplies the full chat template
     text.parse_special = true;
 
+    if (!ctx->ctx_mtmd) {
+        LOGE("ctx_mtmd is null, cannot perform multimodal tokenization");
+        return env->NewStringUTF("Error: vision projector (mmproj) is not loaded.");
+    }
+
     const long t_prefill_start = now_ms();
     mtmd_input_chunks * chunks = mtmd_input_chunks_init();
     const int32_t rc = mtmd_tokenize(ctx->ctx_mtmd, chunks, &text,
@@ -402,20 +429,27 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
         const char * id = mtmd_input_chunk_get_id(chunk);
         const size_t n_tok = mtmd_input_chunk_get_n_tokens(chunk);
         const size_t need = n_tok * (size_t) n_embd;
+        const size_t need_bytes = need * sizeof(float);
         const std::string key = id ? id : "";
 
         auto it = key.empty() ? ctx->embd_cache.end() : ctx->embd_cache.find(key);
         if (it != ctx->embd_cache.end()) {
             cache_hits++;
+            ctx->embd_lru.erase(it->second.lru_it);
+            ctx->embd_lru.push_front(key);
+            it->second.lru_it = ctx->embd_lru.begin();
         } else if (!ctx->cache_dir.empty() && embd_key_safe(key)) {
             // Second tier: an encode a previous process already paid for. Loading one
             // back costs ~10 ms against the ~18 s it took to compute.
             std::vector<float> from_disk;
             if (load_embd_file(ctx->cache_dir, key, need, from_disk)) {
                 disk_hits++;
-                if (ctx->embd_cache_bytes + need * sizeof(float) <= EMBD_CACHE_MAX_BYTES) {
-                    it = ctx->embd_cache.emplace(key, std::move(from_disk)).first;
-                    ctx->embd_cache_bytes += need * sizeof(float);
+                ctx->evict_embd_cache(need_bytes, EMBD_CACHE_MAX_BYTES);
+                if (ctx->embd_cache_bytes + need_bytes <= EMBD_CACHE_MAX_BYTES) {
+                    ctx->embd_lru.push_front(key);
+                    NativeVLMContext::EmbdEntry entry{std::move(from_disk), ctx->embd_lru.begin()};
+                    it = ctx->embd_cache.emplace(key, std::move(entry)).first;
+                    ctx->embd_cache_bytes += need_bytes;
                 } else {
                     eval_rc = mtmd_helper_decode_image_chunk(
                         ctx->ctx_mtmd, ctx->ctx_llama, chunk,
@@ -441,10 +475,14 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
                 save_embd_file(ctx->cache_dir, key, out, need);
             }
 
-            if (!key.empty() && ctx->embd_cache_bytes + need * sizeof(float) <= EMBD_CACHE_MAX_BYTES) {
-                ctx->embd_cache.emplace(key, std::vector<float>(out, out + need));
-                ctx->embd_cache_bytes += need * sizeof(float);
-                it = ctx->embd_cache.find(key);
+            if (!key.empty()) {
+                ctx->evict_embd_cache(need_bytes, EMBD_CACHE_MAX_BYTES);
+            }
+            if (!key.empty() && ctx->embd_cache_bytes + need_bytes <= EMBD_CACHE_MAX_BYTES) {
+                ctx->embd_lru.push_front(key);
+                NativeVLMContext::EmbdEntry entry{std::vector<float>(out, out + need), ctx->embd_lru.begin()};
+                it = ctx->embd_cache.emplace(key, std::move(entry)).first;
+                ctx->embd_cache_bytes += need_bytes;
             } else {
                 // cache full (or unkeyed): decode straight from the encoder output
                 eval_rc = mtmd_helper_decode_image_chunk(
@@ -458,7 +496,7 @@ Java_com_cctv_videorag_llm_OnDeviceVLM_nativeGenerate(
 
         eval_rc = mtmd_helper_decode_image_chunk(
             ctx->ctx_mtmd, ctx->ctx_llama, chunk,
-            it->second.data(), n_past, /*seq_id*/ 0, /*n_batch*/ 2048,
+            it->second.data.data(), n_past, /*seq_id*/ 0, /*n_batch*/ 2048,
             &n_past, nullptr, nullptr);
         if (eval_rc != 0) break;
     }

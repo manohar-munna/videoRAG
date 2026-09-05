@@ -297,7 +297,7 @@ class OnDeviceEmbedder private constructor(
     fun embedTextVariants(text: String): List<FloatArray> {
         val caption = toCaption(text)
         val out = mutableListOf(embedCaption(caption))
-        val head = headNoun(caption.removePrefix("a photo of ").trim())
+        val head = headNoun(text)
         if (head != null) {
             out.add(embedCaption("a photo of a $head"))
             Log.i(TAG, "query \"$text\" -> \"$caption\" | \"a photo of a $head\"")
@@ -311,6 +311,15 @@ class OnDeviceEmbedder private constructor(
     private val TRAILING_PREPS = setOf(
         "in", "on", "at", "with", "near", "under", "over", "behind", "beside",
         "by", "from", "next", "inside", "outside", "across", "beneath", "against"
+    )
+
+    private val QUESTION_OR_AUX_WORDS = setOf(
+        "what", "which", "who", "whom", "whose", "where", "when", "why", "how",
+        "is", "are", "was", "were", "be", "been", "being", "am",
+        "do", "does", "did", "can", "could", "will", "would", "shall", "should",
+        "show", "me", "find", "any", "there", "here", "you", "see", "seen",
+        "visible", "appear", "appears", "appeared", "look", "looks", "please",
+        "tell", "the", "a", "an", "i", "we", "they", "it"
     )
 
     /**
@@ -333,13 +342,22 @@ class OnDeviceEmbedder private constructor(
      * daylight frames. Cutting at the first preposition gives "bus", which is the subject
      * the recall variant was always meant to find.
      */
-    private fun headNoun(body: String): String? {
-        val words = body.split(Regex("""\s+""")).filter { it.isNotBlank() }
-        if (words.size < 3) return null
-        val cut = words.indexOfFirst { it.lowercase() in TRAILING_PREPS }
-        val stem = if (cut > 0) words.subList(0, cut) else words
-        val head = stem.lastOrNull()?.lowercase()?.trim(',', '.', ';', '!', '?')
-        return head?.takeIf { it.isNotBlank() && it !in TRAILING_PREPS && it != body.lowercase() }
+    private fun headNoun(text: String): String? {
+        val rawWords = text.lowercase()
+            .replace(Regex("[^a-z0-9 ]"), " ")
+            .split(Regex("""\s+"""))
+            .filter { it.isNotBlank() }
+        val contentWords = rawWords.filter { it !in QUESTION_OR_AUX_WORDS && it !in TRAILING_PREPS }
+        val cut = rawWords.indexOfFirst { it in TRAILING_PREPS }
+        if (cut > 0) {
+            val prePrepWords = rawWords.subList(0, cut)
+                .filter { it !in QUESTION_OR_AUX_WORDS && it !in TRAILING_PREPS }
+            val head = prePrepWords.lastOrNull()
+            return head?.takeIf { it.length >= 2 && it != text.lowercase().trim() }
+        }
+        if (contentWords.size < 3) return null
+        val head = contentWords.lastOrNull()
+        return head?.takeIf { it.length >= 2 && it != text.lowercase().trim() }
     }
 
     /** Embed a natural-language query into the SAME 512-D space. */

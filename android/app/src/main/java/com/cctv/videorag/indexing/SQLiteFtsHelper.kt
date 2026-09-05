@@ -46,27 +46,43 @@ class SQLiteFtsHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
     }
 
     fun saveMoment(moment: IndexedMoment, videoKey: String) {
+        saveMoments(listOf(moment), videoKey)
+    }
+
+    /**
+     * Save multiple indexed moments in a single database transaction.
+     * Prevents thousands of individual SQLite disk fsync operations during ingestion.
+     */
+    fun saveMoments(moments: List<IndexedMoment>, videoKey: String) {
+        if (moments.isEmpty()) return
+        val db = writableDatabase
+        db.beginTransaction()
         try {
-            val bb = java.nio.ByteBuffer.allocate(moment.vector.size * 4)
-                .order(java.nio.ByteOrder.LITTLE_ENDIAN)
-            for (f in moment.vector) bb.putFloat(f)
-            val values = ContentValues().apply {
-                put("moment_id", moment.id)
-                put("video_key", videoKey)
-                put("camera", moment.camera)
-                put("timestamp", moment.timestamp)
-                put("epoch_time", moment.epochTime)
-                put("crop_region", moment.cropRegion)
-                put("image_path", moment.imagePath)
-                put("description", moment.description)
-                put("json_metadata", moment.jsonMetadata)
-                put("vector", bb.array())
+            for (moment in moments) {
+                val bb = java.nio.ByteBuffer.allocate(moment.vector.size * 4)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                for (f in moment.vector) bb.putFloat(f)
+                val values = ContentValues().apply {
+                    put("moment_id", moment.id)
+                    put("video_key", videoKey)
+                    put("camera", moment.camera)
+                    put("timestamp", moment.timestamp)
+                    put("epoch_time", moment.epochTime)
+                    put("crop_region", moment.cropRegion)
+                    put("image_path", moment.imagePath)
+                    put("description", moment.description)
+                    put("json_metadata", moment.jsonMetadata)
+                    put("vector", bb.array())
+                }
+                db.insertWithOnConflict(
+                    VECTOR_TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE
+                )
             }
-            writableDatabase.insertWithOnConflict(
-                VECTOR_TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE
-            )
+            db.setTransactionSuccessful()
         } catch (e: Exception) {
-            Log.e(TAG, "saveMoment failed: ${e.message}")
+            Log.e(TAG, "saveMoments failed: ${e.message}")
+        } finally {
+            db.endTransaction()
         }
     }
 
