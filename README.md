@@ -1,131 +1,176 @@
 <div align="center">
 
-# VideoRAG — CCTV Intelligence Platform
-### Multimodal Edge RAG, 2-Stage Cross-Encoder Reranking & Dynamic Dual-Profile VLM (Desktop 4B GPU ⇄ Android Mobile 2B NPU/GPU)
+# VideoRAG — On-Device CCTV Intelligence Platform
+### Autonomous Multimodal Edge RAG, Dual-Tower MobileCLIP-S2 & Native On-Device Qwen2-VL VLM on Android
 
-**Instant CCTV keyframe ingestion, 512-D Apple MobileCLIP-S2 vector search, 6-region spatial pyramid indexing, interactive video playback, and on-demand multi-frame forensic surveillance reasoning.**
+**100% On-Device CCTV Keyframe Ingestion, 64-Bit Perceptual dHash Edge Filtering, 6-Region Spatial Pyramid Indexing, 512-D MobileCLIP-S2 Vector Search, Multi-Turn Conversational Reasoning, and Timestamped Click-to-Seek Video Playback.**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Android](https://img.shields.io/badge/Android-Native%20Kotlin%20%7C%20C%2B%2B%20JNI-green.svg)](android/)
-[![Edge Filter](https://img.shields.io/badge/Edge%20Gate-dHash%20%7C%20pHash%20(<0.15ms)-38bdf8)]()
-[![Embedder](https://img.shields.io/badge/Embedder-Apple%20MobileCLIP--S2%20(512--D)-0284c7)]()
-[![Vector Store](https://img.shields.io/badge/Vector%20Store-In--Memory%20Cosine%20%7C%20FAISS-0369a1)]()
-[![VLM Engine](https://img.shields.io/badge/VLM-Qwen3--VL%204B%20%26%20Qwen2--VL%202B-emerald)]()
+[![Android](https://img.shields.io/badge/Android-Native%20Kotlin%20%7C%20C%2B%2B%20JNI%20(llama.cpp)-green.svg)](android/)
+[![Edge Filter](https://img.shields.io/badge/Edge%20Gate-64--bit%20dHash%20(<0.15ms)-38bdf8)]()
+[![Embedder](https://img.shields.io/badge/Embedder-Apple%20MobileCLIP--S2%20(512--D%20ONNX)-0284c7)]()
+[![Vector Store](https://img.shields.io/badge/Vector%20Store-In--Memory%20Cosine%20%7C%20SQLite%20FTS5-0369a1)]()
+[![VLM Engine](https://img.shields.io/badge/VLM-Qwen2--VL%202B%20%2F%20Qwen2.5--VL%203B%20(ARM64%20NEON)-emerald)]()
 
 </div>
 
 ---
 
 ## 📑 Table of Contents
-- [📱 Android On-Device Native System (Overview & Guide)](#-android-on-device-native-system)
-  - [⚡ How the Android Version Works](#-how-the-android-version-works)
-  - [🔄 Complete Step-by-Step Android Flow](#-complete-step-by-step-android-flow)
-  - [🧠 Are Frames Sent to the LLM for Description Writing?](#-are-frames-sent-to-the-llm-for-description-writing)
-  - [📖 How to Use the Android Version (Step-by-Step Guide)](#-how-to-use-the-android-version)
-  - [🛡️ Strict 2.5GB Mobile RAM Orchestration](#️-strict-25gb-mobile-ram-orchestration)
-  - [🏗️ Android Project Directory Structure](#️-android-project-directory-structure)
-- [📌 System Architecture & Pipeline Overview (Desktop / Web)](#-system-architecture--pipeline-overview)
-- [⚡ Dynamic Dual-Profile VLM Execution (Desktop 4B vs. Mobile 2B)](#-dynamic-dual-profile-vlm-execution-desktop-4b-vs-mobile-2b)
-- [🔍 Two-Stage Retrieval: FAISS Cosine + Cross-Encoder Reranking](#-two-stage-retrieval-faiss-cosine--cross-encoder-reranking)
-- [📹 Edge-Gate Frame Filtering (dHash / pHash)](#-edge-gate-frame-filtering-dhash--phash)
-- [🖥️ Surveillance Command Center Web UI](#️-surveillance-command-center-web-ui)
-- [🔬 Real-Time Forensic Diagnostics & Retrieval Debug Panel](#-real-time-forensic-diagnostics--retrieval-debug-panel)
-- [🛠️ Quickstart & Desktop Installation](#️-quickstart--desktop-installation)
-- [🔌 REST API Reference](#-rest-api-reference)
-- [⚙️ Configuration Reference (`config.yaml`)](#️-configuration-reference-configyaml)
-- [❓ Troubleshooting & Frequently Asked Questions](#-troubleshooting--frequently-asked-questions)
+- [🏛️ System Architecture Overview](#️-system-architecture-overview)
+  - [⚡ The Core Problem & VideoRAG Paradigm](#-the-core-problem--videorag-paradigm)
+  - [🔄 Complete End-to-End System Pipeline](#-complete-end-to-end-system-pipeline)
+- [📹 Ingestion Engine & Adaptive Sampling](#-ingestion-engine--adaptive-sampling)
+  - [⚡ Sequential Hardware MediaCodec Decoding](#-sequential-hardware-mediacodec-decoding)
+  - [🎯 Duration-Aware Adaptive Sampling (`sampleFpsFor`)](#-duration-aware-adaptive-sampling-samplefpsfor)
+  - [🛡️ Edge-Gate 64-Bit Perceptual dHash Filtering](#️-edge-gate-64-bit-perceptual-dhash-filtering)
+- [🧩 Multimodal Indexing & Spatial Pyramid Engine](#-multimodal-indexing--spatial-pyramid-engine)
+  - [📐 6-Region Spatial Pyramid Cropping (`SpatialCropper.kt`)](#-6-region-spatial-pyramid-cropping-spatialcropperkt)
+  - [🧠 Dual-Tower MobileCLIP-S2 ONNX Embeddings](#-dual-tower-mobileclip-s2-onnx-embeddings)
+  - [🏷️ Zero-Shot On-Device Object Labeling](#️-zero-shot-on-device-object-labeling)
+  - [🗄️ In-Memory Vector Store & SQLite FTS5 Persistence](#️-in-memory-vector-store--sqlite-fts5-persistence)
+- [🔍 Retrieval Dynamics & Anti-Hallucination Pipeline](#-retrieval-dynamics--anti-hallucination-pipeline)
+  - [🔎 Query Expansion & Multi-Variant Embedding](#-query-expansion--multi-variant-embedding)
+  - [📊 Spatial Max-Pooling & Dynamic Candidate Pooling](#-spatial-max-pooling--dynamic-candidate-pooling)
+  - [🛑 Absolute Relevance Score Gating (`MIN_RELEVANCE = 0.19f`)](#-absolute-relevance-score-gating-min_relevance--019f)
+  - [✂️ Semantic Deduplication & Temporal Separation](#️-semantic-deduplication--temporal-separation)
+  - [🎯 Sub-Region Crop Routing (`regionCropPath`)](#-sub-region-crop-routing-regioncroppath)
+- [🧠 On-Device Native VLM & JNI Tensor Execution](#-on-device-native-vlm--jni-tensor-execution)
+  - [⚡ llama.cpp + libmtmd C++ Engine on ARM64 NEON](#-llamacpp--libmtmd-c-engine-on-arm64-neon)
+  - [💾 Multi-Tier Vision Encode Cache (RAM + Disk `.bin`)](#-multi-tier-vision-encode-cache-ram--disk-bin)
+  - [📝 Isolated Per-Frame Prompt Execution](#-isolated-per-frame-prompt-execution)
+  - [🛡️ Anti-Hallucination Post-Processing (`groupBySubject` & `dropUnsupportedTimestamps`)](#️-anti-hallucination-post-processing-groupbysubject--dropunsupportedtimestamps)
+  - [🔒 Strict Sequential RAM Mutex (`MemoryOrchestrator.kt`)](#-strict-sequential-ram-mutex-memoryorchestratorkt)
+- [💬 Conversational Chat UI & Forensic Video Player](#-conversational-chat-ui--forensic-video-player)
+  - [📱 Multi-Turn Conversational Interface (`ChatView.kt`)](#-multi-turn-conversational-interface-chatviewkt)
+  - [🎬 Timestamped Click-to-Seek Video Playback](#-timestamped-click-to-seek-video-playback)
+  - [🔬 Telemetry & Diagnostics Panel (`DebugPanel.kt`)](#-telemetry--diagnostics-panel-debugpanelkt)
+  - [📥 Automated Model Downloader (`ModelDownloader.kt` & `ModelPaths.kt`)](#-automated-model-downloader-modeldownloaderkt--modelpathskt)
+- [🏗️ Android Project Directory Structure](#️-android-project-directory-structure)
+- [🛠️ Build, Sideload & Installation Guide](#️-build-sideload--installation-guide)
+- [❓ Frequently Asked Questions & Forensic Troubleshooting](#-frequently-asked-questions--forensic-troubleshooting)
 - [📄 License](#-license)
 
 ---
 
-## 📱 Android On-Device Native System
+## 🏛️ System Architecture Overview
 
-The repository contains a **100% standalone, zero-cloud-dependency native Android application** (`/android`) built in Kotlin and modern C++ (JNI). It executes surveillance video ingestion, frame extraction, 64-bit difference hashing, spatial pyramid decomposition, 512-D vector indexing, and Vision-Language temporal reasoning directly on physical mobile devices.
-
----
-
-### ⚡ How the Android Version Works
-
-Traditional video search architectures suffer from two major bottlenecks:
-1. **Eager Captioning Overload**: Passing continuous 30-FPS video frames through a heavy Vision-Language Model (VLM) during ingestion is computationally impossible on mobile devices (e.g. a 13-minute video has >23,000 frames).
-2. **Cloud Dependency**: Sending high-resolution private surveillance feeds to third-party APIs incurs high bandwidth cost, latency, and serious privacy risks.
-
-**VideoRAG solves this with a Lazy Multimodal Retrieval + On-Demand Multi-Frame Forensic Reasoning design**:
-- **Zero Heavy Inference during Ingestion**: Video frames are decoded locally, filtered in `<0.15ms` via 64-bit difference hash (`dHash`), sliced into 6 spatial pyramid crops, and embedded into 512-D vector space using lightweight MobileCLIP (`OnDeviceEmbedder.kt`).
-- **Sub-Millisecond Vector Search**: When you search for any prompt (e.g. `"camera crew with black cart"`, `"pink cloths"`, `"white car"`), in-memory cosine scanning retrieves the top matching keyframes instantly.
-- **On-Demand LLM Visual Reasoning**: Only the top retrieved keyframes are compiled into a chronological visual storyboard and passed to the native Vision-Language Model (`OnDeviceVLM.kt` / Qwen2-VL) to analyze *what is happening* and verify the scene.
-
----
-
-### 🔄 Complete Step-by-Step Android Flow
+VideoRAG is a **100% standalone, zero-cloud-dependency native Android application** built with Kotlin and high-performance C++ (`llama.cpp` + `libmtmd`). It brings advanced Multimodal Video Retrieval-Augmented Generation (Video-RAG) to consumer mobile devices (e.g. Qualcomm Snapdragon 8 Gen 2 / Gen 3, MediaTek Dimensity), enabling security operators, forensics teams, and everyday users to query long CCTV recordings in natural language with multi-turn conversation and instant video verification.
 
 ```
- 1. Video Ingestion (MP4 / MKV / Stream Link)
-         │
-         ▼
- ┌─────────────────────────────────────────────────────────────┐
- │ STAGE 1: Keyframe Decoding & 64-bit dHash Filter (<0.15ms) │
- │ • VideoFrameDecoder extracts frames at 0.5, 1.0, or 2.0 FPS │
- │ • MobileFrameFilter calculates 64-bit perceptual dHash     │
- │ • Compares Hamming distance Δ against previous keyframe     │
- │ • Static frames (Δ < 10) are dropped (70-85% reduction)    │
- └─────────────────────────────────────────────────────────────┘
-         │ (Only Motion Keyframes Accepted)
-         ▼
- ┌─────────────────────────────────────────────────────────────┐
- │ STAGE 2: 6-Region Spatial Pyramid & Vector Indexing         │
- │ • SpatialCropper slices frame into 6 spatial regions:       │
- │   [Global, Top-Left, Top-Right, Bottom-Left, Bottom-Right,  │
- │    Center Focus Corridor]                                   │
- │ • OnDeviceEmbedder embeds crops into 512-D vector space     │
- │ • Vectors stored in thread-safe MobileVectorStore in RAM    │
- └─────────────────────────────────────────────────────────────┘
-         │
-         ▼ (User Natural Language Query: e.g. "pink cloths")
- ┌─────────────────────────────────────────────────────────────┐
- │ STAGE 3: Semantic Query Embedding & Spatial Max-Pooling     │
- │ • Embeds user query into 512-D multimodal hypersphere       │
- │ • Scans all indexed spatial region vectors in RAM           │
- │ • Max-Pooling: Retains highest-scoring crop per keyframe   │
- │ • Chronological Sort: Orders candidate frames sequentially  │
- │   from start to end of the video ([00:05:18] ➔ [00:07:10])  │
- └─────────────────────────────────────────────────────────────┘
-         │ (Top Chronological Storyboard Keyframes)
-         ▼
- ┌─────────────────────────────────────────────────────────────┐
- │ STAGE 4: On-Demand VLM Situational Reasoning                │
- │ • Mode A (Neural VLM): Converts keyframes to base64 image   │
- │   URIs and streams tokens via local/LAN Qwen-VL engine      │
- │ • Mode B (Offline Feature Grounding): Evaluates RGB/HSV     │
- │   color spectrums, 4-quadrant spatial grids, & motion deltas│
- │ • Synthesizes situational narrative explaining what happens │
- │   and confirms verified timestamp: [CONFIRMED_AT: HH:MM:SS] │
- └─────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────┐
-│ STAGE 5: Interactive Storyboard & Click-to-Play Video       │
-│ • Displays storyboard carousel with exact Match % and Region│
-│ • Tapping ANY keyframe thumbnail launches the video player  │
-│   and plays the video starting from that exact second!      │
-└─────────────────────────────────────────────────────────────┘
+                                  [ Video Ingestion: MP4 / MKV / Content URI ]
+                                                       │
+                                                       ▼
+ ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │ STAGE 1: Fast Hardware Decoding & Adaptive Keyframe Sampling (VideoFrameDecoder.kt)                       │
+ │ • Sequential MediaCodec single-pass decode (avoids slow seek-per-frame redecoding)                        │
+ │ • sampleFpsFor(): Adapts sampling rate (0.2 - 2.0 FPS) to video duration (aiming for ~60-150 keyframes)   │
+ └───────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                       │
+                                                       ▼
+ ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │ STAGE 2: 64-Bit Perceptual dHash Edge-Gate Filter (MobileFrameFilter.kt)                                  │
+ │ • Computes 64-bit difference hash (dHash) on 9x8 luminance matrix in <0.15 ms                             │
+ │ • Evaluates Hamming distance Δ against the last KEPT keyframe (default threshold Δ >= 10)                 │
+ │ • Drops 70%–85% of redundant static surveillance frames before embedding                                  │
+ └───────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                       │ (Motion Keyframes Accepted)
+                                                       ▼
+ ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │ STAGE 3: 6-Region Spatial Pyramid & MobileCLIP-S2 Embedding (SpatialCropper.kt & OnDeviceEmbedder.kt)     │
+ │ • SpatialCropper slices each frame into 6 spatial pyramid regions (global, top_left, top_right,           │
+ │   bottom_left, bottom_right, center) at 60% scale to preserve small-object resolution                     │
+ │ • Dual-tower MobileCLIP-S2 (ONNX) embeds 6 crops in a single batched pass into 512-D unit hypersphere     │
+ │ • Zero-shot vocabulary labeling classifies detected objects from image vectors                            │
+ │ • Vectors stored in in-memory MobileVectorStore and persisted into SQLite FTS5 for cold restarts          │
+ └───────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                       │
+                    ┌──────────────────────────────────┴──────────────────────────────────┐
+                    ▼ (User Natural Language Query: e.g. "white truck with ladder")       │ (App Restart)
+ ┌──────────────────────────────────────────────────────────────────────────────────┐     ▼
+ │ STAGE 4: Retrieval, Spatial Max-Pooling & Dedup (MainActivity.kt)                │ ┌──────────────────────┐
+ │ • embedTextVariants(): Generates prompt variants and embeds to 512-D space       │ │ Cold-Start Restorer: │
+ │ • Spatial Max-Pooling: Retains highest-scoring spatial crop per keyframe         │ │ Restores vector/FTS  │
+ │ • Absolute Relevance Gate: MIN_RELEVANCE = 0.19f filters absent queries          │ │ index without        │
+ │ • dropNearDuplicates(): Filters cosine duplicates (>0.92) and temporal clusters  │ │ re-encoding video    │
+ └──────────────────────────────────────────────────────────────────────────────────┘ └──────────────────────┘
+                                                       │ (Top Candidate Keyframes)
+                                                       ▼
+ ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │ STAGE 5: On-Device Multimodal VLM Forensic Reasoning (OnDeviceVLM.kt & native-lib.cpp)                    │
+ │ • Sub-region crop routing (regionCropPath): Feeds winning 60% crop upscaled (~2.8x pixel density)         │
+ │ • MemoryOrchestrator: Releases MobileCLIP ONNX sessions from RAM before allocating VLM context            │
+ │ • llama.cpp + libmtmd C++ Engine: Qwen2-VL 2B / Qwen2.5-VL 3B GGUF with Q8_0 quantised projector         │
+ │ • Multi-Tier Vision Encode Cache: Reuses in-memory & disk .bin embeddings (saves ~98s prefill latency)   │
+ │ • Independent per-frame generation + groupBySubject + dropUnsupportedTimestamps anti-hallucination guard  │
+ └───────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                       │
+                                                       ▼
+ ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │ STAGE 6: Conversational Chat UI & Click-to-Seek Forensic Video Player (ChatView.kt)                       │
+ │ • Multi-turn conversational message bubbles displaying chronological subject descriptions                 │
+ │ • Interactive keyframe thumbnail gallery showing exact crop passed to the vision model                    │
+ │ • Tapping ANY timestamp (e.g. 00:03:42) immediately seeks and plays the video at that exact second!       │
+ └───────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 🧠 Are Frames Sent to the LLM for Description Writing?
+### ⚡ The Core Problem & VideoRAG Paradigm
 
-> [!IMPORTANT]
-> **YES — but strategically on-demand (Lazy Execution) rather than during ingestion!**
+Traditional video question answering (Video-QA) architectures suffer from fatal flaws on edge devices:
+1. **Eager Captioning Overload**: Feeding every continuous 30-FPS frame into a heavy Vision-Language Model (VLM) during ingestion takes hours or days for even a 10-minute clip (a 13-minute video contains >23,000 raw frames).
+2. **Cloud Privacy & Latency Penalties**: Streaming continuous high-resolution surveillance video to cloud endpoints incurs massive bandwidth fees, latency lags, and violates strict surveillance privacy regulations.
+3. **Small-Object Blindness**: Downscaling an entire $1920 \times 1080$ surveillance frame to $256 \times 256$ causes small targets (e.g. backpacks, license plates, distant pedestrians, livery text) to blur into unrecognizable noise.
 
-1. **During Ingestion**:
-   - Frames are **NOT** sent to the LLM. Doing so would freeze the phone and drain battery. Instead, frames are processed in `<0.15ms` by the 64-bit dHash filter and the 512-D MobileCLIP feature embedder.
-2. **After Vector Retrieval (When Query is Submitted)**:
-   - **YES!** Once the vector store retrieves and ranks the top keyframes matching your prompt, the exact **storyboard keyframe images (JPEG files)** are packaged into base64 data URIs and passed to the Vision-Language reasoning pipeline (`OnDeviceVLM.kt`).
-3. **What the VLM Pipeline Does with the Frames**:
-   - **Neural Multimodal Vision (Qwen2-VL / Qwen3-VL)**: Inspects the raw visual pixels of each keyframe in chronological sequence, identifying subject entry, spatial movement across quadrants (`[top_left]` ➔ `[top_right]`), object interactions, and exit trajectory.
-   - **Dynamic Evidence Grounding (Offline Mode)**: Decodes the keyframe bitmaps to extract dominant color histograms, scene luminosity, and frame-to-frame motion energy, generating an authentic forensic verdict with zero mock templates.
-   - Outputs verified timestamp confirmation tags: `[CONFIRMED_AT: HH:MM:SS]`.
+**VideoRAG solves these bottlenecks with a Lazy Multimodal Retrieval + Spatial Pyramid + On-Demand Multi-Frame Forensic Reasoning architecture**:
+- **Ingestion in Seconds, Not Hours**: Frames are extracted via sequential `MediaCodec`, filtered in `<0.15 ms` with a 64-bit difference hash, sliced into 6 spatial pyramid crops, and embedded with lightweight MobileCLIP-S2 into 512-D vectors in RAM.
+- **Small-Target Preservation**: Slicing the keyframe into 6 overlapping 60% spatial crops gives small objects **~2.8x higher pixel density** in the embedding space and during VLM inspection.
+- **Sub-Millisecond Vector Retrieval**: Instant in-memory cosine dot-product ranking retrieves the most relevant moments across hours of footage in microseconds.
+- **Lazy On-Demand VLM Reasoning**: The heavy Qwen2-VL model is loaded into RAM *only* when a query is submitted, examining only the top-ranked candidate keyframes.
+
+---
+
+## 📹 Ingestion Engine & Adaptive Sampling
+
+The ingestion pipeline transforms raw surveillance video files into high-density indexed moments with minimal CPU/GPU overhead.
+
+```
+ [ Video Stream / File ] ──► [ Sequential MediaCodec ] ──► [ 64-bit dHash Filter ] ──► [ Motion Keyframe ]
+                                (1 pass: 0.2-2.0 FPS)         (Hamming Δ >= 10)
+```
+
+### ⚡ Sequential Hardware MediaCodec Decoding
+- **Source**: [`VideoFrameDecoder.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/ingestion/VideoFrameDecoder.kt)
+- **Problem**: Standard Android `MediaMetadataRetriever.getFrameAtTime(timeUs, OPTION_CLOSEST)` must decode forward from the preceding keyframe (I-frame) on *every single request*. Sampling 800 times across a 13-minute video re-decodes the video hundreds of times, taking >18 minutes just to decode frames!
+- **Solution**: VideoRAG implements a **single-pass sequential `MediaCodec` extractor** (`decodeVideoSequential`). The MP4/MKV video stream is extracted and decoded sequentially once, emitting frames directly at the target timestamp interval into memory.
+- **Fallback**: If an unusual container format or hardware codec failure occurs, it gracefully falls back to `MediaMetadataRetriever` with `OPTION_CLOSEST` (deliberately avoiding `OPTION_CLOSEST_SYNC`, which snaps to sync frames and returns duplicate I-frames).
+- **Resolution Normalization**: Extracted keyframes are downscaled to a maximum edge of `MAX_KEYFRAME_DIM = 640px` (e.g. $640 \times 360$ for 16:9), bounding vision tokens to ~264–299 tokens per frame for fast VLM evaluation.
+
+### 🎯 Duration-Aware Adaptive Sampling (`sampleFpsFor`)
+- **Source**: [`MainActivity.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/MainActivity.kt#L138-L148)
+- Fixed sampling rates fail across varied video lengths:
+  - Sampling at 0.2 FPS over a 48-second clip yields only ~9 frames and ~40 vectors, starving retrieval so queries return identical frames.
+  - Sampling at 1.0 FPS over a 30-minute recording generates >1,800 frames and >10,000 vectors, causing memory pressure and excessive near-duplicate candidates.
+- **Adaptive Formula**:
+  $$\text{sampleFps} = \text{clamp}\left(\frac{\text{TARGET\_KEYFRAMES}}{\text{durationSeconds}}, \text{MIN\_SAMPLE\_FPS}, \text{MAX\_SAMPLE\_FPS}\right)$$
+  - $\text{TARGET\_KEYFRAMES} = 60.0$ frames
+  - $\text{MIN\_SAMPLE\_FPS} = 0.2\text{ FPS}$ (1 frame every 5 seconds; optimal for 10–30 min videos)
+  - $\text{MAX\_SAMPLE\_FPS} = 2.0\text{ FPS}$ (1 frame every 0.5 seconds; optimal for short <1 min clips)
+
+### 🛡️ Edge-Gate 64-Bit Perceptual dHash Filtering
+- **Source**: [`MobileFrameFilter.kt`](file:///c:/Users/manoh/Downloads/git%20repos/VideoRAG-main/android/app/src/main/java/com/cctv/videorag/ingestion/MobileFrameFilter.kt)
+- **Execution Speed**: $< 0.15\text{ ms}$ on mobile CPU.
+- **Algorithm**:
+  1. Downscales the keyframe bitmap to a $9 \times 8$ grayscale matrix.
+  2. Computes the grayscale luminosity using $Y = 0.299R + 0.587G + 0.114B$.
+  3. Evaluates horizontal luminance gradient: $\text{bit}_{x, y} = 1 \text{ if } \text{gray}[x] > \text{gray}[x+1] \text{ else } 0$.
+  4. Packs the 64 boolean comparisons into a single 64-bit `Long` integer (`dHash`).
+- **Hamming Distance Gate**:
+  $$\Delta = \text{bitCount}(\text{hash}_{\text{current}} \oplus \text{hash}_{\text{last\_kept}})$$
+  - If $\Delta < 10$ (`DEFAULT_HAMMING_THRESHOLD`), the frame is classified as a static duplicate and dropped immediately.
+  - **Crucial Design**: Compares against the **last kept frame** rather than the immediately preceding sampled frame, ensuring slow camera pans or gradual lighting shifts are not mistakenly dropped.
+  - **Efficiency**: Drops **70% to 85%** of redundant CCTV frames at the edge gate before spatial cropping or vector embedding.
 
 ---
 
