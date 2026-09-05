@@ -297,17 +297,49 @@ class OnDeviceEmbedder private constructor(
     fun embedTextVariants(text: String): List<FloatArray> {
         val caption = toCaption(text)
         val out = mutableListOf(embedCaption(caption))
-        // Head-noun heuristic: English puts it last in these phrasings ("... on the VAN",
-        // "... wearing pink COSTUMES"), so the trailing content word is the subject often
-        // enough to be worth one extra embedding.
-        val head = caption.removePrefix("a photo of ").trim().split(" ").lastOrNull()
-        if (!head.isNullOrBlank() && head != caption.removePrefix("a photo of ").trim()) {
+        val head = headNoun(caption.removePrefix("a photo of ").trim())
+        if (head != null) {
             out.add(embedCaption("a photo of a $head"))
             Log.i(TAG, "query \"$text\" -> \"$caption\" | \"a photo of a $head\"")
         } else {
-            Log.i(TAG, "query \"$text\" -> \"$caption\"")
+            Log.i(TAG, "query \"$text\" -> \"$caption\" (no head-noun variant)")
         }
         return out
+    }
+
+    /** Words that begin a trailing phrase; the subject sits before them, not after. */
+    private val TRAILING_PREPS = setOf(
+        "in", "on", "at", "with", "near", "under", "over", "behind", "beside",
+        "by", "from", "next", "inside", "outside", "across", "beneath", "against"
+    )
+
+    /**
+     * The subject of a descriptive phrase, or null when the phrase has none worth
+     * searching separately.
+     *
+     * The variant this feeds is max-pooled into the ranking, so whatever it names decides
+     * which frames the model is shown. Taking the last word - the previous rule - got that
+     * wrong in both directions.
+     *
+     * Too short: "yellow car" reduced to "car". On traffic footage that matches every
+     * frame, so retrieval ranked by "is there a car" and handed the model five frames of
+     * ordinary cars for a colour that never appears. The model then obliged: a green taxi
+     * was reported as "a yellow car is on the road", and two blue number plates became
+     * yellow ones. A two-word query is all signal - the modifier IS the question - so
+     * there is no recall to protect and no variant is added.
+     *
+     * Wrong end: "a red double decker bus in the snow" reduced to "snow", which the
+     * comment on MIN_RELEVANCE already records as scoring above the gate against ordinary
+     * daylight frames. Cutting at the first preposition gives "bus", which is the subject
+     * the recall variant was always meant to find.
+     */
+    private fun headNoun(body: String): String? {
+        val words = body.split(Regex("""\s+""")).filter { it.isNotBlank() }
+        if (words.size < 3) return null
+        val cut = words.indexOfFirst { it.lowercase() in TRAILING_PREPS }
+        val stem = if (cut > 0) words.subList(0, cut) else words
+        val head = stem.lastOrNull()?.lowercase()?.trim(',', '.', ';', '!', '?')
+        return head?.takeIf { it.isNotBlank() && it !in TRAILING_PREPS && it != body.lowercase() }
     }
 
     /** Embed a natural-language query into the SAME 512-D space. */
