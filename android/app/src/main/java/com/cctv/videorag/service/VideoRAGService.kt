@@ -30,7 +30,7 @@ class VideoRAGService : Service() {
     override fun onCreate() {
         super.onCreate()
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannel()
+        createNotificationChannels()
         acquireWakeLock()
     }
 
@@ -85,9 +85,9 @@ class VideoRAGService : Service() {
         }
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val opsChannel = NotificationChannel(
                 CHANNEL_ID,
                 "VideoRAG Operations",
                 NotificationManager.IMPORTANCE_LOW
@@ -95,7 +95,18 @@ class VideoRAGService : Service() {
                 description = "Shows progress of background queries, video indexing, and downloads"
                 setShowBadge(false)
             }
-            notificationManager.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(opsChannel)
+
+            val resultsChannel = NotificationChannel(
+                CHANNEL_RESULTS_ID,
+                "VideoRAG Query Results",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifies when background query or indexing completes"
+                setShowBadge(true)
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(resultsChannel)
         }
     }
 
@@ -150,8 +161,10 @@ class VideoRAGService : Service() {
 
     companion object {
         private const val TAG = "VideoRAGService"
-        private const val CHANNEL_ID = "videorag_background_ops"
-        private const val NOTIFICATION_ID = 4040
+        const val CHANNEL_ID = "videorag_background_ops"
+        const val CHANNEL_RESULTS_ID = "videorag_query_results"
+        const val NOTIFICATION_ID = 4040
+        const val RESULT_NOTIFICATION_ID = 4041
 
         private const val ACTION_START = "com.cctv.videorag.action.START"
         private const val ACTION_UPDATE = "com.cctv.videorag.action.UPDATE"
@@ -199,6 +212,44 @@ class VideoRAGService : Service() {
             try {
                 context.startService(intent)
             } catch (_: Exception) {}
+        }
+
+        fun notifyQueryComplete(context: Context, query: String, answer: String) {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val resultsChannel = NotificationChannel(
+                    CHANNEL_RESULTS_ID,
+                    "VideoRAG Query Results",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Notifies when background query or indexing completes"
+                    setShowBadge(true)
+                    enableVibration(true)
+                }
+                notificationManager.createNotificationChannel(resultsChannel)
+            }
+
+            val tapIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                context, 1, tapIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val shortSnippet = if (answer.length > 80) answer.take(77) + "…" else answer
+            val notif = NotificationCompat.Builder(context, CHANNEL_RESULTS_ID)
+                .setContentTitle("VideoRAG: Answer Ready")
+                .setContentText(shortSnippet)
+                .setStyle(NotificationCompat.BigTextStyle().bigText("Query: \"$query\"\n\n$answer"))
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .build()
+
+            notificationManager.notify(RESULT_NOTIFICATION_ID, notif)
         }
     }
 }

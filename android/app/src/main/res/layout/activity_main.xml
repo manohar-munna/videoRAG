@@ -141,13 +141,71 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- height is replaced at runtime with one matching the video's aspect ratio
-                 (see fitPlayerToVideo); 200dp is only what shows before it is prepared -->
-            <VideoView
-                android:id="@+id/videoViewPlayback"
+            <!-- Video container with double-tap skip feedback overlay -->
+            <FrameLayout
+                android:id="@+id/flVideoContainer"
                 android:layout_width="match_parent"
                 android:layout_height="200dp"
-                android:layout_gravity="center_horizontal" />
+                android:layout_gravity="center_horizontal">
+
+                <!-- height is replaced at runtime with one matching the video's aspect ratio
+                     (see fitPlayerToVideo); 200dp is only what shows before it is prepared -->
+                <VideoView
+                    android:id="@+id/videoViewPlayback"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center" />
+
+                <TextView
+                    android:id="@+id/tvSkipFeedback"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:background="@drawable/btn_folder_bg"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="8dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <!-- Playback Progress Bar Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/card_bg"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:paddingTop="6dp">
+
+                <TextView
+                    android:id="@+id/tvPlayerCurrentTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_main"
+                    android:textSize="11sp"
+                    android:text="00:00" />
+
+                <SeekBar
+                    android:id="@+id/seekBarVideo"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="1000"
+                    android:progress="0"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="4dp" />
+
+                <TextView
+                    android:id="@+id/tvPlayerTotalTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp"
+                    android:text="00:00" />
+            </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -156,7 +214,8 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:paddingHorizontal="10dp"
-                android:paddingVertical="6dp">
+                android:paddingBottom="6dp"
+                android:paddingTop="2dp">
 
                 <TextView
                     android:id="@+id/tvPlayerTimestamp"

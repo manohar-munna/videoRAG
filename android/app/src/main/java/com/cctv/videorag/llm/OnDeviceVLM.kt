@@ -112,6 +112,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
 
         val candidatePaths = mutableListOf<String>()
         customModelDirectory?.let { candidatePaths.add(it) }
+        candidatePaths.addAll(com.cctv.videorag.ModelPaths.searchDirs(context).map { it.absolutePath })
 
         candidatePaths.addAll(
             listOf(

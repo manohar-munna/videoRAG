@@ -1,17 +1,25 @@
 package com.cctv.videorag
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.view.GestureDetector
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.VideoView
@@ -270,11 +278,30 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSearch: Button
     private lateinit var btnStop: Button
     private lateinit var cardVideoPlayback: CardView
+    private lateinit var flVideoContainer: FrameLayout
+    private lateinit var tvSkipFeedback: TextView
     private lateinit var tvPlayerTimestamp: TextView
     private lateinit var videoViewPlayback: VideoView
+    private lateinit var seekBarVideo: SeekBar
+    private lateinit var tvPlayerCurrentTime: TextView
+    private lateinit var tvPlayerTotalTime: TextView
     private lateinit var btnClosePlayer: Button
     private lateinit var btnPlayPause: Button
     private lateinit var btnReplayTimestamp: Button
+
+    private val playerHandler = Handler(Looper.getMainLooper())
+    private var isUserTrackingSeekBar = false
+
+    private val playerProgressRunnable = object : Runnable {
+        override fun run() {
+            updatePlayerProgress()
+            playerHandler.postDelayed(this, 250)
+        }
+    }
+
+    private val hideSkipFeedbackRunnable = Runnable {
+        tvSkipFeedback.visibility = View.GONE
+    }
 
     private val pickVideoLauncher =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -316,6 +343,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        checkNotificationPermission()
         initViews()
         // Both models live in one permission-free directory; see ModelPaths.
         orchestrator = MemoryOrchestrator(
@@ -335,6 +363,67 @@ class MainActivity : AppCompatActivity() {
         updateModelBadge()
     }
 
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+    }
+
+    private fun startPlayerProgressUpdates() {
+        playerHandler.removeCallbacks(playerProgressRunnable)
+        playerHandler.post(playerProgressRunnable)
+    }
+
+    private fun stopPlayerProgressUpdates() {
+        playerHandler.removeCallbacks(playerProgressRunnable)
+    }
+
+    private fun updatePlayerProgress() {
+        val duration = videoViewPlayback.duration
+        val current = videoViewPlayback.currentPosition
+        if (duration > 0) {
+            tvPlayerTotalTime.text = formatTimeMs(duration)
+            if (!isUserTrackingSeekBar) {
+                val progress = ((current.toLong() * 1000) / duration).toInt().coerceIn(0, 1000)
+                seekBarVideo.progress = progress
+                tvPlayerCurrentTime.text = formatTimeMs(current)
+            }
+        }
+    }
+
+    private fun formatTimeMs(ms: Int): String {
+        val totalSec = (ms / 1000).coerceAtLeast(0)
+        val m = totalSec / 60
+        val s = totalSec % 60
+        return String.format(Locale.US, "%02d:%02d", m, s)
+    }
+
+    private fun skipSeconds(seconds: Int) {
+        val duration = videoViewPlayback.duration
+        val current = videoViewPlayback.currentPosition
+        val target = (current + seconds * 1000).coerceIn(0, if (duration > 0) duration else Int.MAX_VALUE)
+        videoViewPlayback.seekTo(target)
+        updatePlayerProgress()
+
+        tvSkipFeedback.text = if (seconds > 0) "+${seconds}s ⏩" else "${seconds}s ⏪"
+        tvSkipFeedback.visibility = View.VISIBLE
+        tvSkipFeedback.removeCallbacks(hideSkipFeedbackRunnable)
+        tvSkipFeedback.postDelayed(hideSkipFeedbackRunnable, 650)
+    }
+
+    private fun togglePlayPause() {
+        if (videoViewPlayback.isPlaying) {
+            videoViewPlayback.pause()
+            btnPlayPause.text = "▶"
+        } else {
+            videoViewPlayback.start()
+            btnPlayPause.text = "⏸"
+            startPlayerProgressUpdates()
+        }
+    }
+
     private fun initViews() {
         scrollView = findViewById(R.id.mainScrollView)
         chatContainer = findViewById(R.id.layoutChatMessages)
@@ -349,8 +438,13 @@ class MainActivity : AppCompatActivity() {
         btnSearch = findViewById(R.id.btnSearch)
         btnStop = findViewById(R.id.btnStop)
         cardVideoPlayback = findViewById(R.id.cardVideoPlayback)
+        flVideoContainer = findViewById(R.id.flVideoContainer)
+        tvSkipFeedback = findViewById(R.id.tvSkipFeedback)
         tvPlayerTimestamp = findViewById(R.id.tvPlayerTimestamp)
         videoViewPlayback = findViewById(R.id.videoViewPlayback)
+        seekBarVideo = findViewById(R.id.seekBarVideo)
+        tvPlayerCurrentTime = findViewById(R.id.tvPlayerCurrentTime)
+        tvPlayerTotalTime = findViewById(R.id.tvPlayerTotalTime)
         btnClosePlayer = findViewById(R.id.btnClosePlayer)
         btnPlayPause = findViewById(R.id.btnPlayPause)
         btnReplayTimestamp = findViewById(R.id.btnReplayTimestamp)
@@ -372,24 +466,72 @@ class MainActivity : AppCompatActivity() {
         etQuery.setOnEditorActionListener { _, _, _ -> submitQuestion(); true }
 
         btnClosePlayer.setOnClickListener {
+            stopPlayerProgressUpdates()
             videoViewPlayback.stopPlayback()
             cardVideoPlayback.visibility = View.GONE
         }
         btnPlayPause.setOnClickListener {
-            if (videoViewPlayback.isPlaying) {
-                videoViewPlayback.pause(); btnPlayPause.text = "▶"
-            } else {
-                videoViewPlayback.start(); btnPlayPause.text = "⏸"
-            }
+            togglePlayPause()
         }
         btnReplayTimestamp.setOnClickListener {
             videoViewPlayback.seekTo(lastSelectedTimestampMs)
             videoViewPlayback.start()
             btnPlayPause.text = "⏸"
+            startPlayerProgressUpdates()
         }
+        seekBarVideo.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val duration = videoViewPlayback.duration
+                    if (duration > 0) {
+                        val seekPos = ((progress.toLong() * duration) / 1000).toInt()
+                        tvPlayerCurrentTime.text = formatTimeMs(seekPos)
+                    }
+                }
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                isUserTrackingSeekBar = true
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                isUserTrackingSeekBar = false
+                val duration = videoViewPlayback.duration
+                if (duration > 0 && seekBar != null) {
+                    val seekPos = ((seekBar.progress.toLong() * duration) / 1000).toInt()
+                    videoViewPlayback.seekTo(seekPos)
+                    tvPlayerCurrentTime.text = formatTimeMs(seekPos)
+                }
+            }
+        })
+        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                val width = flVideoContainer.width
+                if (width <= 0) return false
+                val isRight = e.x >= (width / 2f)
+                skipSeconds(if (isRight) 5 else -5)
+                return true
+            }
+
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                togglePlayPause()
+                return true
+            }
+
+            override fun onDown(e: MotionEvent): Boolean = true
+        })
+        val touchListener = View.OnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+            true
+        }
+        flVideoContainer.setOnTouchListener(touchListener)
+        videoViewPlayback.setOnTouchListener(touchListener)
+
         videoViewPlayback.setOnPreparedListener { mp ->
             mp.isLooping = false
             fitPlayerToVideo(mp.videoWidth, mp.videoHeight)
+            tvPlayerTotalTime.text = formatTimeMs(mp.duration)
+            startPlayerProgressUpdates()
         }
         videoViewPlayback.setOnErrorListener { _, w, e ->
             Log.w("VideoView", "playback error what=$w extra=$e"); true
@@ -890,6 +1032,7 @@ class MainActivity : AppCompatActivity() {
         lastQuery = q
         val startedAt = System.currentTimeMillis()
         currentQueryJob = appScope.launch(Dispatchers.Default) {
+            VideoRAGService.update(this@MainActivity, "VideoRAG", "Searching keyframes for \"$q\"…", progress = -2)
             val result = try { answerQuestion(q) }
                          catch (e: Throwable) {
                              if (orchestrator.isVLMAborted()) {
@@ -909,6 +1052,9 @@ class MainActivity : AppCompatActivity() {
                 btnSearch.visibility = View.VISIBLE
                 btnSearch.isEnabled = true
                 VideoRAGService.stop(this@MainActivity)
+                if (!orchestrator.isVLMAborted()) {
+                    VideoRAGService.notifyQueryComplete(this@MainActivity, q, result.text)
+                }
                 ChatView.replacePending(
                     chatContainer, result.text,
                     onTimestamp = { seconds -> playVideoAt(seconds) },
@@ -1029,6 +1175,7 @@ class MainActivity : AppCompatActivity() {
         // generating, which is the memory-tightest phase of the whole app.
         orchestrator.releaseEmbedder()
 
+        VideoRAGService.update(this, "VideoRAG", "Generating answer with on-device VLM…", progress = -2)
         val vlm = orchestrator.getActiveVLM()
         val text = vlm.answerFromRetrievedContext(
             query = question,
@@ -1175,21 +1322,28 @@ class MainActivity : AppCompatActivity() {
      */
     private fun fitPlayerToVideo(videoWidth: Int, videoHeight: Int) {
         if (videoWidth <= 0 || videoHeight <= 0) return
-        val row = videoViewPlayback.parent as? View ?: return
+        val row = flVideoContainer.parent as? View ?: return
         val available = row.width - row.paddingLeft - row.paddingRight
         if (available <= 0) return
         val maxHeight = (280 * resources.displayMetrics.density).toInt()
         val wanted = (available.toLong() * videoHeight / videoWidth).toInt()
-        val lp = videoViewPlayback.layoutParams as LinearLayout.LayoutParams
+        val lp = flVideoContainer.layoutParams as LinearLayout.LayoutParams
         lp.height = wanted.coerceAtMost(maxHeight)
         lp.gravity = Gravity.CENTER_HORIZONTAL
-        videoViewPlayback.layoutParams = lp
+        flVideoContainer.layoutParams = lp
     }
 
     /** Seek the inline player to [seconds]; wired to timestamps inside chat messages. */
     private fun playVideoAt(seconds: Int) {
         val uri = currentVideoUri ?: run {
-            Toast.makeText(this, "No video loaded", Toast.LENGTH_SHORT).show(); return
+            val local = localVideoFile()
+            if (local.exists() && local.length() > 0) {
+                val u = Uri.fromFile(local)
+                currentVideoUri = u
+                u
+            } else {
+                Toast.makeText(this, "No video loaded", Toast.LENGTH_SHORT).show(); return
+            }
         }
         lastSelectedTimestampMs = seconds * 1000
         cardVideoPlayback.visibility = View.VISIBLE
@@ -1198,6 +1352,7 @@ class MainActivity : AppCompatActivity() {
         videoViewPlayback.seekTo(lastSelectedTimestampMs)
         videoViewPlayback.start()
         btnPlayPause.text = "⏸"
+        startPlayerProgressUpdates()
     }
 
     /** Diagnostics that used to clutter the main screen, now one tap away. */
@@ -1250,6 +1405,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopPlayerProgressUpdates()
         try { videoViewPlayback.stopPlayback() } catch (_: Exception) {}
         if (isFinishing) {
             VideoRAGService.stop(this)
