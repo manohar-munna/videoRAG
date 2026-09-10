@@ -2,7 +2,6 @@ package com.cctv.videorag.ingestion
 
 import android.graphics.Bitmap
 import java.lang.Long.bitCount
-import kotlin.math.abs
 
 object MobileFrameFilter {
 
@@ -80,41 +79,4 @@ object MobileFrameFilter {
         return bitCount(hash1 xor hash2)
     }
 
-    /**
-     * High-Sensitivity Sub-block Motion Detector (for highway CCTV / wide surveillance scenes):
-     * Computes pixel intensity delta across downsampled grid.
-     */
-    fun calculateMotionEnergy(bmp1: Bitmap, bmp2: Bitmap): Float {
-        val w = 16
-        val h = 16
-        val s1 = Bitmap.createScaledBitmap(bmp1, w, h, true)
-        val s2 = Bitmap.createScaledBitmap(bmp2, w, h, true)
-        val p1 = IntArray(w * h)
-        val p2 = IntArray(w * h)
-        s1.getPixels(p1, 0, w, 0, 0, w, h)
-        s2.getPixels(p2, 0, w, 0, 0, w, h)
-        if (s1 != bmp1) s1.recycle()
-        if (s2 != bmp2) s2.recycle()
-
-        var diffSum = 0f
-        for (i in p1.indices) {
-            val r1 = (p1[i] shr 16) and 0xFF
-            val r2 = (p2[i] shr 16) and 0xFF
-            val g1 = (p1[i] shr 8) and 0xFF
-            val g2 = (p2[i] shr 8) and 0xFF
-            val b1 = p1[i] and 0xFF
-            val b2 = p2[i] and 0xFF
-            val lum1 = 0.299f * r1 + 0.587f * g1 + 0.114f * b1
-            val lum2 = 0.299f * r2 + 0.587f * g2 + 0.114f * b2
-            diffSum += abs(lum1 - lum2)
-        }
-        return diffSum / (w * h * 255f)
-    }
-
-    /**
-     * Format 64-bit hash as 16-character hexadecimal string.
-     */
-    fun formatHashHex(hash: Long): String {
-        return String.format("%016X", hash)
-    }
 }

@@ -41,6 +41,12 @@ class VideoRAGService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_START, ACTION_UPDATE -> {
+                // Every progress update re-arms the wakelock's safety timeout. It was
+                // acquired once in onCreate with a 15-minute cap, so any operation
+                // longer than that - a 2 GB model download on slow Wi-Fi comfortably
+                // is - silently lost the CPU once the screen went off and stalled
+                // until the user looked at the phone again.
+                extendWakeLock()
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "VideoRAG"
                 val message = intent.getStringExtra(EXTRA_MESSAGE) ?: "Processing in background…"
                 val progress = intent.getIntExtra(EXTRA_PROGRESS, -1)
@@ -66,12 +72,17 @@ class VideoRAGService : Service() {
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "VideoRAG:BackgroundOps").apply {
                 setReferenceCounted(false)
-                acquire(15 * 60 * 1000L) // 15 minute safety timeout
+                acquire(WAKELOCK_TIMEOUT_MS)
             }
             Log.d(TAG, "WakeLock acquired")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to acquire WakeLock: ${e.message}")
         }
+    }
+
+    /** Reset the safety timeout; with setReferenceCounted(false) re-acquiring extends it. */
+    private fun extendWakeLock() {
+        try { wakeLock?.acquire(WAKELOCK_TIMEOUT_MS) } catch (_: Exception) {}
     }
 
     private fun releaseWakeLock() {
@@ -161,6 +172,8 @@ class VideoRAGService : Service() {
 
     companion object {
         private const val TAG = "VideoRAGService"
+        /** Cap per acquire; progress updates re-arm it, a hang lets the CPU sleep. */
+        private const val WAKELOCK_TIMEOUT_MS = 15 * 60 * 1000L
         const val CHANNEL_ID = "videorag_background_ops"
         const val CHANNEL_RESULTS_ID = "videorag_query_results"
         const val NOTIFICATION_ID = 4040

@@ -124,19 +124,6 @@ class MainActivity : AppCompatActivity() {
     /** Length of the indexed video. 0 when unknown; drives minSecondsApart(). */
     private var videoDurationSec = 0
 
-    /**
-     * How densely to sample this particular video.
-     *
-     * A fixed 0.2 fps was tuned on the 13-minute clip. Applied to a short video it
-     * starves retrieval: a 48-second traffic clip yields ~10 samples and 7 keyframes,
-     * so the store holds 42 vectors and there is almost nothing for the ranking to choose
-     * between. Every query then returns the same two or three frames and the answer thins
-     * to a single line - which reads like a model problem and is not one.
-     *
-     * So aim for a frame budget instead of a rate. The lower clamp is the old constant,
-     * so anything long enough to have been sampled well before is sampled identically and
-     * its results are unchanged; only videos short enough to be starved sample faster.
-     */
     /** Length of [uri] in whole seconds, or 0 if it cannot be read. */
     private fun durationSecondsOf(uri: Uri): Int {
         val r = android.media.MediaMetadataRetriever()
@@ -152,6 +139,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * How densely to sample this particular video.
+     *
+     * A fixed 0.2 fps was tuned on the 13-minute clip. Applied to a short video it
+     * starves retrieval: a 48-second traffic clip yields ~10 samples and 7 keyframes,
+     * so the store holds 42 vectors and there is almost nothing for the ranking to choose
+     * between. Every query then returns the same two or three frames and the answer thins
+     * to a single line - which reads like a model problem and is not one.
+     *
+     * So aim for a frame budget instead of a rate. The lower clamp is the old constant,
+     * so anything long enough to have been sampled well before is sampled identically and
+     * its results are unchanged; only videos short enough to be starved sample faster.
+     */
     private fun sampleFpsFor(uri: Uri): Double {
         val seconds = durationSecondsOf(uri).toDouble()
         videoDurationSec = seconds.toInt()
@@ -200,7 +200,7 @@ class MainActivity : AppCompatActivity() {
      * top-minus-median margin (0.082, 0.094) is LARGER than a present query's (0.053 to
      * 0.063). The absolute score is what carries the signal.
      */
-    private val MIN_RELEVANCE = 0.19f
+    private val MIN_RELEVANCE = 0.21f
 
     /**
      * Cap on the extra "also matched" timestamps listed under an answer. Enough to restore
@@ -210,23 +210,14 @@ class MainActivity : AppCompatActivity() {
     private val MAX_ALSO_MATCHED = 6
 
     /**
-     * Minimum gap between two frames sent to the model, in seconds. See
-     * dropNearDuplicates().
+     * Ceiling on the per-video frame gap from minSecondsApart(), in seconds.
      *
-     * Raised from 5 s after the 1 fps decoder fix (1b9abec) made the index 3.7x denser:
-     * with 466 keyframes instead of 126, the top-scoring frames all come from the same
-     * moment, so the model was handed five near-identical views and described them
-     * identically - groupBySubject then collapsed them to a single flat line:
-     *
-     *   5 s apart   "White truck with black ladder on back at 00:02:42, 00:03:40,
-     *                00:04:08, 00:05:27 and 00:07:23."   (all five one scene)
-     *
-     * The richer answers this app used to give came from frames spread across the whole
-     * recording (00:03:42 / 00:06:38 / 00:07:20 / 00:08:40 / 00:10:54), where each frame
-     * showed something different and earned its own sentence. 45 s forces that spread.
-     *
-     * The top-ranked frame is always kept first, so widening the gap never costs the best
-     * match - it only stops the remaining slots being spent on its neighbours.
+     * 15 s is the value measured on the 13-minute clip: wide enough that the five slots
+     * land on distinct moments across the recording (00:03:42 / 00:06:38 / 00:07:20 /
+     * 00:08:40 / 00:10:54 was the spread every good answer had), narrow enough that five
+     * frames still fit in it. The top-ranked frame is always kept first, so the gap never
+     * costs the best match - it only stops the remaining slots being spent on its
+     * neighbours. Short videos scale the gap down; see minSecondsApart().
      */
     private val MAX_SECONDS_APART = 15
 
@@ -821,6 +812,11 @@ class MainActivity : AppCompatActivity() {
         val startedAt = System.currentTimeMillis()
 
         currentIngestJob = appScope.launch(Dispatchers.Default) {
+            // Re-read the duration up front. The restore-from-DB path below never reaches
+            // sampleFpsFor(), so a video restored after indexing a DIFFERENT one kept the
+            // other video's duration - and minSecondsApart() then spaced frames for the
+            // wrong clip.
+            videoDurationSec = durationSecondsOf(uri)
             // Keep our own copy so timestamps stay tappable after a restart.
             //
             // The picked content:// URI is only readable for the life of this process -
@@ -879,6 +875,7 @@ class MainActivity : AppCompatActivity() {
                 frameDecoder.decodeVideoUri(
                     videoUri = uri,
                     cameraName = "cam_user",
+                    frameDirName = frameDirFor(currentVideoKey),
                     sampleFps = sampleFpsFor(uri),
                     onProgress = { cur, total, _ ->
                         val pct = if (total > 0) ((cur * 100) / total).toInt() else 0
@@ -949,6 +946,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    /**
+     * Directory name for this video's keyframe JPEGs.
+     *
+     * Frames used to land in one shared "cam_user" folder named purely by timestamp, so
+     * indexing a second video overwrote the first one's files while the first one's DB
+     * rows kept pointing at those paths - a restored index then displayed, and sent to
+     * the model, frames from the wrong video. Keying the folder to the video makes the
+     * stored image paths as durable as the vectors that reference them.
+     */
+    private fun frameDirFor(videoKey: String): String =
+        "cam_user_" + Integer.toHexString(videoKey.hashCode())
 
     /** dHash gate, then index the frame as 6 CLIP-embedded spatial regions. */
     private suspend fun ingestAndIndexFrame(
@@ -1032,6 +1041,14 @@ class MainActivity : AppCompatActivity() {
         lastQuery = q
         val startedAt = System.currentTimeMillis()
         currentQueryJob = appScope.launch(Dispatchers.Default) {
+            // A Stop from a previous operation must not bleed into this query. The flag
+            // used to be cleared only inside the VLM's own loop, so a query the relevance
+            // gate answered WITHOUT the VLM still saw the stale flag and was treated as
+            // aborted - its turn never joined the conversation and its completion
+            // notification was suppressed. Clearing at query start also closes the race
+            // where Stop lands between retrieval and generation and the in-loop reset
+            // would have erased it.
+            orchestrator.clearVLMAbort()
             VideoRAGService.update(this@MainActivity, "VideoRAG", "Searching keyframes for \"$q\"…", progress = -2)
             val result = try { answerQuestion(q) }
                          catch (e: Throwable) {
@@ -1112,8 +1129,8 @@ class MainActivity : AppCompatActivity() {
         //   "white truck"              (present) 0.233
         //   "people in pink costumes"  (present) 0.218
         //   "red double decker bus in the snow" (absent) 0.163, falling to 0.106
-        // Present subjects sit around 0.22-0.23 and absent ones near 0.16, so 0.19
-        // separates them with margin on both sides. Deliberately set low: a false
+        // The threshold itself lives on MIN_RELEVANCE, with the calibration table that
+        // sets it - keep the two in step. Deliberately set low: a false
         // "not found" is worse than a slow answer, because the user cannot tell whether
         // the footage lacks the subject or the search failed.
         // Judge presence on the FULL caption, not the max-pooled score.

@@ -63,6 +63,11 @@ class VideoFrameDecoder(private val context: Context) {
         videoUri: Uri,
         cameraName: String,
         sampleFps: Double = 0.5,
+        // Separate from cameraName, which is an identity stored on every moment: this
+        // names the on-disk folder, and it must be unique per VIDEO or a second import
+        // overwrites the first video's keyframe JPEGs while its DB rows keep pointing
+        // at the shared paths - a restored index then shows frames from the wrong video.
+        frameDirName: String = cameraName,
         onProgress: (currentSec: Long, totalSec: Long, frameIndex: Int) -> Unit,
         onKeyframeDecoded: suspend (Bitmap, String, Long, String) -> Unit
     ) = withContext(Dispatchers.IO) {
@@ -76,7 +81,8 @@ class VideoFrameDecoder(private val context: Context) {
         // pass. Any failure - odd codec, DRM, unusual colour format - falls through to
         // the original path, which is slow but known to work everywhere.
         try {
-            decodeVideoSequential(videoUri, cameraName, sampleFps, onProgress, onKeyframeDecoded)
+            decodeVideoSequential(videoUri, cameraName, sampleFps, frameDirName,
+                                  onProgress, onKeyframeDecoded)
             return@withContext
         } catch (e: Throwable) {
             if (isCancelled) return@withContext
@@ -91,7 +97,7 @@ class VideoFrameDecoder(private val context: Context) {
             val totalSec = durationMs / 1000L
             val intervalMs = (1000.0 / sampleFps).toLong().coerceAtLeast(300L)
 
-            val frameOutputDir = File(context.filesDir, "extracted_frames/$cameraName").apply { mkdirs() }
+            val frameOutputDir = File(context.filesDir, "extracted_frames/$frameDirName").apply { mkdirs() }
 
             var curTimeMs = 0L
             var frameIdx = 0
@@ -161,6 +167,7 @@ class VideoFrameDecoder(private val context: Context) {
         videoUri: Uri,
         cameraName: String,
         sampleFps: Double,
+        frameDirName: String,
         onProgress: (currentSec: Long, totalSec: Long, frameIndex: Int) -> Unit,
         onKeyframeDecoded: suspend (Bitmap, String, Long, String) -> Unit
     ) {
@@ -194,7 +201,7 @@ class VideoFrameDecoder(private val context: Context) {
             codec.configure(format, null, null, 0)   // null surface = ByteBuffer mode
             codec.start()
 
-            val frameOutputDir = File(context.filesDir, "extracted_frames/$cameraName").apply { mkdirs() }
+            val frameOutputDir = File(context.filesDir, "extracted_frames/$frameDirName").apply { mkdirs() }
             val intervalUs = (1_000_000.0 / sampleFps).toLong().coerceAtLeast(1L)
             var nextEmitUs = 0L
             var frameIdx = 0

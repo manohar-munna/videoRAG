@@ -45,10 +45,6 @@ class SQLiteFtsHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_vec_video ON $VECTOR_TABLE(video_key);")
     }
 
-    fun saveMoment(moment: IndexedMoment, videoKey: String) {
-        saveMoments(listOf(moment), videoKey)
-    }
-
     /**
      * Save multiple indexed moments in a single database transaction.
      * Prevents thousands of individual SQLite disk fsync operations during ingestion.
@@ -185,69 +181,6 @@ class SQLiteFtsHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         } catch (e: Exception) {
             Log.e(TAG, "Failed to insert moment into SQLite: ${e.message}")
         }
-    }
-
-    /**
-     * Executes sparse BM25/TF-IDF lexical search over indexed visual tokens.
-     * Returns a list of (imagePath, Score).
-     */
-    @Deprecated("Unused legacy lexical heuristic. MobileVectorStore over MobileCLIP-S2 provides unified dense embedding retrieval.")
-    fun searchSparse(query: String, topK: Int = 30): List<Pair<String, Float>> {
-        val results = mutableListOf<Pair<String, Float>>()
-        val queryTokens = query.lowercase().trim()
-            .split(Regex("[^a-zA-Z0-9_]+"))
-            .filter { it.length > 1 }
-
-        if (queryTokens.isEmpty()) return results
-
-        try {
-            val db = readableDatabase
-            // Build dynamic token match query
-            val whereClause = StringBuilder()
-            val args = mutableListOf<String>()
-
-            for ((i, token) in queryTokens.withIndex()) {
-                if (i > 0) whereClause.append(" OR ")
-                whereClause.append("visual_tokens LIKE ?")
-                args.add("%$token%")
-            }
-
-            val sql = "SELECT image_path, visual_tokens FROM $TABLE_NAME WHERE $whereClause LIMIT 100"
-            val cursor = db.rawQuery(sql, args.toTypedArray())
-
-            val pathScoreMap = HashMap<String, Float>()
-
-            cursor.use { c ->
-                val pathIdx = c.getColumnIndex("image_path")
-                val tokenIdx = c.getColumnIndex("visual_tokens")
-                while (c.moveToNext()) {
-                    val path = c.getString(pathIdx)
-                    val tokensStr = c.getString(tokenIdx)?.lowercase() ?: ""
-
-                    var matchCount = 0f
-                    for (t in queryTokens) {
-                        if (tokensStr.contains(t)) {
-                            matchCount += 1.0f
-                        }
-                    }
-
-                    // Score: proportion of query tokens matched
-                    val score = matchCount / queryTokens.size.toFloat()
-                    val currentBest = pathScoreMap[path] ?: 0f
-                    if (score > currentBest) {
-                        pathScoreMap[path] = score
-                    }
-                }
-            }
-
-            for ((path, score) in pathScoreMap.entries.sortedByDescending { it.value }.take(topK)) {
-                results.add(Pair(path, score))
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Search error on query '$query': ${e.message}")
-        }
-
-        return results
     }
 
     fun clearAll() {

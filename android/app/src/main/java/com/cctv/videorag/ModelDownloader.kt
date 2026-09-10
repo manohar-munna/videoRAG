@@ -146,6 +146,16 @@ object ModelDownloader {
                 onProgress(Progress(i, todo.size, e.dest, done, e.bytes))
             }
             if (isCancelled) break
+            // A dropped connection ends the stream exactly like a completed one - read()
+            // returns -1 either way - so a short .part used to fall through to the
+            // checksum, fail it, and be DELETED: resumable progress thrown away and a
+            // ~1 GB file restarted from zero on the next tap. Check the size first; a
+            // short file is an interrupted transfer to resume, not corruption to discard.
+            if (part.length() < e.bytes) {
+                throw DownloadException(
+                    "Connection interrupted at ${part.length() / 1_000_000} of " +
+                    "${e.bytes / 1_000_000} MB for ${e.dest} - tap the badge to resume.")
+            }
             if (e.sha256.isNotEmpty()) {
                 val actual = sha256(part)
                 if (!actual.equals(e.sha256, ignoreCase = true)) {

@@ -5,18 +5,12 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Environment
-import android.util.Base64
 import android.util.Log
 import com.cctv.videorag.indexing.IndexedMoment
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.Locale
-import kotlin.math.abs
 
 class OnDeviceVLM(private val context: Context, private val defaultModelDirectory: String) {
 
@@ -34,6 +28,11 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     var isAborted = false
         private set
 
+    /** Re-arm for a new query; MainActivity calls this as each query starts. */
+    fun clearAbort() {
+        isAborted = false
+    }
+
     fun abort() {
         isAborted = true
         if (nativeHandle != 0L) {
@@ -48,7 +47,6 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     private var nativeHandle: Long = 0
     private var activeModelDirectory: String? = null
     private var activeModelFileName: String? = null
-    var customServerUrl: String? = null
 
     var customModelDirectory: String? = null
         set(value) {
@@ -369,14 +367,6 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
     }
 
     /**
-     * Backward compatibility helper returning text string.
-     */
-    fun describeFrame(bitmap: Bitmap, timestamp: String): String {
-        val json = describeFrameAsJson(bitmap, timestamp, 1, "")
-        return json.getString("visual_description")
-    }
-
-    /**
      * QUERY STEP: Evaluates the user query against the retrieved keyframe evidence.
      * Produces a truthful, evidence-grounded response (Positive Match vs Negative Not-Found).
      */
@@ -438,8 +428,12 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // This is the grounding problem that image_min_tokens=1024 was meant to solve, at
         // no latency cost - that route measured 3 min -> 15 min per question and was
         // reverted in ca58db1.
-        val imagePaths = sorted.filter { File(it.imagePath).exists() }
-                               .map { regionCropPath(it) }
+        //
+        // Filter ONCE and derive both views from it. The previous code ran the same
+        // exists() filter twice and then looked up shown[i] by imagePaths' index - an
+        // alignment that holds only while no file disappears between the two passes.
+        val shown = sorted.filter { File(it.imagePath).exists() }
+        val imagePaths = shown.map { regionCropPath(it) }
 
         if (nativeHandle == 0L) {
             return "On-device model not loaded, so no visual analysis was performed. " +
@@ -459,7 +453,6 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // "yellow bus" in detection mode, emitting <|object_ref_start|>...<|box_start|>
         // (606,182),(709,325)<|box_end|> instead of prose. Correct, but not an answer a
         // person can read. Frame the task as prose Q&A and rule coordinates out explicitly.
-        val shown = sorted.filter { File(it.imagePath).exists() }
 
         // The frames are retrieval hits, not consecutive video: they can be minutes
         // apart. Without saying so the model narrates them as continuous motion and
@@ -505,7 +498,6 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // encode is shared through the encode cache either way. Only the small per-call
         // generation is repeated.
         val lines = mutableListOf<String>()
-        isAborted = false
         for ((i, path) in imagePaths.withIndex()) {
             if (isAborted) {
                 Log.i("VideoRAG_VLM", "answerFromRetrievedContext aborted by user")
@@ -795,13 +787,7 @@ Describe in a single sentence what this frame shows in relation to the question.
 
     private data class FramePixelStats(
         val dominantColors: List<String>,
-        val brightnessCategory: String,
-        val hasYellow: Boolean,
-        val hasRed: Boolean,
-        val hasBlue: Boolean,
-        val hasGreen: Boolean,
-        val hasWhite: Boolean,
-        val hasDark: Boolean
+        val brightnessCategory: String
     )
 
     private fun analyzeFramePixels(bmp: Bitmap): FramePixelStats {
@@ -889,16 +875,7 @@ Describe in a single sentence what this frame shows in relation to the question.
             else -> "Balanced Surveillance Lighting"
         }
 
-        return FramePixelStats(
-            dominantColors = colors,
-            brightnessCategory = lighting,
-            hasYellow = hasYellow,
-            hasRed = hasRed,
-            hasBlue = hasBlue,
-            hasGreen = hasGreen,
-            hasWhite = hasWhite,
-            hasDark = hasDark
-        )
+        return FramePixelStats(dominantColors = colors, brightnessCategory = lighting)
     }
 
     fun getDiagnosticInfo(): String {
@@ -906,7 +883,7 @@ Describe in a single sentence what this frame shows in relation to the question.
             // Reports the real state: the build is CPU-only, GGML_VULKAN is not enabled.
             "Loaded: ${activeModelFileName ?: "on-device model"} (CPU, 5 threads)"
         } else {
-            "No model loaded - place GGUF files in Download/qwen2_vl_2b"
+            "No model loaded. " + com.cctv.videorag.ModelPaths.instructions(context)
         }
     }
 

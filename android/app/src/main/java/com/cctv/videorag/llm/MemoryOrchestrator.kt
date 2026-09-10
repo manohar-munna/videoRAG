@@ -101,5 +101,10 @@ class MemoryOrchestrator(
         vlm?.abort()
     }
 
+    /** Called at the start of each query so a previous Stop cannot bleed into it. */
+    fun clearVLMAbort() {
+        vlm?.clearAbort()
+    }
+
     fun isVLMAborted(): Boolean = vlm?.isAborted ?: false
 }

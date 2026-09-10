@@ -360,9 +360,6 @@ class OnDeviceEmbedder private constructor(
         return head?.takeIf { it.length >= 2 && it != text.lowercase().trim() }
     }
 
-    /** Embed a natural-language query into the SAME 512-D space. */
-    fun embedText(text: String): FloatArray = embedCaption(toCaption(text))
-
     private fun embedCaption(caption: String): FloatArray {
         val ids = tokenizer.tokenize(caption)
         val longs = LongArray(ids.size) { ids[it].toLong() }   // towers expect int64
