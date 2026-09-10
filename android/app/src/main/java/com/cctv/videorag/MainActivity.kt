@@ -182,23 +182,35 @@ class MainActivity : AppCompatActivity() {
     /**
      * Below this CLIP score the subject is treated as absent - see answerQuestion().
      *
-     * Calibrated against the measured distribution over the 463-keyframe index, using
-     * the full-caption score (not the max-pooled one):
+     * Calibrated over 27 queries across both sample clips - the 48 s traffic video
+     * (28 keyframes, read off the device's own SQLite) and the 13-minute Venice clip
+     * (136 keyframes, rebuilt with the same sampling, dHash gate and crops) - scoring the
+     * full caption, as the gate does. The offline scorer was checked against the phone
+     * first: "green taxi" reproduced top=0.280 median=0.177 exactly.
      *
-     *   white truck                        top 0.236   present
-     *   what is written on the truck       top 0.235   present
-     *   people wearing pink costumes       top 0.225   present
-     *   an elephant wearing a hat          top 0.196   absent
-     *   a red double decker bus in the snow top 0.163  absent
+     *   PRESENT, lowest        what is written on the truck   0.219
+     *   absent, highest        yellow car                     0.220
+     *   -> separation          -0.002   THEY OVERLAP
      *
-     * Present and absent separate at 0.225 / 0.196, so 0.21 sits between them with room
-     * either side. The previous 0.19 was set on a sparser index and fell just below the
-     * elephant case, which would have been answered as though it were there.
+     * So no threshold can be both complete and safe, and the choice is which error to
+     * take. At 0.21: every one of the 12 present queries passes, and 13 of the 15 absent
+     * ones are rejected before the VLM runs. The two that leak - "yellow car" 0.220 and
+     * "train" 0.218 - sit within 0.002 of a real query, so raising the bar to catch them
+     * costs a true answer: 0.221 rejects all 15 absent but also rejects "what is written
+     * on the truck". A false "not found" is the worse failure, because the user cannot
+     * tell whether the footage lacks the subject or the search broke.
      *
-     * Note a relative rule - top score against the index's own median - was measured and
-     * is WORSE, not better: absent queries score low across the board, so their
-     * top-minus-median margin (0.082, 0.094) is LARGER than a present query's (0.053 to
-     * 0.063). The absolute score is what carries the signal.
+     * Two relative rules were measured and both are WORSE than the absolute score:
+     *   top-minus-median   present min 0.057   absent max 0.110   overlaps badly
+     *   (top-mean)/stddev  present min 0.219   absent max 0.220   overlaps
+     * A near-zero score floor makes any noise peak on an absent query look like contrast,
+     * so margin rules invert exactly where they are needed. This was proposed twice on
+     * two-point evidence and is wrong; it does not need testing a third time.
+     *
+     * The residual leak is compositional, not a threshold problem. "yellow car" scores
+     * 0.220 on footage that contains a yellow BUS and yellow road markings alongside
+     * cars: CLIP binds attribute to object loosely, so yellow-and-car co-occurring reads
+     * much like a yellow car. Fixing that belongs in generation, not retrieval.
      */
     private val MIN_RELEVANCE = 0.21f
 
