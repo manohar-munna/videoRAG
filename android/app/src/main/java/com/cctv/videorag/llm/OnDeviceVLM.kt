@@ -498,6 +498,7 @@ class OnDeviceVLM(private val context: Context, private val defaultModelDirector
         // encode is shared through the encode cache either way. Only the small per-call
         // generation is repeated.
         val lines = mutableListOf<String>()
+        val absentAt = mutableListOf<String>()
         for ((i, path) in imagePaths.withIndex()) {
             if (isAborted) {
                 Log.i("VideoRAG_VLM", "answerFromRetrievedContext aborted by user")
@@ -528,7 +529,13 @@ Describe in a single sentence what this frame shows in relation to the question.
                     .map { it.trim() }
                     .filter { it.isNotEmpty() }
                     .joinToString(" ")
-                lines.add("$ts - $oneLineDesc")
+                // A frame reporting the subject absent is not evidence OF anything, so it
+                // is counted rather than listed. Left among the findings it became a
+                // timestamped claim in its own right - "There is no yellow car in this
+                // frame at 00:00:05." reads as though 00:00:05 were worth looking at - and
+                // groupBySubject then clustered it as a subject beside the real ones.
+                if (statesAbsence(oneLineDesc)) absentAt.add(ts)
+                else lines.add("$ts - $oneLineDesc")
             }
         }
 
@@ -537,6 +544,15 @@ Describe in a single sentence what this frame shows in relation to the question.
         }
 
         if (lines.isEmpty()) {
+            // Every frame examined reported the subject absent. Say that once, rather
+            // than printing one negative sentence per frame and leaving the reader to
+            // work out that they add up to "no".
+            if (absentAt.isNotEmpty()) {
+                return "None of the ${absentAt.size} keyframes examined between " +
+                       "$startTs and $endTs show that." +
+                       "\n\n---\nAnalysed ${absentAt.size} keyframes spanning " +
+                       "[$startTs - $endTs] using ${activeModelFileName ?: "the on-device model"}."
+            }
             return "The on-device model returned no usable output."
         }
         val answer = lines.joinToString("\n")
@@ -545,7 +561,10 @@ Describe in a single sentence what this frame shows in relation to the question.
         Log.i("VideoRAG_VLM", "gen stats: $lastGenStats")
 
         val footer = "Analysed ${imagePaths.size} keyframes spanning [$startTs - $endTs] " +
-                     "using ${activeModelFileName ?: "the on-device model"}."
+                     "using ${activeModelFileName ?: "the on-device model"}." +
+                     if (absentAt.isEmpty()) ""
+                     else " ${absentAt.size} of them showed nothing matching " +
+                          "(${absentAt.joinToString(", ")})."
         val full = answer.trimEnd()
         val grouped = dropUnsupportedTimestamps(
             groupBySubject(humanise(full)),
@@ -664,6 +683,27 @@ Describe in a single sentence what this frame shows in relation to the question.
         """[\s,;]*\b(?:at|around|near)\s+\d{1,2}:\d{2}(?::\d{2})?\s*\.?\s*$""",
         RegexOption.IGNORE_CASE
     )
+
+    /**
+     * Whether a per-frame reply reports the subject absent rather than describing it.
+     *
+     * Deliberately narrow. A false positive here deletes a real observation, which is far
+     * worse than leaving one negative line in, so every pattern is anchored to the start
+     * of the sentence or to an explicit "is not <visible/present>" - never to a bare "no",
+     * which occurs inside perfectly good descriptions ("a white truck with no markings",
+     * "no text is legible on the side").
+     */
+    private val absenceRx = listOf(
+        Regex("""^there (is|are) no\b""", RegexOption.IGNORE_CASE),
+        Regex("""^no\b[^.]{0,60}\b(visible|in this frame|can be seen|present)\b""", RegexOption.IGNORE_CASE),
+        Regex("""^(this|the) frame does not\b""", RegexOption.IGNORE_CASE),
+        Regex("""^not visible\b""", RegexOption.IGNORE_CASE),
+        Regex("""\bis not (visible|present|in this frame)\b""", RegexOption.IGNORE_CASE),
+        Regex("""^i (cannot|can't|do not|don't) see\b""", RegexOption.IGNORE_CASE)
+    )
+
+    private fun statesAbsence(text: String): Boolean =
+        absenceRx.any { it.containsMatchIn(text.trim()) }
 
     private fun stripEchoedTimestamp(text: String): String {
         var out = text.trim()
