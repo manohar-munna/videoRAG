@@ -96,6 +96,9 @@ class MultimodalEmbedder:
                 else:
                     clip_arch = "MobileCLIP-S2"
 
+                if local_pt is None and clip_arch == "MobileCLIP-S2":
+                    local_pt = self._fetch_into_project()
+
                 if local_pt:
                     pt_arg = str(local_pt) if local_pt.is_file() else str(local_pt / "open_clip_model.safetensors")
                     if not Path(pt_arg).exists() and (local_pt / "open_clip_pytorch_model.bin").exists():
@@ -138,6 +141,34 @@ class MultimodalEmbedder:
         self.dimension = self._model.get_sentence_embedding_dimension() or 512
         self._is_open_clip = False
         logger.info("SentenceTransformer CLIP model loaded successfully (dimension=%d)", self.dimension)
+
+    @staticmethod
+    def _fetch_into_project() -> Optional[Path]:
+        """Fetch the MobileCLIP-S2 checkpoint into models/, where the app looks for it.
+
+        Without this, a missing checkpoint made open_clip download its own copy into
+        ~/.cache/huggingface on every start - outside the project, so deleting the
+        project left it behind, and the Download button then copied it into models/ as
+        a second 398 MB copy. This uses the manifest's pinned, checksummed entry instead,
+        so the one copy lands at models/mobileclip_s2/ and the button sees it as present.
+
+        Returns None (and the caller falls back to open_clip's own fetch) if there is no
+        manifest entry or no network - startup must never fail on this.
+        """
+        try:
+            from videorag import downloader
+            entry = next((e for e in downloader.fetch_manifest().get("windows", {}).get("common", [])
+                          if e["dest"].endswith("mobileclip_s2/open_clip_model.safetensors")), None)
+            if entry is None:
+                return None
+            logger.info("MobileCLIP-S2 checkpoint missing; fetching it into %s", entry["dest"])
+            downloader._fetch_entry(entry, downloader.base_url(), lambda _n: None, lambda _p: None)
+            target = _PROJECT_ROOT / entry["dest"]
+            return target if target.is_file() else None
+        except Exception as exc:
+            logger.warning("Could not fetch MobileCLIP into the project (%s); "
+                           "falling back to open_clip's own download.", exc)
+            return None
 
     # ------------------------------------------------------------------
     # Spatial Crop Embedding API (Spatial Pyramid & Region Grounding)

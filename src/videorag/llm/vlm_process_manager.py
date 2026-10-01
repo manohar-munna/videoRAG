@@ -137,6 +137,13 @@ class VLMProcessManager:
             if not mmproj_path.exists():
                 logger.error("mmproj file not found: %s", mmproj_path)
                 return False
+            # Same guard for the runtime. tools/llama is gitignored and the Download button
+            # restores it, so it can legitimately be absent - and an unguarded Popen raised
+            # FileNotFoundError out of server startup, so the server never came up to show
+            # the button that would have fixed it.
+            if not LLAMA_SERVER_EXE.exists():
+                logger.error("llama-server not found: %s (use Download models)", LLAMA_SERVER_EXE)
+                return False
 
             cmd = [
                 str(LLAMA_SERVER_EXE),

@@ -578,6 +578,37 @@ def get_models_status():
     return st
 
 
+def _swap_in_mobileclip() -> bool:
+    """Replace a fallback embedder with MobileCLIP once its checkpoint is on disk.
+
+    The embedder is built once at startup. On a fresh install with no checkpoint (and
+    no network for open_clip to fetch one), MultimodalEmbedder falls back to
+    clip-ViT-B-32 - a different embedding space from the MobileCLIP index - and keeps
+    it for the life of the process, so downloading the checkpoint used to need a manual
+    restart. This does what that restart did, live.
+
+    Both references are updated: CCTVRetriever holds its own (_embedder), so replacing
+    only PIPELINE["embedder"] would leave search on the old space. Returns True if a
+    swap happened; raises if MobileCLIP still cannot load, so the button shows it.
+    """
+    emb = PIPELINE.get("embedder")
+    if emb is None or getattr(emb, "_is_open_clip", True):
+        return False                      # already on MobileCLIP; nothing to do
+    from videorag.indexing.embedder import MultimodalEmbedder
+    cfg_idx = (PIPELINE.get("config") or {}).get("indexing", {})
+    new = MultimodalEmbedder(model_name=cfg_idx.get("model_name", "MobileCLIP-S2"),
+                             model_path=cfg_idx.get("model_path"))
+    if not getattr(new, "_is_open_clip", False):
+        raise RuntimeError("MobileCLIP checkpoint downloaded but still failed to load; "
+                           "see the server log")
+    PIPELINE["embedder"] = new
+    retriever = PIPELINE.get("retriever")
+    if retriever is not None and hasattr(retriever, "_embedder"):
+        retriever._embedder = new
+    logger.info("Swapped the fallback embedder for MobileCLIP after download.")
+    return True
+
+
 @app.post("/api/models/download")
 def start_models_download():
     """Kick off a background download of everything the active profile is missing.
@@ -592,11 +623,18 @@ def start_models_download():
     if not st.get("configured"):
         raise HTTPException(status_code=400, detail=st.get(
             "error", "No model manifest found (config/model_manifest.json)."))
+    if st.get("config_mismatches"):
+        # Downloading now would put gigabytes where the app does not look.
+        raise HTTPException(status_code=409, detail=(
+            "Model paths are out of sync, so a download would not make the app work: "
+            + "; ".join(st["config_mismatches"]) + ". See modelconfig.md."))
     if st.get("ready"):
         return {"started": False, "reason": "already present"}
 
     def _bring_up() -> None:
-        # Only if the user has not switched profile while the download ran.
+        # 1. Embedder. Profile-independent, so before the profile check below.
+        _swap_in_mobileclip()
+        # 2. VLM - only if the user has not switched profile while the download ran.
         if PIPELINE.get("profile", profile) != profile:
             return
         if not VLM_MANAGER.is_server_healthy(RUNTIME_PROFILES[profile]["port"]):

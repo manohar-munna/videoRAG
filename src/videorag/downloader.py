@@ -136,6 +136,45 @@ def _substitute(entry: dict) -> bool:
     return p.is_file() and p.stat().st_size not in (0, entry["bytes"])
 
 
+def config_mismatches(url: Optional[str] = None) -> List[str]:
+    """Paths the app will load that no manifest entry installs.
+
+    The download is only useful if every file lands exactly where the app reads it, and
+    those paths live in four places: the manifest, vlm_process_manager.RUNTIME_PROFILES
+    and LLAMA_SERVER_EXE, and config.yaml (indexing.model_path, llm.model). Change a
+    model in one and not the others and the button would fetch gigabytes into a path
+    nothing opens, then report "Models ready" over an app that still cannot start.
+
+    Checked on every status call, so the drift is caught before any download - see
+    modelconfig.md for what to edit when swapping a model.
+    """
+    try:
+        provided = {(e.get("provides") or e["dest"]).replace("\\", "/")
+                    for sec in fetch_manifest(url).get("windows", {}).values() for e in sec}
+    except Exception:
+        return []                      # no manifest: status() already reports that
+    needed: Dict[str, str] = {}
+    try:
+        from videorag.llm.vlm_process_manager import RUNTIME_PROFILES, LLAMA_SERVER_EXE
+        for pid, p in RUNTIME_PROFILES.items():
+            needed[p["model_file"]] = f"RUNTIME_PROFILES['{pid}'].model_file"
+            needed[p["mmproj_file"]] = f"RUNTIME_PROFILES['{pid}'].mmproj_file"
+        needed[Path(LLAMA_SERVER_EXE).relative_to(_PROJECT_ROOT).as_posix()] = "LLAMA_SERVER_EXE"
+    except Exception:
+        pass
+    try:
+        import yaml
+        cfg = yaml.safe_load((_PROJECT_ROOT / "config" / "config.yaml").read_text()) or {}
+        for key, val in (("indexing.model_path", (cfg.get("indexing") or {}).get("model_path")),
+                         ("llm.model", (cfg.get("llm") or {}).get("model"))):
+            if val and str(val).endswith((".gguf", ".safetensors", ".bin")):
+                needed[str(val).replace("\\", "/")] = f"config.yaml {key}"
+    except Exception:
+        pass
+    return [f"{who} reads {path}, which nothing in the manifest installs"
+            for path, who in sorted(needed.items()) if path not in provided]
+
+
 def status(profile: str, url: Optional[str] = None) -> dict:
     """Which of the active profile's requirements are present vs missing."""
     try:
@@ -148,6 +187,7 @@ def status(profile: str, url: Optional[str] = None) -> dict:
     missing = [e for e in entries if not _present(e) and not _substitute(e)]
     return {
         "configured": True,
+        "config_mismatches": config_mismatches(url),
         "profile": profile,
         "ready": len(missing) == 0,
         "present": [e["dest"] for e in present],

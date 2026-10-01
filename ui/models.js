@@ -128,6 +128,15 @@
     }
     var dl = st.download || {};
 
+    // Paths the app reads that the download does not install. "Ready" would be a lie
+    // and "Download" would fetch into the wrong place, so say what is out of sync.
+    if ((st.config_mismatches || []).length && !dl.running) {
+      setBtn("error", "⚠ Model config mismatch", st.config_mismatches.join("; "));
+      setStrip("Model paths are out of sync — " + st.config_mismatches.join("; ") +
+               ". See modelconfig.md for what to change.", null, true);
+      return;
+    }
+
     if (dl.running) {
       sawRunning = true;
       var pct = dl.file_bytes ? Math.min(100, 100 * dl.file_done / dl.file_bytes) : 0;
