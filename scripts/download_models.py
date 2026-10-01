@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Download the desktop VLM weights for the active runtime profile.
+"""Download everything the desktop app needs for a runtime profile.
 
     python scripts/download_models.py                 # active profile from config
     python scripts/download_models.py --profile mobile
-    python scripts/download_models.py --url https://models.example.com/videorag
 
-The URL can also come from config.yaml (models.download_base_url) or the
-VIDEORAG_MODEL_BASE_URL environment variable. MobileCLIP is fetched separately by
-open_clip on first server run and is not downloaded here.
+The same download the header button in the web UI starts: the llama.cpp runtime, the
+MobileCLIP-S2 embedder and the profile's VLM weights, each pinned and SHA-256 checked,
+as listed in config/model_manifest.json. Ctrl+C stops it; running again resumes.
+
+--url (or models.download_base_url / VIDEORAG_MODEL_BASE_URL) only repoints where the
+manifest is read from; the default bundled manifest needs no server at all.
 """
 from __future__ import annotations
 
@@ -29,19 +31,19 @@ def main() -> int:
     args = ap.parse_args()
 
     profile = args.profile or _default_profile()
-    print(f"Model server : {downloader.base_url(args.url) or '(not configured)'}")
+    print(f"Manifest     : {downloader.base_url(args.url) or 'bundled (config/model_manifest.json)'}")
     print(f"Profile      : {profile}")
 
     st = downloader.status(profile, args.url)
     if not st.get("configured"):
-        print("\nNo model server configured. Set models.download_base_url in "
-              "config/config.yaml or VIDEORAG_MODEL_BASE_URL.", file=sys.stderr)
+        print(f"\nCould not read the model manifest: {st.get('error', 'unknown error')}",
+              file=sys.stderr)
         return 2
     if st.get("error"):
         print(f"\nCould not read manifest: {st['error']}", file=sys.stderr)
         return 2
     if st["ready"]:
-        print("\nAll weights already present. Nothing to download.")
+        print("\nEverything for this profile is already present. Nothing to download.")
         return 0
 
     print(f"Missing      : {len(st['missing'])} file(s), "
@@ -61,10 +63,13 @@ def main() -> int:
 
     try:
         downloader.download_profile(profile, args.url, on_progress=show)
+    except KeyboardInterrupt:
+        print("\n\nStopped. Partial files are kept - run again to resume.", file=sys.stderr)
+        return 130
     except Exception as exc:
         print(f"\n\nDownload failed: {exc}", file=sys.stderr)
         return 1
-    print("\n\nAll weights downloaded and verified.")
+    print("\n\nEverything downloaded and verified.")
     return 0
 
 

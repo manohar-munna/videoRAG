@@ -27,6 +27,35 @@
     }
   ],
   "windows": {
+    "runtime": [
+      {
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b10549/llama-b10549-bin-win-cuda-12.4-x64.zip",
+        "dest": "tools/llama-b10549-bin-win-cuda-12.4-x64.zip",
+        "bytes": 250969968,
+        "sha256": "2e980ae28b40c92c9c30bdbcf3f28064b40104472e213c52edbeb89b920d65fe",
+        "extract_to": "tools/llama",
+        "provides": "tools/llama/llama-server.exe",
+        "label": "llama.cpp runtime (b10549)"
+      },
+      {
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b10549/cudart-llama-bin-win-cuda-12.4-x64.zip",
+        "dest": "tools/cudart-llama-bin-win-cuda-12.4-x64.zip",
+        "bytes": 391443627,
+        "sha256": "8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6",
+        "extract_to": "tools/llama",
+        "provides": "tools/llama/cudart64_12.dll",
+        "label": "CUDA 12.4 runtime libraries"
+      }
+    ],
+    "common": [
+      {
+        "url": "https://huggingface.co/apple/MobileCLIP-S2-OpenCLIP/resolve/8e8a808316aeb7c24d0400e1cf8f74b6937832aa/open_clip_model.safetensors",
+        "dest": "models/mobileclip_s2/open_clip_model.safetensors",
+        "bytes": 397696772,
+        "sha256": "8fe1e29df4c96fce3b79a66bb13c9adb7f810a2103979b744e257fcbc6cc5c9f",
+        "label": "MobileCLIP-S2 embedder"
+      }
+    ],
     "desktop": [
       {
         "url": "https://huggingface.co/unsloth/Qwen3-VL-4B-Instruct-GGUF/resolve/00c00da0690c4b14b5539b02c4ea5d7c9102b35e/Qwen3-VL-4B-Instruct-Q4_K_M.gguf",

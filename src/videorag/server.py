@@ -564,27 +564,54 @@ def get_current_profile():
 
 @app.get("/api/models/status")
 def get_models_status():
-    """Which local model weights are present for the active profile, plus any live download."""
+    """What the active profile needs (runtime, embedder, VLM), what is missing, and any live download."""
     from videorag import downloader
     profile = PIPELINE.get("profile", "desktop")
     st = downloader.status(profile)
     st["download"] = downloader.get_state()
+    # The embedder is built once at startup. If MobileCLIP was absent then, it fell back
+    # to clip-ViT-B-32 - a different embedding space - and downloading the checkpoint
+    # afterwards does not swap it in. Say so rather than let search quietly misbehave.
+    emb = PIPELINE.get("embedder")
+    st["restart_needed"] = bool(st.get("ready") and emb is not None
+                                and not getattr(emb, "_is_open_clip", True))
     return st
 
 
 @app.post("/api/models/download")
 def start_models_download():
-    """Kick off a background download of the active profile's missing weights."""
+    """Kick off a background download of everything the active profile is missing.
+
+    On success the VLM is started straight away, so the user goes from "Download" to a
+    working app without restarting anything.
+    """
     from videorag import downloader
+    from videorag.llm.vlm_process_manager import VLM_MANAGER, RUNTIME_PROFILES
     profile = PIPELINE.get("profile", "desktop")
     st = downloader.status(profile)
     if not st.get("configured"):
         raise HTTPException(status_code=400, detail=st.get(
-            "error", "No model server configured (set models.download_base_url)."))
+            "error", "No model manifest found (config/model_manifest.json)."))
     if st.get("ready"):
         return {"started": False, "reason": "already present"}
-    started = downloader.start_background(profile)
+
+    def _bring_up() -> None:
+        # Only if the user has not switched profile while the download ran.
+        if PIPELINE.get("profile", profile) != profile:
+            return
+        if not VLM_MANAGER.is_server_healthy(RUNTIME_PROFILES[profile]["port"]):
+            if not VLM_MANAGER.start_profile(profile):
+                raise RuntimeError("llama-server did not start; see the server log")
+
+    started = downloader.start_background(profile, on_done=_bring_up)
     return {"started": started, "profile": profile, "missing": st["missing"]}
+
+
+@app.post("/api/models/cancel")
+def cancel_models_download():
+    """Stop the running download. Partial files are kept, so pressing Download resumes."""
+    from videorag import downloader
+    return {"stopping": downloader.cancel()}
 
 
 @app.post("/api/profile/switch")

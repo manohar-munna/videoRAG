@@ -74,6 +74,32 @@ LOCAL_ONNX = [
     ("models/mobileclip_onnx/mobileclip_text.onnx", "mobileclip_text.onnx"),
 ]
 
+# Desktop requirements shared by every profile.
+#
+# MobileCLIP-S2 is the desktop embedder's checkpoint. embedder.py looks for it at this
+# exact path first; without it open_clip fetches the same file into ~/.cache on first
+# use, and if THAT fails the embedder falls back to clip-ViT-B-32 - a different
+# embedding space, so an existing index silently returns nonsense. Shipping it as a
+# manifest entry puts it inside the project and in front of the user.
+HF_COMMON_WINDOWS = [
+    ("apple/MobileCLIP-S2-OpenCLIP", "open_clip_model.safetensors",
+     "models/mobileclip_s2/open_clip_model.safetensors", "MobileCLIP-S2 embedder"),
+]
+
+# The llama.cpp runtime the desktop VLM runs on. tools/ is gitignored, so a clone has
+# no llama-server.exe and downloaded weights would have nothing to run them. Pinned to
+# the build the app is validated on (b10549, CUDA 12.4 - matching the cublas64_12 /
+# cudart64_12 DLLs it loads). GitHub publishes a SHA-256 digest per release asset, so
+# these are checksummed exactly like the weights. Each archive is judged present by the
+# file it installs, so an existing runtime of a different build is never overwritten.
+LLAMA_BUILD = "b10549"
+LLAMA_RUNTIME = [
+    (f"llama-{LLAMA_BUILD}-bin-win-cuda-12.4-x64.zip", "tools/llama/llama-server.exe",
+     f"llama.cpp runtime ({LLAMA_BUILD})"),
+    ("cudart-llama-bin-win-cuda-12.4-x64.zip", "tools/llama/cudart64_12.dll",
+     "CUDA 12.4 runtime libraries"),
+]
+
 _repo_cache: dict = {}
 
 
@@ -98,6 +124,24 @@ def hf_entry(repo: str, filename: str, dest: str) -> dict:
             return {"url": f"https://huggingface.co/{repo}/resolve/{sha_rev}/{filename}",
                     "dest": dest, "bytes": size, "sha256": digest}
     raise SystemExit(f"{filename} not found in {repo}")
+
+
+def gh_runtime_entry(asset: str, provides: str, label: str) -> dict:
+    """A llama.cpp release asset, unpacked into tools/llama."""
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/{LLAMA_BUILD}",
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "videorag"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        rel = json.loads(r.read().decode())
+    for a in rel.get("assets", []):
+        if a["name"] == asset:
+            digest = (a.get("digest") or "")
+            if not digest.startswith("sha256:"):
+                raise SystemExit(f"{asset}: GitHub returned no sha256 digest")
+            return {"url": a["browser_download_url"], "dest": f"tools/{asset}",
+                    "bytes": a["size"], "sha256": digest.split(":", 1)[1],
+                    "extract_to": "tools/llama", "provides": provides, "label": label}
+    raise SystemExit(f"{asset} not found in llama.cpp release {LLAMA_BUILD}")
 
 
 def sha256(path: Path) -> str:
@@ -142,7 +186,19 @@ def main() -> int:
 
     print("Resolving GGUF weights from HuggingFace (no download)...")
     android = [hf_entry(*t) for t in HF_GGUF["android"]]
+    print("Resolving the desktop runtime and shared weights...")
+    runtime = [gh_runtime_entry(*t) for t in LLAMA_RUNTIME]
+    common = []
+    for repo, fname, dest, label in HF_COMMON_WINDOWS:
+        e = hf_entry(repo, fname, dest)
+        e["label"] = label
+        common.append(e)
+    for e in runtime + common:
+        print(f"  {e['dest']:<52} {e['bytes'] / 1e6:8.0f} MB")
+
     windows = {
+        "runtime": runtime,
+        "common": common,
         "desktop": [hf_entry(*t) for t in HF_GGUF["windows.desktop"]],
         "mobile": [hf_entry(*t) for t in HF_GGUF["windows.mobile"]],
     }
@@ -171,8 +227,9 @@ def main() -> int:
     print("\n==== per-install download ====")
     print(f"  Android            {gb(android):.2f} GB"
           f"{'  (CLIP towers MISSING)' if not args.onnx_base else ''}")
-    print(f"  Windows desktop 4B {gb(windows['desktop']):.2f} GB")
-    print(f"  Windows mobile 2B  {gb(windows['mobile']):.2f} GB")
+    shared = gb(windows["runtime"] + windows["common"])
+    print(f"  Windows desktop 4B {gb(windows['desktop']) + shared:.2f} GB  (incl. {shared:.2f} GB runtime + embedder)")
+    print(f"  Windows mobile 2B  {gb(windows['mobile']) + shared:.2f} GB")
     print("\nYou host: " + ("nothing — every file comes from HuggingFace"
                             if not LOCAL_ONNX else
                             "only mobileclip_image.onnx + mobileclip_text.onnx (398 MB)"))

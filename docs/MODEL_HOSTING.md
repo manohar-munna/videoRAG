@@ -1,6 +1,6 @@
 # Hosting the model weights
 
-The apps ship without weights (Android needs ~2.1 GB, Windows 2.3–3.3 GB). On first run
+The apps ship without weights (Android needs ~2.1 GB, Windows 3.4–4.4 GB). On first run
 each app downloads what it needs, verifies every file against a SHA-256, and stores it
 locally. Uninstall the app and the weights go with it — see **Uninstall** below.
 
@@ -12,11 +12,24 @@ upstream re-upload cannot change what clients fetch.
 | Platform | Downloads | You host |
 |---|---|---|
 | Android | 2.09 GB | the two MobileCLIP ONNX towers — **398 MB** |
-| Windows desktop (Qwen3-VL 4B) | 3.33 GB | nothing |
-| Windows mobile (Qwen2-VL 2B) | 2.32 GB | nothing |
+| Windows desktop (Qwen3-VL 4B) | 4.37 GB | nothing |
+| Windows mobile (Qwen2-VL 2B) | 3.36 GB | nothing |
 
-Windows needs no MobileCLIP file: the desktop embedder fetches MobileCLIP-S2 from
-HuggingFace through `open_clip` on first use.
+The Windows figures include 1.04 GB every desktop install needs whatever the profile, because
+a source checkout has none of it (`models/` and `tools/` are gitignored):
+
+| What | Size | Source | Without it |
+|---|---|---|---|
+| llama.cpp runtime b10549 (CUDA 12.4) | 251 MB | GitHub release | the VLM cannot start at all |
+| CUDA 12.4 runtime libraries | 391 MB | GitHub release | GPU offload unavailable |
+| MobileCLIP-S2 embedder | 398 MB | `apple/MobileCLIP-S2-OpenCLIP` | embedder silently falls back to `clip-ViT-B-32`, a different embedding space |
+
+The two runtime zips are unpacked into `tools/llama/` and then deleted; GitHub publishes a
+SHA-256 for each release asset, so they are verified like the weights. Pinned to the build
+the app is validated on — a fresh download reproduces a working `tools/llama/` file for file
+(56 of 56 identical). A runtime that is already present, of whatever build, is left alone.
+Anything already in the HuggingFace cache (`~/.cache/huggingface`) is copied rather than
+downloaded again, and still checksummed.
 
 ## The one thing you must host
 
@@ -70,8 +83,13 @@ replace a weight.
   reads "Model ready". Tapping it downloads the set with a progress bar, resumes if
   interrupted, and flips to **Model ready** when every file is present and verified. If the
   device is short on space it says so up front instead of failing part-way through.
-- **Windows** — the web UI shows a **Download local models** banner whenever weights for
-  the active profile are missing, or from the command line:
+- **Windows** — the header of the web UI has a permanent model button, the counterpart of
+  the Android badge: **✓ Models ready** when everything the active profile needs is on disk,
+  otherwise **⬇ Download models · <size>**. While downloading it becomes **■ Stop · <n>%**
+  — progress is kept, and the next press resumes. A strip under the header says what is
+  missing and shows progress through download, checksum and unpacking. When it finishes the
+  VLM server is started for you; nothing needs restarting. Switching profile re-checks what
+  is required. Or from the command line:
   ```bash
   python scripts/download_models.py                 # active profile
   python scripts/download_models.py --profile mobile
@@ -86,9 +104,11 @@ replace a weight.
   is written outside app-private storage, so an uninstall leaves nothing behind — verified
   on a clean emulator by installing, downloading the full set, uninstalling and confirming
   both directories were gone.
-- **Windows** — weights live in `models/` inside the project directory. Deleting the project
-  folder (or the folder a packaged build unpacks into) removes them. Nothing is written
-  elsewhere on the system.
+- **Windows** — weights live in `models/` and the runtime in `tools/llama/`, both inside the
+  project directory. Deleting the project folder (or the folder a packaged build unpacks
+  into) removes them. The one exception is a copy that `open_clip` may have put in
+  `~/.cache/huggingface` on an earlier run, before the embedder's checkpoint was part of the
+  download — the app no longer needs it once `models/mobileclip_s2/` is populated.
 
 ## Integrity
 
