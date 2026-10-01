@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 import urllib.request
 from pathlib import Path
@@ -152,6 +153,29 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+_HF_BASE = re.compile(r"^https://huggingface\.co/([^/]+/[^/]+)/resolve/[^/]+/?$")
+
+
+def onnx_entry(src: str, remote_name: str, onnx_base: str) -> dict:
+    """A hosted ONNX tower, described by what the host actually serves.
+
+    When the towers live on HuggingFace, size and SHA-256 come from its API - the same
+    bytes clients will download - so the local exports are not needed at all and can be
+    deleted to save space. Any other host falls back to hashing the local files, which
+    must then be the ones that were uploaded.
+    """
+    m = _HF_BASE.match(onnx_base)
+    if not m:
+        return local_entry(src, remote_name, onnx_base)
+    for sib in hf_repo(m.group(1)).get("siblings", []):
+        if sib.get("rfilename") == remote_name:
+            lfs = sib.get("lfs") or {}
+            if lfs.get("size") and lfs.get("sha256"):
+                return {"url": f"{onnx_base.rstrip('/')}/{remote_name}", "dest": remote_name,
+                        "bytes": lfs["size"], "sha256": lfs["sha256"]}
+    raise SystemExit(f"{remote_name} not found (with LFS size/sha256) in {m.group(1)}")
+
+
 def local_entry(src: str, remote_name: str, onnx_base: str) -> dict:
     p = ROOT / src
     if not p.exists():
@@ -206,8 +230,8 @@ def main() -> int:
         print(f"  {e['dest']:<52} {e['bytes'] / 1e6:8.0f} MB")
 
     if args.onnx_base:
-        print("Hashing locally-built ONNX towers...")
-        android += [local_entry(src, name, args.onnx_base) for src, name in LOCAL_ONNX]
+        print("Resolving the MobileCLIP ONNX towers...")
+        android += [onnx_entry(src, name, args.onnx_base) for src, name in LOCAL_ONNX]
     else:
         print("\n!! --onnx-base not given: the manifest will have NO CLIP towers, so the\n"
               "   Android app cannot search. Host the two files and re-run (see --help).",
